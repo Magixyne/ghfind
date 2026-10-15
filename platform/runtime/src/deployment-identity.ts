@@ -14,7 +14,9 @@ export function assertDeploymentIdentity(env: DeploymentSettings, compiled: unkn
       Object.keys(identity).sort().join(",") !== "imageBuildId,mode,sourceSha,writerEpoch" ||
       typeof identity.sourceSha !== "string" || !/^[a-f0-9]{40}$/.test(identity.sourceSha) ||
       typeof identity.imageBuildId !== "string" || !/^[a-f0-9]{64}$/.test(identity.imageBuildId) ||
-      !["off", "baseline"].includes(String(identity.mode)) || identity.writerEpoch !== "1" ||
+      !["off", "baseline"].includes(String(identity.mode)) ||
+      typeof identity.writerEpoch !== "string" || !/^[1-9][0-9]*$/.test(identity.writerEpoch) ||
+      !Number.isSafeInteger(Number(identity.writerEpoch)) ||
       identity.sourceSha !== env.FEED_RELEASE_SHA || identity.imageBuildId !== env.FEED_IMAGE_BUILD_ID ||
       identity.mode !== env.FEED_MODE || identity.writerEpoch !== env.FEED_WRITER_EPOCH)
     throw new HTTPError(503, "runtime_deployment_identity_mismatch");
