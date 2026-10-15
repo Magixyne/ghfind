@@ -23,12 +23,12 @@ test("refresh only aborts exact idle off actor; rejects identity and scope befor
  assert.equal(aborted,1);
  for (const patch of [{sourceSha:"b".repeat(40)},{imageBuildId:"c".repeat(64)},{mode:"off"},{writerEpoch:2},
  {actorId:"2".repeat(64)},{offVersionId:input.baselineVersionId},{baselineVersionId:input.offVersionId},{extra:true}]) {
-  assert.equal(refreshActor({...input,...patch},off,"api-0",actorId,actorId,"api",false,abort).code,"invalid_refresh");
+  assert.equal(refreshActor({...input,...patch},off,"api-0",actorId,actorId,"api",false,abort).kind,"refresh-rejected");
  }
- assert.equal(refreshActor(input,env,"api-0",actorId,actorId,"api",false,abort).code,"invalid_refresh");
- assert.equal(refreshActor(input,off,"executor-0",actorId,actorId,"api",false,abort).code,"invalid_refresh");
- assert.equal(refreshActor(input,off,"api-0",actorId,"2".repeat(64),"api",false,abort).code,"invalid_refresh");
- assert.equal(refreshActor(input,off,"api-0",actorId,actorId,"api",true,abort).code,"transition_in_progress");
+ assert.deepEqual(refreshActor(input,env,"api-0",actorId,actorId,"api",false,abort),{kind:"refresh-already-current",workerVersionId:input.baselineVersionId});
+ assert.equal(refreshActor(input,off,"executor-0",actorId,actorId,"api",false,abort).kind,"refresh-rejected");
+ assert.equal(refreshActor(input,off,"api-0",actorId,"2".repeat(64),"api",false,abort).kind,"refresh-rejected");
+ assert.deepEqual(refreshActor(input,off,"api-0",actorId,actorId,"api",true,abort),{kind:"refresh-rejected",status:409,code:"transition_in_progress"});
  assert.equal(aborted,1);
 });
 test("edge refresh requires exact baseline deployment and fixed actor",()=>{
@@ -46,9 +46,30 @@ test("route preserves typed rejection and treats abort or invalid reply as unkno
  assert.equal((await handleRequest(req(true,{...input,actorId:"2".repeat(64)}),env,dispatch)).status,400);
  assert.equal(calls,0);
  let r=await handleRequest(req(),env,dispatch);assert.equal(r.status,503);assert.equal((await r.json() as {error:string}).error,"refresh_outcome_unknown");
- for(const [status,code] of [[400,"invalid_refresh"],[409,"transition_in_progress"]] as const){
+ for(const [status,code] of [[400,"invalid_refresh_identity"],[409,"transition_in_progress"]] as const){
  r=await handleRequest(req(),env,{...dispatch,refresh:async()=>({kind:"refresh-rejected",status,code})});assert.equal(r.status,status);
  }
  r=await handleRequest(req(),env,{...dispatch,refresh:async()=>({ok:true})});assert.equal(r.status,503);
  assert.equal(calls,1);
+});
+
+test("known-off edge rejects before dispatch; exact baseline actor allows reads only", async()=>{
+ let dispatches=0;
+ const request=(body:unknown=input)=>new Request("https://runtime/internal/runtime/api-0/refresh",{method:"POST",headers:{authorization:`Bearer ${env.FEED_RUNTIME_ADMIN_SECRET}`},body:JSON.stringify(body)});
+ const dispatch={fetch:async()=>{throw Error("unexpected fetch");},stop:async()=>{throw Error("unexpected stop");},actorId:()=>actorId,
+ refresh:async()=>{dispatches++;return {kind:"refresh-already-current",workerVersionId:input.baselineVersionId};}};
+ let r=await handleRequest(request(),off,dispatch);
+ assert.equal(r.status,409);assert.deepEqual(await r.json(),{error:"refresh_edge_not_ready",workerVersionId:input.offVersionId});assert.equal(dispatches,0);
+ for(const body of [{...input,offVersionId:"33333333-3333-4333-8333-333333333333"},{...input,imageBuildId:"c".repeat(64)},{...input,actorId:"2".repeat(64)}]) {
+  r=await handleRequest(request(body),off,dispatch);assert.equal(r.status,400);
+ }
+ assert.equal(dispatches,0);
+ r=await handleRequest(request(),env,dispatch);assert.equal(r.status,409);
+ assert.deepEqual(await r.json(),{error:"refresh_actor_already_current",workerVersionId:input.baselineVersionId});
+ r=await handleRequest(request(),env,{...dispatch,refresh:async()=>({kind:"refresh-already-current",workerVersionId:input.offVersionId})});assert.equal(r.status,503);
+ let aborts=0;
+ for(const [e,id,target] of [[{...env,WORKER_VERSION:off.WORKER_VERSION},actorId,"api-0"],[env,"2".repeat(64),"api-0"],[env,actorId,"executor-0"]] as const){
+  const result=refreshActor(input,e,target,actorId,id,"api",false,()=>{aborts++;});assert.equal(result.kind,"refresh-rejected");
+ }
+ assert.equal(aborts,0);
 });

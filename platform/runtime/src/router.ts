@@ -382,8 +382,17 @@ export async function handleRequest(
         const body = await readBounded(request, 1024);
         let input: unknown;
         try { input = JSON.parse(new TextDecoder().decode(body)); }
-        catch { throw new HTTPError(400, "invalid_refresh"); }
+        catch { throw new HTTPError(400, "invalid_refresh_shape"); }
         if (!dispatch.actorId || !dispatch.refresh) throw new HTTPError(503, "refresh_unavailable");
+        if (env.FEED_MODE === "off") {
+          try { validateRefresh(input, env, dispatch.actorId(target), "actor"); }
+          catch (error) {
+            if (error instanceof HTTPError && error.code === "invalid_refresh_actor_version")
+              throw new HTTPError(400, "invalid_refresh_edge_version");
+            throw error;
+          }
+          return json({ error: "refresh_edge_not_ready", workerVersionId: env.WORKER_VERSION.id }, 409);
+        }
         validateRefresh(input, env, dispatch.actorId(target), "edge");
         let timer: ReturnType<typeof setTimeout> | undefined;
         let result: unknown;
@@ -393,7 +402,8 @@ export async function handleRequest(
           })]);
         } catch { throw new HTTPError(503, "refresh_outcome_unknown"); }
         finally { clearTimeout(timer); }
-        readRefreshFailure(result);
+        const currentVersion = readRefreshFailure(result, input.baselineVersionId);
+        return json({ error: "refresh_actor_already_current", workerVersionId: currentVersion }, 409);
       }
       if (target === "executor-0" && env.FEED_EXECUTOR_ENABLED !== "true")
         throw new HTTPError(503, "executor_not_enabled");
