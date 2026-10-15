@@ -130,3 +130,10 @@ test('provider failure cannot strand the new public Web without its build cache'
   const command='run: node node_modules/@opennextjs/cloudflare/dist/cli/index.js populateCache remote --config platform/runtime/wrangler.web.production.generated.json --cacheChunkSize 10';
   assert.throws(()=>check({'deploy-cf-production.yml':production.replace(command,'run: true')}));
 });
+
+test('off process replacement cannot bypass pause evidence, deployment or readiness', () => {
+  const production=originals['deploy-cf-production.yml'];
+  for (const part of ['240s node scripts/feed-production-off-transition.mjs', 'consumer-pause.json" "$RUNNER_TEMP/feed-production-evidence/off-transition.json"'])
+    assert.throws(()=>check({'deploy-cf-production.yml':production.replace(part,'removed')}));
+  assert.throws(()=>check({'deploy-cf-production.yml':production.replace('off-transition.json"','off-transition.json" || true')}));
+});

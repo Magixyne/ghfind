@@ -55,6 +55,13 @@ for (let i=1;i<order.length;i++) if(deployJob.indexOf(order[i])<=deployJob.index
 // platform rollout step, but retain all actual readiness/instance gates.
 const runtimeDeploys = deployJob.split('\n').filter(line => line.includes('wrangler deploy --config platform/runtime/wrangler.production.generated.json'));
 if (runtimeDeploys.length !== 2 || runtimeDeploys.some(line => !line.includes('--containers-rollout=immediate'))) throw new Error('Paused production runtime requires explicit immediate Container rollout');
+const offStep = /      - name: Deploy private adapter and off-mode[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
+const offTransition = offStep.indexOf('240s node scripts/feed-production-off-transition.mjs');
+if (offTransition < offStep.indexOf('wrangler deploy --config platform/runtime/wrangler.production.generated.json') ||
+    offTransition < 0 || offTransition >= offStep.indexOf('node scripts/feed-platform-production.mjs verify') ||
+    !offStep.includes('consumer-pause.json" "$RUNNER_TEMP/feed-production-evidence/off-transition.json"') ||
+    /continue-on-error|if:|\|\|/.test(offStep))
+  throw new Error('Off process replacement must follow deployment and consumer detachment, and precede full readiness without bypass');
 const imageStep = /      - name: Build and push the portable image[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
 for (const fragment of ['openssl rand -hex 32', '--build-arg IMAGE_BUILD_ID="$FEED_IMAGE_BUILD_ID"',
   '--entrypoint /usr/local/bin/feed-api', '--entrypoint /usr/local/bin/feed-worker', '--build-info',
