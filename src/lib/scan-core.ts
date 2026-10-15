@@ -10,10 +10,13 @@ import {
   computeImpactFromContribMap,
   computeImpactQualitySignals,
   bestOriginalRepoQuality,
+  isProfileReadmeRepo,
   topStarredOriginalRepoQuality,
+  weightedOriginalStars,
   collect,
   type ContribRepoAgg,
 } from "@/lib/github";
+import { collectorCache } from "@/lib/redis";
 import { score } from "@/lib/score";
 import type { PublicScanPrFact } from "@/lib/scan-run-types";
 import type { ImpactRepo, RecentPr, ScanResult, SignatureWork, SignatureWorkCluster, TopRepo } from "@/lib/types";
@@ -193,7 +196,7 @@ export function buildPublicSignatureWork(
  * requests only crawls GitHub once.
  */
 export async function buildScanResult(username: string): Promise<ScanResult> {
-  const collected = await collect(username);
+  const collected = await collect(username, { cache: collectorCache });
   const scan = {
     ...collected,
     scoring: score(collected.metrics),
@@ -271,16 +274,18 @@ export function applyPublicOriginalRepoInventory(
     ).values(),
   ];
   const loginLower = scan.metrics.username.toLowerCase();
+  const starRepos = all.filter((repo) => !isProfileReadmeRepo(repo, loginLower));
   const best = bestOriginalRepoQuality(all, loginLower);
-  const topStarred = topStarredOriginalRepoQuality(all, loginLower);
+  const topStarred = topStarredOriginalRepoQuality(starRepos, loginLower);
   const metrics = {
     ...scan.metrics,
     fetched_repo_count: Math.max(scan.metrics.fetched_repo_count, ownedRepos.length),
     original_repo_count: all.length,
     nonempty_original_repo_count: all.filter((repo) => repo.size > 0).length,
     empty_original_repo_count: ownedRepos.filter((repo) => repo.size <= 0).length,
-    total_stars: all.reduce((sum, repo) => sum + Math.max(0, repo.stars), 0),
-    max_stars: all.reduce((max, repo) => Math.max(max, repo.stars), 0),
+    total_stars: starRepos.reduce((sum, repo) => sum + Math.max(0, repo.stars), 0),
+    max_stars: starRepos.reduce((max, repo) => Math.max(max, repo.stars), 0),
+    ...weightedOriginalStars(starRepos, new Date()),
     best_original_repo_quality_score: best.score,
     best_original_repo_quality_repo: best.repo,
     top_starred_original_repo_quality_score: topStarred.score,

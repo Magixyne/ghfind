@@ -206,3 +206,22 @@ score v12 是产物版本，与 risk policy v9 是不同命名空间。
 - 上线前应用真实快照比较年龄、项目类型、采样覆盖率各组变化；合成测试不能证明公平性。
 
 任何未来调整应单独 RFC/PR、三端同步、增加行为回归用例并递增产物版本。
+
+## 9. main 同步补充（发布时优先采用本节）
+
+发布前同步了远端 main `66d371ea`。第 3 节记录最初检查的 `daa796da`；
+远端后续正向校准和原创项目社区贡献均保留。本次没有撤销这些更新：
+
+- 原创星标项优先使用 weighted_total_stars / weighted_max_stars，缺失才回退原字段。
+- 生态 depth 满分点为 10，移除全局 impact_quality_cap；文档权重由采集端逐仓库计算。
+  文档贡献上限 12 的低影响条件改为生态原始分 <=4、core <=2 且 doc_like > core。
+- 社区 ratio_points 再乘 `L(followers,500)`。
+- 有 external_merged_pr_count 时，外部 PR 有效量为
+  `external*(high_star_share+.6*(1-high_star_share))`，以 150 达到 12 分；
+  自有 PR 以 200 达到 `4+6*C(own_pr_community)` 分。文档折扣只作用于外部部分。
+  接受度在 external + maintainer_closed >=3 时按外部 PR 计算，否则沿用历史公式。
+  没有 external_merged_pr_count 的快照保留第 3 节的单池计算。
+- 新人奖励的公式、资格和 depth/8 输入仍保持已有定义，不随生态维度的 depth/10 改写。
+
+Python 本地评分同步上述已存在于 main 的正向公式，避免 SDK 与网站的新基线分歧。
+所有旧扣分阈值仍以第 6 节为准；本次 v12 变化是恢复旧扣分。

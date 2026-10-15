@@ -140,9 +140,9 @@ def contribution_quality_cap(m: Mapping[str, Any]) -> Optional[float]:
     if sample < 20 or ratio < 0.55:
         return None
     low_trust_impact = (
-        m.get("impact_quality_cap") is not None
-        and m["impact_quality_cap"] <= 4
+        ecosystem_impact_points(m) <= 4
         and _nz(m.get("core_impact_pr_count"), 0) <= 2
+        and _nz(m.get("doc_like_impact_pr_count"), 0) > _nz(m.get("core_impact_pr_count"), 0)
     )
     weak_top_star_project = (
         _nz(m.get("top_starred_original_repo_quality_score"), 1) < 0.3 and m["total_stars"] > 0
@@ -429,6 +429,32 @@ def legacy_penalties(m: Mapping[str, Any]):
     return flags, penalty
 
 
+def star_engagement_multiplier(ratio):
+    return 1 if ratio is None or ratio >= .04 else .85 if ratio >= .02 else .7 if ratio >= .01 else .5
+
+
+def ecosystem_impact_points(m):
+    return 9 * impact_prestige_signal(m) + 11 * min(m["impact_depth_raw"] / 10, 1)
+
+
+def contribution_volume_and_acceptance(m):
+    merged = m["merged_pr_count"]
+    breakdown = any(m.get(k) is not None for k in ("maintainer_closed_unmerged_pr_count", "self_closed_external_pr_count", "self_closed_own_repo_pr_count"))
+    total = max(merged, merged + _nz(m.get("maintainer_closed_unmerged_pr_count"), 0)) if breakdown else max(merged, m["total_pr_count"])
+    acceptance = min(6, 6 * merged / total if total >= 3 else 1.2 * merged)
+    if m.get("external_merged_pr_count") is None:
+        raw = 16 * log_ratio(merged, 200)
+        return max(0, raw - doc_like_pr_volume_discount(m, raw)), acceptance
+    external = max(0, min(m["external_merged_pr_count"], merged))
+    own = max(0, merged - external)
+    high_share = max(0, min(_nz(m.get("external_high_star_pr_share"), 1), 1))
+    raw = 12 * log_ratio(external * (high_share + .6 * (1-high_share)), 150)
+    community = max(0, min(_nz(m.get("own_pr_community"), 0), 1))
+    volume = max(0, raw - doc_like_pr_volume_discount(m, raw)) + (4 + 6*community) * log_ratio(own, 200)
+    decided = external + _nz(m.get("maintainer_closed_unmerged_pr_count"), 0)
+    return volume, min(6, 6 * external / decided) if decided >= 3 else acceptance
+
+
 def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     sub: Dict[str, float] = {
         "account_maturity": 0,
@@ -454,30 +480,12 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
             if m["total_stars"] > 0
             else 1
         )
-        star_pts = (log_ratio(m["total_stars"], 5000) * 7 + log_ratio(m["max_stars"], 2000) * 5) * star_quality
+        star_pts = (log_ratio(_nz(m.get("weighted_total_stars"), m["total_stars"]), 5000) * 7 + log_ratio(_nz(m.get("weighted_max_stars"), m["max_stars"]), 2000) * 5) * star_quality * star_engagement_multiplier(m.get("top_repo_engagement_ratio"))
         project_substance = max(0, min(_nz(m.get("best_original_repo_quality_score"), 0), 1)) * 6
         sub["original_project_quality"] = round(star_pts + project_substance, 1)
 
     # 3. Contribution Quality (27)
-    pr_volume_raw = log_ratio(m["merged_pr_count"], 200) * 16
-    pr_volume = max(0, pr_volume_raw - doc_like_pr_volume_discount(m, pr_volume_raw))
-    has_closed_pr_breakdown = (
-        m.get("maintainer_closed_unmerged_pr_count") is not None
-        or m.get("self_closed_external_pr_count") is not None
-        or m.get("self_closed_own_repo_pr_count") is not None
-    )
-    if has_closed_pr_breakdown:
-        acceptance_total = max(
-            m["merged_pr_count"],
-            m["merged_pr_count"] + _nz(m.get("maintainer_closed_unmerged_pr_count"), 0),
-        )
-    else:
-        acceptance_total = max(m["merged_pr_count"], m["total_pr_count"])
-    if acceptance_total >= 3:
-        acceptance = (m["merged_pr_count"] / acceptance_total) * 6
-    else:
-        acceptance = m["merged_pr_count"] * 1.2
-    acceptance = min(acceptance, 6.0)
+    pr_volume, acceptance = contribution_volume_and_acceptance(m)
     issue_pts = log_ratio(m["issues_created"], 100) * 5
     contribution_quality_raw = (
         pr_volume
@@ -494,13 +502,7 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     sub["contribution_quality"] = round(min(contribution_quality_raw, contribution_cap), 1)
 
     # 4. Ecosystem & Maintainer Impact (20)
-    prestige = impact_prestige_signal(m) * 9
-    depth = min(m["impact_depth_raw"] / 8.0, 1.0) * 11
-    ecosystem_raw = prestige + depth
-    sub["ecosystem_impact"] = round(
-        ecosystem_raw if m.get("impact_quality_cap") is None else min(ecosystem_raw, m["impact_quality_cap"]),
-        1,
-    )
+    sub["ecosystem_impact"] = round(ecosystem_impact_points(m), 1)
 
     # 5. Community Influence (8)
     follower_pts = log_ratio(m["followers"], 2000) * 5
@@ -513,7 +515,7 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     else:
         ratio = followers / following
         ratio_pts = 3 if ratio >= 2 else 2 if ratio >= 1 else 1.5 if ratio >= 0.5 else 1
-    community_raw = follower_pts + ratio_pts
+    community_raw = follower_pts + ratio_pts * log_ratio(m["followers"], 500)
     sub["community_influence"] = round(
         min(community_raw, 2.5) if _has_social_only_dormant_signal(m) else community_raw, 1
     )
