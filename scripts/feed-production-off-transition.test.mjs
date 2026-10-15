@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { transitionOffActors, validateConsumerReceipt } from './feed-production-off-transition.mjs';
+import { transitionOffActors, validateConsumerReceipt, readOffResponse } from './feed-production-off-transition.mjs';
 import { ACCOUNT } from './feed-production-release.mjs';
 const manifest=JSON.parse(readFileSync(new URL('../ops/feed-production-manifest.json',import.meta.url)));
 const env={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'hikariming/ghfind',GITHUB_REF:'refs/heads/main',
@@ -60,4 +60,33 @@ test('overall deadline prevents additional calls',async()=>{
   let time=0,sends=0;
   await assert.rejects(transitionOffActors(identity,options({now:()=>time,read:async path=>{time=240001;return read(path);},send:()=>{sends++;}})),/deadline/);
   assert.equal(sends,0);
+});
+
+test('HTTP failure records only bounded known code, request phase and status, never retries',async()=>{
+  let last,sends=0;
+  await assert.rejects(transitionOffActors(identity,options({record:v=>{last=structuredClone(v);},send:async target=>{
+    sends++; return readOffResponse(new Response(JSON.stringify({error:'transition_stop_timeout',debug:'PRIVATE_SECRET'}),{status:503}),`${target}/restart`);
+  }})),/transition_stop_timeout/);
+  assert.equal(sends,1);assert.deepEqual(last.error,{path:'api-0/restart',phase:'restart',status:503,code:'transition_stop_timeout'});
+  assert.equal(JSON.stringify(last).includes('PRIVATE_SECRET'),false);
+  assert.equal(last.targets[0].status,'attempted_unverified');
+});
+test('arbitrary, malformed, oversized and unknown error bodies are never echoed',async()=>{
+  for(const [body,code] of [[JSON.stringify({error:'PRIVATE_SECRET'}),'unrecognized_error_body'],
+    [JSON.stringify({error:'unknown_but_formatted_code'}),'unrecognized_error_body'],
+    [JSON.stringify({error:'token secret\nraw'}),'unrecognized_error_body'],['PRIVATE_SECRET','unreadable_error_body'],
+    ['PRIVATE_SECRET'.repeat(300),'unreadable_error_body']]) {
+    await assert.rejects(readOffResponse(new Response(body,{status:503}),'executor-0/restart'),error=>{
+      assert.equal(error.diagnostic.code,code);assert.equal(error.diagnostic.status,503);
+      assert.equal(error.message.includes('PRIVATE_SECRET'),false);return true;
+    });
+  }
+  await assert.rejects(readOffResponse(new Response('{"error":"transition_environment_not_ready"}',{status:409}),'api-1/restart'),/transition_environment_not_ready/);
+  assert.deepEqual(await readOffResponse(new Response('{"restarted":true}'),'api-0/restart'),{restarted:true});
+});
+test('unknown network errors retain safe request context without exception contents',async()=>{
+  let last,sends=0;
+  await assert.rejects(transitionOffActors(identity,options({record:v=>{last=structuredClone(v);},send:async()=>{sends++;throw Error('PRIVATE_TOKEN');}})));
+  assert.equal(sends,1);assert.deepEqual(last.error,{phase:'restart',path:'api-0/restart',status:null,code:'off_transition_failed'});
+  assert.equal(JSON.stringify(last).includes('PRIVATE_TOKEN'),false);
 });

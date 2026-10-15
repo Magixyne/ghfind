@@ -12,6 +12,31 @@ const check = (ok, message) => { if (!ok) throw new Error(message); };
 const uuid = value => /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value ?? '');
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`).test(value);
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === keys.split(',').sort().join(',');
+const errorCodes = new Set([
+  'unauthorized', 'not_found', 'invalid_transition', 'transition_in_progress', 'transition_timeout',
+  'transition_stop_timeout', 'transition_environment_not_ready', 'transition_unavailable',
+  'runtime_unconfigured', 'runtime_configuration_invalid', 'runtime_configuration_unavailable',
+  'runtime_deployment_identity_mismatch', 'container_no_instance', 'container_not_ready',
+  'container_starting', 'container_dependency_not_ready', 'container_response_not_json',
+  'container_version_or_contract_mismatch', 'actor_reset_by_deploy', 'actor_overloaded',
+  'executor_not_enabled', 'internal_error',
+]);
+class OffRequestError extends Error {
+  constructor(path, status, code) {
+    super(`off transition request rejected (${status}; ${path}; ${code})`);
+    this.diagnostic = { path, phase: path.endsWith('/restart') ? 'restart' : 'configuration', status, code };
+  }
+}
+export async function readOffResponse(response, path) {
+  check(/^(configuration|(api-[01]|executor-0)\/(configuration|restart))$/.test(path), 'invalid off request path');
+  if (response.status === 200) return boundedJSON(response,2048);
+  let code = 'unrecognized_error_body';
+  try {
+    const value = (await boundedJSON(response,2048))?.error;
+    if (typeof value === 'string' && /^[a-z0-9_]{1,64}$/.test(value) && errorCodes.has(value)) code=value;
+  } catch { code='unreadable_error_body'; }
+  throw new OffRequestError(path,response.status,code);
+}
 export function validateConsumerReceipt(receipt, manifest, env) {
   check(receipt?.format === 'ghfind-feed-production-consumers-off-v1' && receipt.status === 'passed' &&
     receipt.accountId === ACCOUNT && receipt.runtimeWorker === manifest.runtimeWorker &&
@@ -38,6 +63,7 @@ export async function transitionOffActors(identity, { consumerReceipt, manifest,
     runId:env.GITHUB_RUN_ID,runAttempt:env.GITHUB_RUN_ATTEMPT,targets:[],observations:[],readonlyCalls:0};
   const deadline = now() + 240000;
   let anchor, workerVersion, actorIds;
+  let operation = { phase:'consumer_validation', path:null, status:null };
   const invoke = async (fn, timeout, readonly = false) => {
     check(now() < deadline, 'off transition deadline exceeded');
     if (readonly) check(++evidence.readonlyCalls <= 20, 'off transition read budget exceeded');
@@ -47,7 +73,9 @@ export async function transitionOffActors(identity, { consumerReceipt, manifest,
     })]); check(now() < deadline, 'off transition deadline exceeded'); return value; } finally { clearTimeout(timer); }
   };
   const checkPaused = async () => {
-    const value=await invoke(paused,10000,true);
+    operation={phase:'paused_web',path:null,status:null};
+    // verifyWeb performs three bounded management reads, not one HTTP request.
+    const value=await invoke(paused,30000,true);
     check(value?.status==='passed' && value.mode==='paused' && value.sourceSha===identity.sourceSha && value.backend==='go' &&
       value.store==='cf_d1_r2' && uuid(value.workerVersionId), 'current compatible Web must be paused');
     check(!anchor || anchor===value.workerVersionId,'paused Web anchor changed'); anchor=value.workerVersionId; evidence.pausedVersion=anchor;
@@ -58,6 +86,7 @@ export async function transitionOffActors(identity, { consumerReceipt, manifest,
     evidence.consumerReceipt={runId:consumerReceipt.runId,runAttempt:consumerReceipt.runAttempt,observedAt:consumerReceipt.observedAt,queues:consumerReceipt.queues};
     for (const target of targets) {
       await checkPaused();
+      operation={phase:'configuration',path:'configuration',status:null};
       const edge=await invoke(()=>read('configuration'),10000,true);
       check(exact(edge,'service,version,contractVersion,workerVersionId,configuredImage,imageBuildId,mode,writerEpoch') &&
         edge.service==='feed-runtime' && edge.version===identity.sourceSha && edge.contractVersion==='1' &&
@@ -67,6 +96,7 @@ export async function transitionOffActors(identity, { consumerReceipt, manifest,
       evidence.workerVersionId=workerVersion;
       const currentActors={};
       for(const actor of targets) {
+        operation={phase:'configuration',path:`${actor}/configuration`,status:null};
         const config=await invoke(()=>read(`${actor}/configuration`),10000,true);
         check(exact(config,'actorId,configuredImage,imageBuildId,mode,sourceSha,target,workerVersionId,writerEpoch') &&
           config.target===actor && hex(config.actorId,64) && config.sourceSha===identity.sourceSha && config.configuredImage===identity.image &&
@@ -80,6 +110,7 @@ export async function transitionOffActors(identity, { consumerReceipt, manifest,
       evidence.observations.push({target,status:'off_configuration_verified',workerVersionId:workerVersion}); record(evidence);
       const item={target,actorId:actorIds[target],status:'attempted_unverified'}; evidence.targets.push(item); record(evidence);
       const body={sourceSha:identity.sourceSha,imageBuildId:identity.imageBuildId,mode:'off',writerEpoch:identity.writerEpoch};
+      operation={phase:'restart',path:`${target}/restart`,status:null};
       const reply=await invoke(()=>send(target,body),35000);
       check(exact(reply,'imageBuildId,mode,restarted,sourceSha,target,writerEpoch') && reply.restarted===true && reply.target===target &&
         Object.entries(body).every(([key,value])=>reply[key]===value), 'off restart reply identity differs');
@@ -87,7 +118,11 @@ export async function transitionOffActors(identity, { consumerReceipt, manifest,
     }
     await checkPaused();
     evidence.status='passed'; record(evidence); return evidence;
-  } catch(error) { evidence.status='failed'; record(evidence); throw error; }
+  } catch(error) {
+    evidence.status='failed';
+    evidence.error=error instanceof OffRequestError ? error.diagnostic : {...operation,code:'off_transition_failed'};
+    record(evidence); throw error;
+  }
 }
 async function main() {
   authorizeMutation();
@@ -100,8 +135,7 @@ async function main() {
     const response=await fetch(`${production.runtimeOrigin}/internal/runtime/${path}`,{method:body?'POST':'GET',redirect:'error',
       signal:AbortSignal.timeout(body?35000:10000),headers:{authorization:`Bearer ${secret}`,'content-type':'application/json'},
       ...(body?{body:JSON.stringify(body)}:{})});
-    check(response.status===200,`off transition request rejected (${response.status})`);
-    return boundedJSON(response,2048);
+    return readOffResponse(response,path);
   };
   let first=true;
   await transitionOffActors({sourceSha:process.env.RELEASE_SHA,imageBuildId:process.env.FEED_IMAGE_BUILD_ID,image,mode:'off',writerEpoch:manifest.writerEpoch},{
