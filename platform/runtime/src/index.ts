@@ -1,5 +1,6 @@
 import { ModeTransition, type TransitionRequest } from "./transition";
 import { captureTransitionResult, readTransitionResult } from "./transition-rpc";
+import { assertDeploymentIdentity } from "./deployment-identity";
 import { containerEnvironment } from "./environment";
 import { Container, getContainer } from "@cloudflare/containers";
 import { actorConfiguration, captureNativeProbe, handleRequest, type Dispatch, type NativeProbe, type Target } from "./router";
@@ -26,6 +27,7 @@ export class FeedAPI extends Container<RuntimeEnv> {
     ctx: ConstructorParameters<typeof Container>[0],
     env: RuntimeEnv,
   ) {
+    assertDeploymentIdentity(env);
     super(ctx, env);
     this.envVars = containerEnvironment(env, "api");
   }
@@ -58,6 +60,7 @@ export class FeedExecutor extends Container<RuntimeEnv> {
     ctx: ConstructorParameters<typeof Container>[0],
     env: RuntimeEnv,
   ) {
+    assertDeploymentIdentity(env);
     super(ctx, env);
     this.envVars = containerEnvironment(env, "executor");
   }

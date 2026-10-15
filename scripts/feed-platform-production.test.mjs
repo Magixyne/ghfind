@@ -1035,6 +1035,9 @@ test("bootstrap off has no asynchronous entrypoints; production resources and ca
   const c = renderRuntime(m, image, sha, "off"),
     a = renderAdapter(m, sha);
   assert.equal(c.vars.FEED_MODE, "off");
+  assert.deepEqual(JSON.parse(c.define.__FEED_DEPLOYMENT_IDENTITY__), {
+    sourceSha: sha, imageBuildId: c.vars.FEED_IMAGE_BUILD_ID, mode: "off", writerEpoch: "1",
+  });
   assert.equal(c.vars.FEED_SOURCE_RELAY_ENABLED, "false");
   assert.equal(c.vars.FEED_EXECUTOR_ENABLED, "true");
   assert.deepEqual(c.triggers, { crons: ["* * * * *"] });
@@ -1071,6 +1074,11 @@ test("actual readback whitelists all published identity fields and gates baselin
   assert.equal(JSON.stringify(r).includes("arbitraryBody"), false);
   const c = renderRuntime(m, image, sha, "baseline", r);
   assert.equal(c.vars.FEED_MODE, "baseline");
+  const offCode = renderRuntime(m, image, sha, "off").define.__FEED_DEPLOYMENT_IDENTITY__;
+  assert.notEqual(c.define.__FEED_DEPLOYMENT_IDENTITY__, offCode);
+  assert.deepEqual(JSON.parse(c.define.__FEED_DEPLOYMENT_IDENTITY__), {
+    sourceSha: sha, imageBuildId: c.vars.FEED_IMAGE_BUILD_ID, mode: "baseline", writerEpoch: "1",
+  });
   assert.equal(c.vars.FEED_SOURCE_RELAY_ENABLED, "true");
   assert.equal(c.queues.consumers.length, 2);
   assert.deepEqual(c.triggers.crons, ["* * * * *"]);
