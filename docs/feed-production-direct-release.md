@@ -116,8 +116,13 @@ and this request does not explicitly start or stop a container. It is rejected
 while that actor has a lifecycle transition in progress.
 
 A reset can interrupt its own RPC response, so neither an acknowledgement nor a
-lost response proves success. The release never resends the refresh; it resumes
-bounded, read-only configuration checks. Every actor must report the exact new
+lost response proves success. The release never resends a dispatched or uncertain
+refresh; it resumes bounded, read-only configuration checks. Only an exact
+known-off edge rejection that proves no actor RPC was dispatched permits another
+HTTP attempt, with three attempts maximum and fresh edge, actor and paused-Web
+checks. An actor that has already adopted the exact baseline version rejects the
+reset without mutation and must still pass a subsequent configuration read.
+Allowlisted rejection codes identify the validation stage without exposing secrets. Every actor must report the exact new
 baseline version before the first existing stop/start operation. A reset that
 continues to expose old configuration still fails the release. The subsequent
 native Go readiness checks remain mandatory. See the official

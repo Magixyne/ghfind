@@ -49,14 +49,23 @@ export async function readTransitionResponse(response, target, offVersion) {
 // refresh with its paused-Web check. It never grants lifecycle retries.
 // https://developers.cloudflare.com/durable-objects/platform/known-issues/#code-updates
 export const configurationLimits = Object.freeze({ durationMs: 180000, reads: 90, edgeAttempts: 45, intervalMs: 5000 });
-export async function readRefreshResponse(response) {
+export async function readRefreshResponse(response, offVersionId, baselineVersionId) {
   // A reset may disconnect its own RPC. None of these outcomes proves the new
   // object exists; only a subsequent exact configuration GET can do that.
-  if (response.status === 503) {
+  if ([400,409,503].includes(response.status)) {
     try {
       const value=await boundedJSON(response,2048);
-      if (value && Object.keys(value).join(',')==='error' && value.error==='refresh_outcome_unknown')
+      if (response.status===503 && value && Object.keys(value).join(',')==='error' && value.error==='refresh_outcome_unknown')
         return { status:'uncertain',httpStatus:503 };
+      if(response.status===409 && value && Object.keys(value).sort().join(',')==='error,workerVersionId') {
+        if(value.error==='refresh_edge_not_ready' && offVersionId && value.workerVersionId===offVersionId)
+          return {status:'pre_dispatch_rejection',httpStatus:409,code:value.error};
+        if(value.error==='refresh_actor_already_current' && baselineVersionId && value.workerVersionId===baselineVersionId)
+          return {status:'already_current_unverified',httpStatus:409,code:value.error};
+      }
+      if(response.status===400 && value && Object.keys(value).join(',')==='error' &&
+        ['invalid_refresh','invalid_refresh_shape','invalid_refresh_identity','invalid_refresh_edge_version','invalid_refresh_actor_version','invalid_refresh_actor_scope'].includes(value.error))
+        return {status:'rejected',httpStatus:400,code:value.error};
     } catch { /* An unreadable HTTP reply does not establish the RPC boundary. */ }
   }
   return { status: 'rejected', httpStatus: response.status };
@@ -66,6 +75,7 @@ export function edgePreflight(identity, off, { read, readActor, refresh, now = D
   let remainingMs = configurationLimits.durationMs;
   let attempts = 0, reads = 0, baselineVersion, actorsVerified = false;
   const refreshed = new Set();
+  const refreshAttempts = new Map();
   const actorIds = new Map((off.readiness ?? []).map(value => [value.target, value.actorId]));
   if (readActor) requireThat(actorIds.size === 3 && targets.every(target => /^[a-f0-9]{64}$/.test(actorIds.get(target) ?? '')) &&
     new Set(actorIds.values()).size === 3, 'off actor identity required');
@@ -96,7 +106,23 @@ export function edgePreflight(identity, off, { read, readActor, refresh, now = D
         // invocations recheck the current actor within the same shared budget.
         if (readActor) for (const actor of actorsVerified ? [currentTarget] : targets) {
           requireThat(targets.includes(actor), 'invalid configuration target');
+          let recheckEdge=false;
           while (true) {
+            if(recheckEdge) {
+              const edge=await read(remaining());
+              requireThat(edge && Object.keys(edge).sort().join(',')==='configuredImage,contractVersion,imageBuildId,mode,service,version,workerVersionId,writerEpoch' &&
+                edge.service==='feed-runtime' && edge.version===identity.sourceSha && edge.contractVersion==='1' &&
+                edge.configuredImage===off.image && edge.imageBuildId===identity.imageBuildId && edge.writerEpoch===identity.writerEpoch,
+              'refresh retry edge identity differs');
+              requireThat(now()<deadline,'runtime edge preflight deadline exceeded');
+              if(edge.mode==='off' && edge.workerVersionId===off.runtime.versionId) {
+                observe({scope:'refresh_edge',actor,status:'known_off',workerVersionId:edge.workerVersionId});
+                requireThat(now()+configurationLimits.intervalMs<deadline,'runtime configuration preflight exhausted');
+                await sleep(configurationLimits.intervalMs);continue;
+              }
+              requireThat(edge.mode==='baseline'&&edge.workerVersionId===baselineVersion,'refresh retry baseline identity differs');
+              recheckEdge=false;
+            }
             const configuration = await readActor(actor, remaining());
             requireThat(now() < deadline, 'runtime actor preflight deadline exceeded');
             requireThat(configuration && typeof configuration === 'object' && !Array.isArray(configuration) &&
@@ -119,7 +145,10 @@ export function edgePreflight(identity, off, { read, readActor, refresh, now = D
               // Reserve once before dispatch, including lost replies. The Set
               // spans all actors and subsequent calls to this preflight.
               refreshed.add(actor);
-              observe({ scope:'refresh',actor,status:'attempted_unverified',offVersionId:off.runtime.versionId,baselineVersionId:baselineVersion });
+              const refreshAttempt=(refreshAttempts.get(actor)??0)+1;
+              requireThat(refreshAttempt<=3,'runtime actor refresh pre-dispatch retry bound exceeded');
+              refreshAttempts.set(actor,refreshAttempt);
+              observe({ scope:'refresh',actor,refreshAttempt,status:'attempted_unverified',offVersionId:off.runtime.versionId,baselineVersionId:baselineVersion });
               const body={...identity,offVersionId:off.runtime.versionId,baselineVersionId:baselineVersion,actorId:actorIds.get(actor)};
               let outcome, refreshTimer;
               const refreshTimeout=Math.min(10000,deadline-now());
@@ -128,11 +157,18 @@ export function edgePreflight(identity, off, { read, readActor, refresh, now = D
               })]); }
               catch { outcome={status:'uncertain',httpStatus:null}; }
               finally { clearTimeout(refreshTimer); }
-              requireThat(outcome && ['uncertain','rejected'].includes(outcome.status) &&
+              requireThat(outcome && ['uncertain','rejected','pre_dispatch_rejection','already_current_unverified'].includes(outcome.status) &&
                 (outcome.httpStatus===null || (Number.isInteger(outcome.httpStatus)&&outcome.httpStatus>=100&&outcome.httpStatus<=599)),
               'invalid refresh outcome');
-              observe({ scope:'refresh',actor,status:outcome.status,httpStatus:outcome.httpStatus });
+              requireThat(outcome.status!=='pre_dispatch_rejection'||(outcome.httpStatus===409&&outcome.code==='refresh_edge_not_ready'),'invalid pre-dispatch refresh outcome');
+              requireThat(outcome.status!=='already_current_unverified'||(outcome.httpStatus===409&&outcome.code==='refresh_actor_already_current'),'invalid current refresh outcome');
+              observe({ scope:'refresh',actor,refreshAttempt,status:outcome.status,httpStatus:outcome.httpStatus,
+                ...(['refresh_edge_not_ready','refresh_actor_already_current','invalid_refresh','invalid_refresh_shape','invalid_refresh_identity','invalid_refresh_edge_version','invalid_refresh_actor_version','invalid_refresh_actor_scope'].includes(outcome.code)?{code:outcome.code}:{}) });
               requireThat(outcome.status!=='rejected','runtime actor refresh explicitly rejected');
+              if(outcome.status==='pre_dispatch_rejection') {
+                requireThat(refreshAttempt<3,'runtime actor refresh pre-dispatch retry bound exceeded');
+                refreshed.delete(actor);recheckEdge=true;
+              }
               requireThat(now() < deadline, 'runtime actor refresh deadline exceeded');
             }
             requireThat(reads < configurationLimits.reads && now() + configurationLimits.intervalMs < deadline, 'runtime configuration preflight exhausted');
@@ -229,7 +265,7 @@ async function main() {
           headers:{authorization:`Bearer ${process.env.FEED_RUNTIME_ADMIN_SECRET}`,'content-type':'application/json'},
           body:JSON.stringify(body),
         });
-        const outcome=await readRefreshResponse(response);
+        const outcome=await readRefreshResponse(response,body.offVersionId,body.baselineVersionId);
         await response.body?.cancel().catch(()=>{});
         return outcome;
       },

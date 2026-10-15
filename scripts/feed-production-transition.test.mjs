@@ -304,3 +304,39 @@ test('refresh reservations survive subsequent preflight calls',async()=>{
  await assert.rejects(preflight(()=>{},'api-1',async()=>{}),/exhausted/);
  assert.deepEqual([...counts.values()],[1,1,1]);
 });
+test('exact known-off edge can reject twice before one actual refresh dispatch',async()=>{
+ let clock=0,posts=0,edgeReads=0;const attempts=new Map(),current=new Set(),beforePosts=[];
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>{edgeReads++;return configuration();},
+  readActor:async target=>actorConfiguration(target,current.has(target)?'baseline':'off'),
+  refresh:async(target)=>{const n=(attempts.get(target)??0)+1;attempts.set(target,n);beforePosts.push(edgeReads);
+   if(target==='api-0'&&n<3)return {status:'pre_dispatch_rejection',httpStatus:409,code:'refresh_edge_not_ready'};
+   posts++;current.add(target);return {status:'uncertain',httpStatus:503};}});
+ const result=await transitionActors(identity,{paused:async()=>anchor,preflight,send:async(target,body)=>({restarted:true,target,...body})});
+ assert.equal(result.status,'passed');assert.equal(attempts.get('api-0'),3);assert.equal(posts,3);
+ assert.ok(beforePosts[1]>beforePosts[0]&&beforePosts[2]>beforePosts[1]);
+});
+test('pre-dispatch refresh rejection bound cannot grant a fourth HTTP attempt',async()=>{
+ let clock=0,sends=0,restarts=0;
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(),readActor:async t=>actorConfiguration(t,'off'),
+  refresh:async()=>{sends++;return {status:'pre_dispatch_rejection',httpStatus:409,code:'refresh_edge_not_ready'};}});
+ await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{restarts++;}}),/retry bound/);
+ assert.equal(sends,3);assert.equal(restarts,0);
+});
+test('refresh parser only accepts exact race codes and the pinned phase version',async()=>{
+ const {readRefreshResponse}=await import('./feed-production-transition.mjs');
+ for(const [error,workerVersionId,status] of [['refresh_edge_not_ready',offVersion,'pre_dispatch_rejection'],['refresh_actor_already_current',baselineVersion,'already_current_unverified']]){
+  assert.equal((await readRefreshResponse(Response.json({error,workerVersionId},{status:409}),offVersion,baselineVersion)).status,status);
+  for(const body of [{error,workerVersionId:'wrong'},{error,workerVersionId,extra:true},{error:'other',workerVersionId}])
+   assert.equal((await readRefreshResponse(Response.json(body,{status:409}),offVersion,baselineVersion)).status,'rejected');
+ }
+ for(const error of ['invalid_refresh_shape','invalid_refresh_identity','invalid_refresh_edge_version','invalid_refresh_actor_version','invalid_refresh_actor_scope'])
+  assert.equal((await readRefreshResponse(Response.json({error},{status:400}),offVersion,baselineVersion)).code,error);
+ assert.equal((await readRefreshResponse(Response.json({error:'arbitrary_private_value'},{status:400}),offVersion,baselineVersion)).code,undefined);
+});
+test('already-current refresh response only reconciles GET and never resends',async()=>{
+ let clock=0;const attempts=new Map();
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(),
+  readActor:async t=>actorConfiguration(t,attempts.has(t)?'baseline':'off'),refresh:async t=>{attempts.set(t,(attempts.get(t)??0)+1);return {status:'already_current_unverified',httpStatus:409,code:'refresh_actor_already_current'};}});
+ assert.equal((await transitionActors(identity,{paused:async()=>anchor,preflight,send:async(target,body)=>({restarted:true,target,...body})})).status,'passed');
+ assert.deepEqual([...attempts.values()],[1,1,1]);
+});
