@@ -163,3 +163,60 @@ test('only a proven HTTP 409 from the known off edge can repeat preflight', asyn
   assert.equal(calls, 4);
   assert.equal(preflights, 4);
 });
+
+const actorIds = new Map(['api-0','api-1','executor-0'].map((target, index) => [target, String(index + 1).repeat(64)]));
+const nativeOff = { ...off, readiness: [...actorIds].map(([target, actorId]) => ({ target, actorId })) };
+const actorConfiguration = (target, mode = 'baseline') => ({
+ target, actorId: actorIds.get(target), workerVersionId: mode === 'off' ? offVersion : baselineVersion,
+ sourceSha: identity.sourceSha, configuredImage: off.image, imageBuildId: identity.imageBuildId, mode, writerEpoch: 1,
+});
+test('all three DO environments converge before first lifecycle mutation; each later actor is rechecked', async () => {
+ let clock=0, actorReads=0;
+ const seen=[], calls=[];
+ const preflight=edgePreflight(identity,nativeOff,{
+  now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(),
+  readActor:async target=>{actorReads++;calls.push(`read:${target}`);seen.push(target);return actorConfiguration(target,actorReads===1?'off':'baseline');},
+ });
+ await transitionActors(identity,{paused:async()=>anchor,preflight,send:async(target,body)=>{
+  assert.deepEqual([...new Set(seen)],['api-0','api-1','executor-0']);calls.push(`post:${target}`);clock+=30000;return {restarted:true,target,...body};
+ }});
+ assert.deepEqual(calls,['read:api-0','read:api-0','read:api-1','read:executor-0','post:api-0','read:api-1','post:api-1','read:executor-0','post:executor-0']);
+ assert.equal(clock,92000);
+});
+test('foreign, malformed or unavailable DO configuration never grants a first lifecycle POST', async () => {
+ for(const patch of [null,{}, {actorId:'f'.repeat(64)},{target:'api-1'}, {sourceSha:'c'.repeat(40)},
+  {imageBuildId:'c'.repeat(64)},{configuredImage:'other'}, {writerEpoch:2}, {mode:'baseline',workerVersionId:offVersion},
+  {mode:'off',workerVersionId:baselineVersion},{workerVersionId:'12345678-1234-4234-8234-123456789099'},{extra:true},'missing method']) {
+  let sends=0,reads=0;
+  const preflight=edgePreflight(identity,nativeOff,{read:async()=>configuration(),readActor:async target=>{
+   reads++;if(patch==='missing method')throw Error('runtime configuration preflight rejected (503)');
+   return patch===null?null:Object.keys(patch).length?{...actorConfiguration(target),...patch}:{};
+  }});
+  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}));
+  assert.equal(sends,0);assert.equal(reads,1);
+ }
+});
+test('edge and all actor reads share time and request budgets before first mutation', async () => {
+ let clock=0,reads=0,sends=0;
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},
+  read:async()=>{reads++;clock+=30000;return configuration();},
+  readActor:async target=>{reads++;clock+=10000;return actorConfiguration(target,'off');},
+ });
+ await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}),/deadline exceeded/);
+ assert.equal(reads,3);assert.equal(sends,0);
+ await assert.rejects(preflight(()=>{}),/exhausted/);assert.equal(reads,3);
+ let gets=0;
+ const capped=edgePreflight(identity,nativeOff,{now:()=>0,sleep:async()=>{},read:async()=>{gets++;return configuration();},
+  readActor:async target=>{gets++;return actorConfiguration(target,'off');},
+ });
+ await assert.rejects(capped(()=>{}),/exhausted/);assert.equal(gets,30);
+});
+test('configuration proof does not authorize replay if a POST races propagation or loses its reply', async () => {
+ for(const response of [Response.json({error:'invalid_transition'},{status:400}),null]) {
+  let sends=0;
+  const preflight=edgePreflight(identity,nativeOff,{read:async()=>configuration(),readActor:async target=>actorConfiguration(target)});
+  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async target=>{
+   sends++;if(!response)throw Error('lost reply');return readTransitionResponse(response,target,offVersion);
+  }}));assert.equal(sends,1);
+ }
+});

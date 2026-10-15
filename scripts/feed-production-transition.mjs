@@ -44,17 +44,25 @@ export async function readTransitionResponse(response, target, offVersion) {
     receipt.restarted === true, 'transition reply shape differs');
   return receipt;
 }
-export function edgePreflight(identity, off, { read, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
+export function edgePreflight(identity, off, { read, readActor, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   requireThat(/^[a-f0-9-]{36}$/.test(off?.runtime?.versionId ?? '') && typeof off.image === 'string', 'off edge identity required');
   let remainingMs = 45000;
-  let attempts = 0, baselineVersion;
-  return async (record) => {
+  let attempts = 0, reads = 0, baselineVersion, actorsVerified = false;
+  const actorIds = new Map((off.readiness ?? []).map(value => [value.target, value.actorId]));
+  if (readActor) requireThat(actorIds.size === 3 && targets.every(target => /^[a-f0-9]{64}$/.test(actorIds.get(target) ?? '')) &&
+    new Set(actorIds.values()).size === 3, 'off actor identity required');
+  return async (record, currentTarget = targets[0]) => {
     const startedAt = now(), deadline = startedAt + remainingMs;
     try {
-    while (attempts < 15 && now() < deadline) {
+    const remaining = () => {
+      requireThat(now() < deadline && reads < 30, 'runtime configuration preflight exhausted');
+      reads++;
+      return Math.max(1, deadline - now());
+    };
+    while (attempts < 15 && now() < deadline && reads < 30) {
       const attempt = ++attempts;
       record({ attempt, status: 'attempted_unverified' });
-      const value = await read(Math.max(1, deadline - now()));
+      const value = await read(remaining());
       requireThat(now() < deadline, 'runtime edge preflight deadline exceeded');
       requireThat(value && Object.keys(value).sort().join(',') === ['service','version','contractVersion','workerVersionId','configuredImage','imageBuildId','mode','writerEpoch'].sort().join(',') &&
         value.service === 'feed-runtime' && value.version === identity.sourceSha && value.contractVersion === '1' &&
@@ -64,6 +72,31 @@ export function edgePreflight(identity, off, { read, now = Date.now, sleep = ms 
         requireThat(!baselineVersion || baselineVersion === value.workerVersionId, 'baseline edge version changed');
         baselineVersion = value.workerVersionId;
         record({ attempt, status: 'baseline_verified', workerVersionId: baselineVersion });
+        // Prove every fixed actor before the first lifecycle POST; subsequent
+        // invocations recheck the current actor within the same shared budget.
+        if (readActor) for (const actor of actorsVerified ? [currentTarget] : targets) {
+          requireThat(targets.includes(actor), 'invalid configuration target');
+          while (true) {
+            const configuration = await readActor(actor, remaining());
+            requireThat(now() < deadline, 'runtime actor preflight deadline exceeded');
+            requireThat(configuration && typeof configuration === 'object' && !Array.isArray(configuration) &&
+              Object.keys(configuration).sort().join(',') === 'actorId,configuredImage,imageBuildId,mode,sourceSha,target,workerVersionId,writerEpoch' &&
+              configuration.target === actor && configuration.actorId === actorIds.get(actor) &&
+              configuration.sourceSha === identity.sourceSha && configuration.configuredImage === off.image &&
+              configuration.imageBuildId === identity.imageBuildId && configuration.writerEpoch === identity.writerEpoch,
+              'runtime actor identity differs');
+            if (configuration.mode === 'baseline' && configuration.workerVersionId === baselineVersion) {
+              record({ scope: 'actor', actor, read: reads, status: 'baseline_verified', workerVersionId: baselineVersion });
+              break;
+            }
+            requireThat(configuration.mode === 'off' && configuration.workerVersionId === off.runtime.versionId,
+              'unexpected runtime actor state');
+            record({ scope: 'actor', actor, read: reads, status: 'known_off', workerVersionId: configuration.workerVersionId });
+            requireThat(reads < 30 && now() + 2000 < deadline, 'runtime configuration preflight exhausted');
+            await sleep(2000);
+          }
+        }
+        actorsVerified = true;
         return;
       }
       requireThat(value.mode === 'off' && value.workerVersionId === off.runtime.versionId, 'unexpected runtime edge state');
@@ -97,7 +130,7 @@ export async function transitionActors(identity, { paused, send, preflight, reco
         evidence.edgePreflight ??= [];
         evidence.edgePreflight.push({ target, ...observation });
         record(evidence);
-      });
+      }, target);
       // Persist attempted state before sending; no blind retry on a lost reply.
       const item = { target, status: 'attempted_unverified' }; results.push(item); record(evidence);
       let result;
@@ -111,7 +144,7 @@ export async function transitionActors(identity, { paused, send, preflight, reco
         await preflight(observation => {
           evidence.edgePreflight ??= [];
           evidence.edgePreflight.push({ target, ...observation }); record(evidence);
-        });
+        }, target);
       }
       requireThat(result && Object.keys(result).sort().join(',') === ['restarted','target','sourceSha','imageBuildId','mode','writerEpoch'].sort().join(',') && result.restarted === true && result.target === target && Object.entries(identity).every(([key,value])=>result[key]===value), 'transition reply identity differs');
       item.status = 'passed'; record(evidence);
@@ -132,16 +165,22 @@ async function main() {
   validateReceipt(off, manifest, sha, off.image, 'off');
   requireThat(typeof process.env.FEED_RUNTIME_ADMIN_SECRET === 'string' && process.env.FEED_RUNTIME_ADMIN_SECRET.length >= 32, 'runtime admin credential absent');
   const identity = { sourceSha: sha, imageBuildId: process.env.FEED_IMAGE_BUILD_ID, mode: 'baseline', writerEpoch: manifest.writerEpoch };
+  const readConfiguration = async (path, remaining) => {
+    const response = await fetch(`${production.runtimeOrigin}/internal/runtime/${path}`, {
+      method: 'GET', redirect: 'error', signal: AbortSignal.timeout(Math.min(10000, remaining)),
+      headers: { authorization: `Bearer ${process.env.FEED_RUNTIME_ADMIN_SECRET}`, accept: 'application/json' },
+    });
+    // Missing RPC methods on a previous DO version are not proof of known off
+    // identity. Fail closed; never infer permission for a lifecycle POST.
+    requireThat(response.status === 200, `runtime configuration preflight rejected (${response.status})`);
+    return boundedJSON(response, 2048);
+  };
   let first = true;
   await transitionActors(identity, {
-    preflight: edgePreflight(identity, off, { read: async remaining => {
-      const response = await fetch(`${production.runtimeOrigin}/internal/runtime/configuration`, {
-        method: 'GET', redirect: 'error', signal: AbortSignal.timeout(Math.min(10000, remaining)),
-        headers: { authorization: `Bearer ${process.env.FEED_RUNTIME_ADMIN_SECRET}`, accept: 'application/json' },
-      });
-      requireThat(response.status === 200, `runtime edge preflight rejected (${response.status})`);
-      return boundedJSON(response, 2048);
-    }}),
+    preflight: edgePreflight(identity, off, {
+      read: remaining => readConfiguration('configuration', remaining),
+      readActor: (target, remaining) => readConfiguration(`${target}/configuration`, remaining),
+    }),
     paused: () => verifyWeb(sha, 'paused', process.env),
     record: evidence => { writeFileSync(output, JSON.stringify(evidence,null,2)+'\n', { mode: 0o600, flag: first ? 'wx' : 'w' }); first = false; },
     send: async (target, body) => {

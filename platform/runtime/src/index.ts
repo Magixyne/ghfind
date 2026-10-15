@@ -2,7 +2,7 @@ import { ModeTransition, type TransitionRequest } from "./transition";
 import { captureTransitionResult, readTransitionResult } from "./transition-rpc";
 import { containerEnvironment } from "./environment";
 import { Container, getContainer } from "@cloudflare/containers";
-import { captureNativeProbe, handleRequest, type Dispatch, type NativeProbe, type Target } from "./router";
+import { actorConfiguration, captureNativeProbe, handleRequest, type Dispatch, type NativeProbe, type Target } from "./router";
 import { runScheduled } from "./scheduled";
 import { handleAdminRequest } from "./admin";
 import { handleGovernanceRequest } from "./governance";
@@ -31,6 +31,9 @@ export class FeedAPI extends Container<RuntimeEnv> {
   }
   // Accessible only through this namespace binding, not a public HTTP route.
   private readonly modeTransition = new ModeTransition();
+  runtimeConfiguration(target: Target) {
+    return actorConfiguration(this.env, target, this.ctx.id.toString());
+  }
   runtimeRestart(target: Target, input: TransitionRequest) {
     return captureTransitionResult(() => this.modeTransition.run(target, this.env, input, {
       state: () => ({ actorId: this.ctx.id.toString(), running: this.ctx.container?.running === true }),
@@ -59,6 +62,9 @@ export class FeedExecutor extends Container<RuntimeEnv> {
     this.envVars = containerEnvironment(env, "executor");
   }
   private readonly modeTransition = new ModeTransition();
+  runtimeConfiguration(target: Target) {
+    return actorConfiguration(this.env, target, this.ctx.id.toString());
+  }
   runtimeRestart(target: Target, input: TransitionRequest) {
     return captureTransitionResult(() => this.modeTransition.run(target, this.env, input, {
       state: () => ({ actorId: this.ctx.id.toString(), running: this.ctx.container?.running === true }),
@@ -94,6 +100,7 @@ function dispatcher(env: RuntimeEnv): Dispatch {
     stop: (target) => instance(target).stop("SIGTERM"),
     restart: async (target, input) => readTransitionResult(await instance(target).runtimeRestart(target, input)),
     probe: (target) => instance(target).runtimeProbe(),
+    configuration: (target) => instance(target).runtimeConfiguration(target),
     actorId: (target) => (target === "executor-0" ? env.FEED_EXECUTOR : env.FEED_API)
       .idFromName(target).toString(),
   };

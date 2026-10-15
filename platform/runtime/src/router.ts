@@ -21,6 +21,7 @@ export interface Dispatch {
   // These are binding-only capabilities, never client-provided identities.
   probe?(target: Target): Promise<NativeProbe>;
   actorId?(target: Target): string;
+  configuration?(target: Target): Promise<unknown>;
 }
 export type RuntimeSettings = Pick<
   RuntimeEnv,
@@ -180,6 +181,47 @@ function targetFrom(value: string): Target {
   throw new HTTPError(404, "not_found");
 }
 
+// Binding metadata only: this must never inspect, start or contact a process.
+// In a rolling update, the DO's environment can differ from the calling edge.
+export function actorConfiguration(env: RuntimeSettings, target: Target, actorId: string) {
+  checkConfiguration(env);
+  targetFrom(target);
+  if (env.FEED_ENVIRONMENT !== "production" || !/^[a-f0-9]{64}$/.test(actorId))
+    throw new HTTPError(503, "runtime_configuration_invalid");
+  return {
+    target, actorId, workerVersionId: env.WORKER_VERSION.id,
+    sourceSha: env.FEED_RELEASE_SHA, configuredImage: env.FEED_IMAGE_REFERENCE,
+    imageBuildId: env.FEED_IMAGE_BUILD_ID, mode: env.FEED_MODE,
+    writerEpoch: Number(env.FEED_WRITER_EPOCH),
+  };
+}
+
+async function readActorConfiguration(target: Target, dispatch: Dispatch) {
+  if (!dispatch.configuration || !dispatch.actorId)
+    throw new HTTPError(503, "runtime_configuration_unavailable");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let value: unknown;
+  try {
+    value = await Promise.race([dispatch.configuration(target), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new HTTPError(503, "runtime_configuration_unavailable")), 2000);
+    })]);
+  } finally { clearTimeout(timer); }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new HTTPError(503, "runtime_configuration_invalid");
+  const data = value as Record<string, unknown>;
+  if (Object.keys(data).sort().join(",") !== "actorId,configuredImage,imageBuildId,mode,sourceSha,target,workerVersionId,writerEpoch" ||
+      data.target !== target || data.actorId !== dispatch.actorId(target) ||
+      typeof data.actorId !== "string" || !/^[a-f0-9]{64}$/.test(data.actorId) ||
+      typeof data.workerVersionId !== "string" || !/^[a-f0-9-]{36}$/.test(data.workerVersionId) ||
+      typeof data.sourceSha !== "string" || !/^[a-f0-9]{40}$/.test(data.sourceSha) ||
+      typeof data.configuredImage !== "string" || !/^registry\.cloudflare\.com\/8f19bebe359e4ec1a24c68c5f49c1584\/ghfind-feed@sha256:[a-f0-9]{64}$/.test(data.configuredImage) ||
+      typeof data.imageBuildId !== "string" || !/^[a-f0-9]{64}$/.test(data.imageBuildId) ||
+      (data.mode !== "off" && data.mode !== "baseline") ||
+      !Number.isSafeInteger(data.writerEpoch) || Number(data.writerEpoch) < 1)
+    throw new HTTPError(503, "runtime_configuration_invalid");
+  return data;
+}
+
 export async function probe(
   target: Target,
   env: RuntimeSettings,
@@ -324,12 +366,16 @@ export async function handleRequest(
         });
       }
       const match =
-        /^\/internal\/runtime\/(api-[01]|executor-0)\/(ready|stop|restart)$/.exec(
+        /^\/internal\/runtime\/(api-[01]|executor-0)\/(ready|stop|restart|configuration)$/.exec(
           url.pathname,
         );
       if (!match?.[1] || !match[2] || url.search)
         throw new HTTPError(404, "not_found");
       const target = targetFrom(match[1]);
+      // Metadata does not enable or wake the executor. Off deployments must
+      // remain inspectable while every process/lifecycle route stays gated.
+      if (match[2] === "configuration" && request.method === "GET" && env.FEED_ENVIRONMENT === "production")
+        return json(await readActorConfiguration(target, dispatch));
       if (target === "executor-0" && env.FEED_EXECUTOR_ENABLED !== "true")
         throw new HTTPError(503, "executor_not_enabled");
       if (match[2] === "restart" && request.method === "POST" && env.FEED_ENVIRONMENT === "production") {
