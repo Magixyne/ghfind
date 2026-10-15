@@ -45,17 +45,31 @@ export async function readTransitionResponse(response, target, offVersion) {
   return receipt;
 }
 // Code updates reach globally unique DOs eventually (seconds to minutes).
-// This allowance covers metadata reads only, never unknown lifecycle retries.
+// One allowance covers metadata reads, their waits, and the optional one-shot
+// refresh with its paused-Web check. It never grants lifecycle retries.
 // https://developers.cloudflare.com/durable-objects/platform/known-issues/#code-updates
 export const configurationLimits = Object.freeze({ durationMs: 180000, reads: 90, edgeAttempts: 45, intervalMs: 5000 });
-export function edgePreflight(identity, off, { read, readActor, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
+export async function readRefreshResponse(response) {
+  // A reset may disconnect its own RPC. None of these outcomes proves the new
+  // object exists; only a subsequent exact configuration GET can do that.
+  if (response.status === 503) {
+    try {
+      const value=await boundedJSON(response,2048);
+      if (value && Object.keys(value).join(',')==='error' && value.error==='refresh_outcome_unknown')
+        return { status:'uncertain',httpStatus:503 };
+    } catch { /* An unreadable HTTP reply does not establish the RPC boundary. */ }
+  }
+  return { status: 'rejected', httpStatus: response.status };
+}
+export function edgePreflight(identity, off, { read, readActor, refresh, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   requireThat(/^[a-f0-9-]{36}$/.test(off?.runtime?.versionId ?? '') && typeof off.image === 'string', 'off edge identity required');
   let remainingMs = configurationLimits.durationMs;
   let attempts = 0, reads = 0, baselineVersion, actorsVerified = false;
+  const refreshed = new Set();
   const actorIds = new Map((off.readiness ?? []).map(value => [value.target, value.actorId]));
   if (readActor) requireThat(actorIds.size === 3 && targets.every(target => /^[a-f0-9]{64}$/.test(actorIds.get(target) ?? '')) &&
     new Set(actorIds.values()).size === 3, 'off actor identity required');
-  return async (record, currentTarget = targets[0]) => {
+  return async (record, currentTarget = targets[0], checkPaused) => {
     const startedAt = now(), deadline = startedAt + remainingMs;
     const observe = value => record({ ...value,
       elapsedMs: configurationLimits.durationMs - remainingMs + Math.max(0, now() - startedAt) });
@@ -98,6 +112,29 @@ export function edgePreflight(identity, off, { read, readActor, now = Date.now, 
             requireThat(configuration.mode === 'off' && configuration.workerVersionId === off.runtime.versionId,
               'unexpected runtime actor state');
             observe({ scope: 'actor', actor, read: reads, status: 'known_off', workerVersionId: configuration.workerVersionId });
+            if (refresh && !refreshed.has(actor)) {
+              requireThat(typeof checkPaused === 'function', 'refresh requires paused Web verification');
+              await checkPaused();
+              requireThat(now() < deadline, 'runtime actor refresh deadline exceeded');
+              // Reserve once before dispatch, including lost replies. The Set
+              // spans all actors and subsequent calls to this preflight.
+              refreshed.add(actor);
+              observe({ scope:'refresh',actor,status:'attempted_unverified',offVersionId:off.runtime.versionId,baselineVersionId:baselineVersion });
+              const body={...identity,offVersionId:off.runtime.versionId,baselineVersionId:baselineVersion,actorId:actorIds.get(actor)};
+              let outcome, refreshTimer;
+              const refreshTimeout=Math.min(10000,deadline-now());
+              try { outcome=await Promise.race([refresh(actor,body,refreshTimeout),new Promise((_,reject)=>{
+                refreshTimer=setTimeout(()=>reject(new Error('refresh response uncertain')),refreshTimeout);
+              })]); }
+              catch { outcome={status:'uncertain',httpStatus:null}; }
+              finally { clearTimeout(refreshTimer); }
+              requireThat(outcome && ['uncertain','rejected'].includes(outcome.status) &&
+                (outcome.httpStatus===null || (Number.isInteger(outcome.httpStatus)&&outcome.httpStatus>=100&&outcome.httpStatus<=599)),
+              'invalid refresh outcome');
+              observe({ scope:'refresh',actor,status:outcome.status,httpStatus:outcome.httpStatus });
+              requireThat(outcome.status!=='rejected','runtime actor refresh explicitly rejected');
+              requireThat(now() < deadline, 'runtime actor refresh deadline exceeded');
+            }
             requireThat(reads < configurationLimits.reads && now() + configurationLimits.intervalMs < deadline, 'runtime configuration preflight exhausted');
             await sleep(configurationLimits.intervalMs);
           }
@@ -136,7 +173,7 @@ export async function transitionActors(identity, { paused, send, preflight, reco
         evidence.edgePreflight ??= [];
         evidence.edgePreflight.push({ target, ...observation });
         record(evidence);
-      }, target);
+      }, target, checkPaused);
       // Persist attempted state before sending; no blind retry on a lost reply.
       const item = { target, status: 'attempted_unverified' }; results.push(item); record(evidence);
       let result;
@@ -150,7 +187,7 @@ export async function transitionActors(identity, { paused, send, preflight, reco
         await preflight(observation => {
           evidence.edgePreflight ??= [];
           evidence.edgePreflight.push({ target, ...observation }); record(evidence);
-        }, target);
+        }, target, checkPaused);
       }
       requireThat(result && Object.keys(result).sort().join(',') === ['restarted','target','sourceSha','imageBuildId','mode','writerEpoch'].sort().join(',') && result.restarted === true && result.target === target && Object.entries(identity).every(([key,value])=>result[key]===value), 'transition reply identity differs');
       item.status = 'passed'; record(evidence);
@@ -186,6 +223,16 @@ async function main() {
     preflight: edgePreflight(identity, off, {
       read: remaining => readConfiguration('configuration', remaining),
       readActor: (target, remaining) => readConfiguration(`${target}/configuration`, remaining),
+      refresh: async (target, body, remaining) => {
+        const response=await fetch(`${production.runtimeOrigin}/internal/runtime/${target}/refresh`,{
+          method:'POST',redirect:'error',signal:AbortSignal.timeout(remaining),
+          headers:{authorization:`Bearer ${process.env.FEED_RUNTIME_ADMIN_SECRET}`,'content-type':'application/json'},
+          body:JSON.stringify(body),
+        });
+        const outcome=await readRefreshResponse(response);
+        await response.body?.cancel().catch(()=>{});
+        return outcome;
+      },
     }),
     paused: () => verifyWeb(sha, 'paused', process.env),
     record: evidence => { writeFileSync(output, JSON.stringify(evidence,null,2)+'\n', { mode: 0o600, flag: first ? 'wx' : 'w' }); first = false; },

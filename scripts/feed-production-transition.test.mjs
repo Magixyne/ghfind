@@ -241,3 +241,66 @@ test('slow actors share one three-minute allowance rather than each receiving a 
  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}),/exhausted/);
  assert.equal(sends,0);assert.ok(clock<configurationLimits.durationMs);assert.ok(gets<configurationLimits.reads);
 });
+
+test('controlled refresh is sent once per known-off actor; only exact GET proves readiness',async()=>{
+ let clock=0,posts=0;const refreshed=new Set(),observations=[],verified=new Set();
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(),
+  readActor:async target=>{const mode=refreshed.has(target)?'baseline':'off';if(mode==='baseline')verified.add(target);return actorConfiguration(target,mode);},
+  refresh:async(target,body,timeout)=>{
+   assert.ok(observations.some(v=>v.scope==='refresh'&&v.actor===target&&v.status==='attempted_unverified'));
+   assert.deepEqual(body,{...identity,offVersionId:offVersion,baselineVersionId:baselineVersion,actorId:actorConfiguration(target).actorId});
+   assert.ok(timeout<=10000);assert.equal(refreshed.has(target),false);refreshed.add(target);clock+=1000;
+   if(target==='api-0')throw Error('lost reply');return {status:'uncertain',httpStatus:503};
+  }});
+ const result=await transitionActors(identity,{paused:async()=>anchor,preflight,record:e=>{observations.splice(0,observations.length,...(e.edgePreflight??[]));},
+  send:async(target,body)=>{assert.equal(verified.size,3);posts++;return {restarted:true,target,...body};}});
+ assert.equal(result.status,'passed');assert.equal(refreshed.size,3);assert.equal(posts,3);
+ assert.ok(result.edgePreflight.some(v=>v.scope==='refresh'&&v.httpStatus===null));
+});
+test('refresh of a persistently old actor cannot authorize restart or resend after a lost reply',async()=>{
+ let clock=0,refreshes=0,restarts=0;
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(),
+  readActor:async target=>actorConfiguration(target,'off'),refresh:async()=>{refreshes++;throw Error('unknown');}});
+ await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{restarts++;}}),/exhausted/);
+ assert.equal(refreshes,1);assert.equal(restarts,0);assert.ok(clock<configurationLimits.durationMs);
+});
+test('refresh never dispatches on changed paused anchor or foreign actor identity',async()=>{
+ for(const change of ['anchor','actor']){
+  let checks=0,refreshes=0;
+  const preflight=edgePreflight(identity,nativeOff,{read:async()=>configuration(),readActor:async target=>({...actorConfiguration(target,'off'),...(change==='actor'?{actorId:'f'.repeat(64)}:{})}),
+   refresh:async()=>{refreshes++;return {status:'uncertain',httpStatus:503};}});
+  await assert.rejects(transitionActors(identity,{paused:async()=>({...anchor,workerVersionId:++checks>1&&change==='anchor'?offVersion:anchor.workerVersionId}),preflight,send:async()=>assert.fail()}));
+  assert.equal(refreshes,0);
+ }
+});
+test('refresh rejected HTTP statuses remain fail-closed and successful HTTP is not readiness',async()=>{
+ const {readRefreshResponse}=await import('./feed-production-transition.mjs');
+ for(const status of [400,401,403,404,405,409]){
+  let refreshes=0,reads=0;
+  const preflight=edgePreflight(identity,nativeOff,{read:async()=>configuration(),readActor:async target=>{reads++;return actorConfiguration(target,'off');},
+   refresh:async()=>{refreshes++;return readRefreshResponse(new Response('',{status}));}});
+  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>assert.fail()}),/explicitly rejected/);
+  assert.equal(refreshes,1);assert.equal(reads,1);
+ }
+ assert.deepEqual(await readRefreshResponse(Response.json({error:'refresh_outcome_unknown'},{status:503})),{status:'uncertain',httpStatus:503});
+ for(const body of [{error:'different'}, {error:'refresh_outcome_unknown',extra:true}])
+  assert.deepEqual(await readRefreshResponse(Response.json(body,{status:503})),{status:'rejected',httpStatus:503});
+ assert.deepEqual(await readRefreshResponse(new Response('unreadable',{status:503})),{status:'rejected',httpStatus:503});
+ assert.deepEqual(await readRefreshResponse(new Response('',{status:200})),{status:'rejected',httpStatus:200});
+});
+test('refresh time consumes shared propagation allowance instead of granting a new window',async()=>{
+ let clock=0,refreshes=0,restarts=0;
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,read:async()=>configuration(),readActor:async target=>actorConfiguration(target,'off'),
+  refresh:async()=>{refreshes++;clock=configurationLimits.durationMs;return {status:'uncertain',httpStatus:503};}});
+ await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{restarts++;}}),/deadline/);
+ assert.equal(refreshes,1);assert.equal(restarts,0);
+});
+test('refresh reservations survive subsequent preflight calls',async()=>{
+ let clock=0,regressed=false;const counts=new Map();
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(),
+  readActor:async target=>actorConfiguration(target,counts.has(target)&&!(regressed&&target==='api-1')?'baseline':'off'),
+  refresh:async target=>{counts.set(target,(counts.get(target)??0)+1);return {status:'uncertain',httpStatus:503};}});
+ await preflight(()=>{},'api-0',async()=>{});regressed=true;
+ await assert.rejects(preflight(()=>{},'api-1',async()=>{}),/exhausted/);
+ assert.deepEqual([...counts.values()],[1,1,1]);
+});
