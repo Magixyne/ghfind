@@ -109,21 +109,19 @@ test('baseline cannot replace native mode transition with an idle wait or move i
   assert.throws(() => check({'deploy-cf-production.yml':production.replace('      FEED_ASSESSMENT_CARRYOVER: ops/feed-production-assessment-carryover.json\n','')}));
 });
 
-test('paid recovery waits for native baseline and cannot bypass its journal or credential', () => {
+test('completed assessment requires source preflight and projection after baseline without paid operations', () => {
   const production = originals['deploy-cf-production.yml'];
-  for (const fragment of ['node scripts/feed-production-assessment-operator.mjs', 'node scripts/feed-production-assessment.mjs operator-window', 'PROJECT_ANALYSIS_RECONCILE_SECRET: ${{ secrets.PROJECT_ANALYSIS_RECONCILE_SECRET }}'])
-    assert.throws(() => check({'deploy-cf-production.yml': production.replace(fragment, 'removed')}));
+  for (const fragment of ['Verify completed assessment source before deployment', 'ops/feed-production-assessment-checkpoint.json', 'Verify completed assessment and current durable projection'])
+    assert.throws(() => check({'deploy-cf-production.yml': production.replaceAll(fragment, 'removed')}));
+  for (const suffix of [' --source-only', ' || true'])
+    assert.throws(() => check({'deploy-cf-production.yml': production.replace('assessment-result.json"', 'assessment-result.json"' + suffix)}));
+  for (const command of ['node scripts/feed-production-assessment.mjs start', 'node scripts/feed-production-assessment-operator.mjs', 'node scripts/feed-production-assessment-recovery.mjs'])
+    assert.throws(() => check({'deploy-cf-production.yml': production.replace('      - name: Build the real Web', '          '+command+'\n      - name: Build the real Web')}));
+  assert.throws(() => check({'deploy-cf-production.yml': production.replace('      - name: Verify completed assessment and current durable projection\n', '      - name: Verify completed assessment and current durable projection\n        if: always()\n')}));
   const a = production.indexOf('      - name: Activate executor');
-  const b = production.indexOf('      - name: Start or resume');
-  const c = production.indexOf('      - name: Require real assessment');
+  const b = production.indexOf('      - name: Verify completed assessment and current durable projection');
+  const c = production.indexOf('      - name: Verify bounded authenticated');
   assert.throws(() => check({'deploy-cf-production.yml': production.slice(0,a) + production.slice(b,c) + production.slice(a,b) + production.slice(c)}));
-});
-
-
-test('journal preflight cannot be combined with mutation or bypass its failed restore', () => {
-  const production=originals['deploy-cf-production.yml'];
-  assert.throws(()=>check({'deploy-cf-production.yml':production.replace('Restore the assessment journal without provider mutations','Missing restore boundary')}));
-  assert.throws(()=>check({'deploy-cf-production.yml':production.replace('      - name: Start or resume the single real production assessment\n', '      - name: Start or resume the single real production assessment\n        if: always()\n')}));
 });
 
 test('provider failure cannot strand the new public Web without its build cache', () => {

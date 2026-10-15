@@ -49,7 +49,7 @@ for (const job of [authorization,deployJob]) for (const fragment of ['ref: ${{ g
 for (const fragment of ['needs: [authorize]', 'environment: Production', 'EXPECTED_ACCOUNT_ID: 8f19bebe359e4ec1a24c68c5f49c1584', 'secrets.CF_API_TOKEN', 'gh api repos/hikariming/ghfind/git/ref/heads/main', 'node scripts/feed-production-release.mjs schema', 'wrangler d1 migrations apply ghfind --remote --config', 'wrangler d1 migrations apply ghfind-feed --remote --config', 'node scripts/feed-platform-production.mjs verify', 'runtime-off.json', 'runtime-baseline.json', 'node scripts/feed-production-release.mjs web-verify', 'web-paused.json', 'web-all.json', 'steps.paused.outputs.version', 'pnpm smoke:deployment']) {
   if (!deployJob.includes(fragment)) throw new Error(`Production job missing ${fragment}`);
 }
-const order = ['Build and push the portable image','Apply and verify explicitly approved','Pause an already active Go gateway','Detach only the owned consumers','Deploy private adapter and off-mode','Install a compatible paused gateway','Activate executor and verify actual baseline','Start or resume the single real production assessment','Require real assessment finalization and durable queue projection','Verify bounded authenticated Go service contracts','Cut all Feed requests'];
+const order = ['Build and push the portable image','Apply and verify explicitly approved','Pause an already active Go gateway','Detach only the owned consumers','Deploy private adapter and off-mode','Install a compatible paused gateway','Activate executor and verify actual baseline','Verify completed assessment and current durable projection','Verify bounded authenticated Go service contracts','Cut all Feed requests'];
 for (let i=1;i<order.length;i++) if(deployJob.indexOf(order[i])<=deployJob.indexOf(order[i-1])) throw new Error('Unsafe deployment ordering');
 // Traffic is already legacy or Go-paused. Replace the private fleet in one
 // platform rollout step, but retain all actual readiness/instance gates.
@@ -146,22 +146,15 @@ if (/^\s+(push|schedule|workflow_run):/m.test(reconcileWorkflow)) {
 
 console.log(`Feed reconciliation workflow contract passed (${reconcileWorkflowPath})`);
 
-const assessmentStep = /      - name: Start or resume the single real production assessment[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
-const restoreStep = /      - name: Restore the assessment journal without provider mutations[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
-if (!restoreStep.includes('node scripts/feed-production-assessment-recovery.mjs') ||
-    /assessment-operator\.mjs|assessment\.mjs (start|operator-window)|continue-on-error|if:/.test(restoreStep) ||
-    deployJob.indexOf('Restore the assessment journal without provider mutations') >= deployJob.indexOf('Start or resume the single real production assessment') ||
-    /if:|continue-on-error|assessment-recovery\.mjs/.test(assessmentStep))
-  throw new Error('Read-only journal restoration must succeed in its own preceding step');
-const assessmentOrder = [ 'node scripts/feed-production-assessment-operator.mjs', 'node scripts/feed-production-assessment.mjs operator-window', 'node scripts/feed-production-assessment.mjs start'];
-let priorAssessment = -1;
-for (const command of assessmentOrder) {
-  const position = assessmentStep.indexOf(command);
-  if (position <= priorAssessment) throw new Error('Assessment recovery, audited retry and observation window must precede any start');
-  priorAssessment = position;
-}
-if (!deployJob.includes('PROJECT_ANALYSIS_RECONCILE_SECRET: ${{ secrets.PROJECT_ANALYSIS_RECONCILE_SECRET }}'))
-  throw new Error('Production recovery requires its own reconciliation credential');
+const sourceCheckpoint = /      - name: Verify completed assessment source before deployment[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
+const projectionCheckpoint = /      - name: Verify completed assessment and current durable projection[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
+const checkpointCommand = 'node scripts/feed-production-assessment-checkpoint.mjs "$RELEASE_SHA" ops/feed-production-assessment-checkpoint.json ops/feed-production-assessment-carryover.json';
+if (!sourceCheckpoint.includes(checkpointCommand) || !sourceCheckpoint.includes('assessment-source.json" --source-only') ||
+    !projectionCheckpoint.includes(checkpointCommand) || !projectionCheckpoint.includes('assessment-result.json"') || projectionCheckpoint.includes('--source-only') ||
+    /if:|continue-on-error|\|\|/.test(sourceCheckpoint + projectionCheckpoint) ||
+    deployJob.indexOf('Verify completed assessment source before deployment') >= deployJob.indexOf('Build the real Web') ||
+    /assessment-operator\.mjs|assessment\.mjs (start|operator-window|wait)|assessment-recovery\.mjs/.test(deployJob))
+  throw new Error('Completed assessment requires unskippable source preflight and live projection verification without provider mutation or expiring history');
 
 const cachePreflight = deployJob.indexOf('name: Populate new build cache before replacing the public Web');
 const firstWebDeploy = deployJob.indexOf('wrangler deploy --config platform/runtime/wrangler.web.production.generated.json');
