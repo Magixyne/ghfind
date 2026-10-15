@@ -181,12 +181,17 @@ func closeProfileScores(left, right float64) bool {
 }
 
 func validProfileScoring(scoring *Scoring, detail *ProfileDetail) bool {
+	penaltyCap := 40.0
+	if scoring != nil && scoring.RiskAssessment.Version == "v10" {
+		penaltyCap = 25
+	}
+
 	if scoring == nil || scoring.RedFlags == nil ||
 		!finiteProfileScore(scoring.BaseScore) ||
 		!finiteProfileScore(scoring.TotalPenalty) ||
 		!finiteProfileScore(scoring.FinalScore) ||
 		scoring.BaseScore < 0 || scoring.BaseScore > 100 ||
-		scoring.TotalPenalty < 0 || scoring.TotalPenalty > 25 ||
+		scoring.TotalPenalty < 0 || scoring.TotalPenalty > penaltyCap ||
 		scoring.FinalScore < 0 || scoring.FinalScore > 100 {
 		return false
 	}
@@ -217,15 +222,15 @@ func validProfileScoring(scoring *Scoring, detail *ProfileDetail) bool {
 		}
 		flagPenaltyTotal += flag.Penalty
 	}
-	if flagPenaltyTotal > 25 {
-		flagPenaltyTotal = 25
+	if flagPenaltyTotal > penaltyCap {
+		flagPenaltyTotal = penaltyCap
 	}
 	if !closeProfileScores(flagPenaltyTotal, scoring.TotalPenalty) {
 		return false
 	}
-	if scoring.RiskAssessment.Version != "v10" ||
+	if (scoring.RiskAssessment.Version != "v9" && scoring.RiskAssessment.Version != "v10") ||
 		!closeProfileScores(scoring.RiskAssessment.AppliedPenalty, scoring.TotalPenalty) ||
-		!closeProfileScores(scoring.RiskAssessment.RiskScore, scoring.TotalPenalty/25*100) {
+		!closeProfileScores(scoring.RiskAssessment.RiskScore, scoring.TotalPenalty/penaltyCap*100) {
 		return false
 	}
 	expectedFinal := clampScore(roundToEven(scoring.BaseScore-scoring.TotalPenalty, 2))

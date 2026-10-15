@@ -122,8 +122,6 @@ describe("profile pronouns", () => {
     },
   );
 });
-const hasNote = (m: RawMetrics, name: string) =>
-  score(m).risk_notes?.some((f) => f.flag === name) ?? false;
 
 const closedPr = ({
   actor,
@@ -172,7 +170,7 @@ describe("spam-PR red flags", () => {
     expect(score(NEUTRAL).red_flags).toHaveLength(0);
   });
 
-  it("only notes templated flooding when the bounded sample is too small or lacks corroboration", () => {
+  it("flags templated_pr_flooding with light penalties unless low-quality evidence corroborates it", () => {
     const mk = (share: number, templated: number, over: Partial<RawMetrics> = {}): RawMetrics => ({
       ...NEUTRAL,
       pr_flood_suspect: true,
@@ -182,16 +180,21 @@ describe("spam-PR red flags", () => {
       templated_pr_ratio: templated,
       ...over,
     });
-    expect(hasFlag(mk(1.0, 1.0), "templated_pr_flooding")).toBe(false);
-    expect(hasNote(mk(1.0, 1.0), "templated_pr_flooding")).toBe(true);
-    expect(hasFlag(mk(1.0, 0.9, {
+    const pen = (m: RawMetrics) =>
+      score(m).red_flags.find((f) => f.flag === "templated_pr_flooding")?.penalty;
+    expect(pen(mk(0.5, 0.5))).toBe(4); // just-suspect → light risk
+    expect(pen(mk(1.0, 1.0))).toBe(10); // extreme concentration alone is still moderate
+    expect(pen(mk(0.6, 0.6))).toBe(5);
+    expect(
+      pen(mk(1.0, 0.9, {
         recent_merged_pr_sample: 30,
         recent_external_doc_like_pr_ratio: 0.7,
         pr_rejection_rate: 0.4,
-      }), "templated_pr_flooding")).toBe(false);
+      })),
+    ).toBeGreaterThanOrEqual(18);
   });
 
-  it("uses a Wilson lower bound and keeps high rejection below the old flat penalty", () => {
+  it("flags high_pr_rejection when most decided PRs were rejected", () => {
     const m: RawMetrics = {
       ...NEUTRAL,
       merged_pr_count: 5,
@@ -201,8 +204,7 @@ describe("spam-PR red flags", () => {
     };
     const flag = score(m).red_flags.find((f) => f.flag === "high_pr_rejection");
     expect(flag).toBeTruthy();
-    expect(flag?.penalty).toBeGreaterThan(0);
-    expect(flag?.penalty).toBeLessThan(4);
+    expect(flag?.penalty).toBe(10); // >0.7 → 10
   });
 
   it("does not flag rejection below the threshold or with too few PRs", () => {
@@ -277,10 +279,9 @@ describe("spam-PR red flags", () => {
     );
   });
 
-  it("only notes external trivial PRs until the merged sample reaches 20", () => {
+  it("flags trivial_pr_farming for garbage PRs into popular external repos", () => {
     const m: RawMetrics = { ...NEUTRAL, recent_merged_pr_sample: 18, external_trivial_pr_count: 12 };
-    expect(hasFlag(m, "trivial_pr_farming")).toBe(false);
-    expect(hasNote(m, "trivial_pr_farming")).toBe(true);
+    expect(hasFlag(m, "trivial_pr_farming")).toBe(true);
   });
 
   it("does NOT flag a heavy self-PR dev (no external garbage)", () => {
@@ -911,13 +912,8 @@ describe("score() regression fixtures", () => {
   for (const [name, { input, expected }] of Object.entries(fixtures)) {
     it(`matches expected output for "${name}"`, () => {
       const result = score(input as unknown as RawMetrics);
-      // The golden fixtures lock the six positive dimensions and base score.
-      // Risk output is intentionally versioned separately from those values.
-      expect(result.sub_scores).toEqual(expected.sub_scores);
-      expect(result.base_score).toBe(expected.base_score);
-      expect(result.risk_assessment?.version).toBe("v10");
-      expect(result.total_penalty).toBeGreaterThanOrEqual(0);
-      expect(result.total_penalty).toBeLessThanOrEqual(25);
+      expect(result).toMatchObject(expected);
+      expect(result.risk_assessment?.version).toBe("v9");
     });
   }
 });
@@ -1625,10 +1621,10 @@ describe("doc-like PR contribution-quality discount", () => {
     };
     const s = score(m);
     const flag = s.red_flags.find((f) => f.flag === "templated_pr_flooding");
-    expect(flag).toBeUndefined();
-    expect(s.risk_notes?.some((note) => note.flag === "templated_pr_flooding")).toBe(true);
-    expect(s.tier).toBe("顶级");
-    expect(s.final_score).toBeGreaterThanOrEqual(80);
+    expect(flag?.penalty).toBe(5);
+    expect(flag?.detail).toContain("模式化批量贡献风险");
+    expect(s.tier).toBe("人上人");
+    expect(s.final_score).toBeGreaterThanOrEqual(78);
   });
 
   it("does not cap contribution quality for low-volume author-closed external PRs", () => {
@@ -1826,9 +1822,8 @@ describe("social-only dormant profiles", () => {
     });
 
     expect(s.sub_scores.community_influence).toBe(2.5);
-    expect(s.red_flags.some((f) => f.flag === "social_only_dormant_profile")).toBe(false);
-    expect(s.risk_notes?.some((f) => f.flag === "social_only_dormant_profile")).toBe(true);
-    expect(s.total_penalty).toBe(0);
+    expect(s.red_flags.some((f) => f.flag === "social_only_dormant_profile")).toBe(true);
+    expect(s.final_score).toBeLessThan(20);
   });
 
   it("does not cap followers for dormant accounts with strong original project quality", () => {

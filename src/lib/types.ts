@@ -301,7 +301,7 @@ export interface RiskCoverage {
 }
 
 export interface RiskAssessment {
-  version: "v10";
+  version: "v9" | "v10";
   risk_score: number;
   level: RiskLevel;
   confidence: number;

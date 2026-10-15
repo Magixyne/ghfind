@@ -867,7 +867,7 @@ export function GET() {
             disposition: { type: "string", enum: ["penalty", "note"] },
             severity: { type: "number", minimum: 0, maximum: 1 },
             confidence: { type: "number", minimum: 0, maximum: 1 },
-            penalty: { type: "number", minimum: 0, maximum: 25 },
+            penalty: { type: "number", minimum: 0, maximum: 40 },
             detail: { type: "string" },
             evidence: { $ref: "#/components/schemas/RiskEvidence" },
           },
@@ -875,11 +875,11 @@ export function GET() {
         RiskAssessment: {
           type: "object",
           properties: {
-            version: { type: "string", enum: ["v10"] },
+            version: { type: "string", enum: ["v9", "v10"] },
             risk_score: { type: "number", minimum: 0, maximum: 100 },
             level: { type: "string", enum: ["none", "review", "high"] },
             confidence: { type: "number", minimum: 0, maximum: 100 },
-            applied_penalty: { type: "number", minimum: 0, maximum: 25 },
+            applied_penalty: { type: "number", minimum: 0, maximum: 40, description: "Flat v9 policy caps at 40; v10 policy caps at 25." },
             signals: { type: "array", items: { $ref: "#/components/schemas/RiskSignal" } },
             coverage: {
               type: "object",
@@ -911,7 +911,7 @@ export function GET() {
               },
             },
             base_score: { type: "number", minimum: 0, maximum: 100 },
-            total_penalty: { type: "number", minimum: 0, maximum: 25 },
+            total_penalty: { type: "number", minimum: 0, maximum: 40 },
             risk_assessment: { $ref: "#/components/schemas/RiskAssessment" },
             risk_notes: { type: "array", items: { $ref: "#/components/schemas/RiskSignal" } },
             username: { type: "string" },

@@ -36,8 +36,11 @@ func TestScoreMatchesCanonicalNodeFixtures(t *testing.T) {
 				wantJSON, _ := json.MarshalIndent(fixture.Expected, "", "  ")
 				t.Fatalf("six-dimension score mismatch\n got: %s\nwant: %s", gotJSON, wantJSON)
 			}
-			if got.RiskAssessment.Version != "v10" || got.TotalPenalty < 0 || got.TotalPenalty > 25 {
-				t.Fatalf("invalid v10 risk output: %#v", got.RiskAssessment)
+			if got.TotalPenalty != fixture.Expected.TotalPenalty || got.FinalScore != fixture.Expected.FinalScore || !reflect.DeepEqual(got.RedFlags, fixture.Expected.RedFlags) {
+				t.Fatalf("restored deduction mismatch: got %#v; want %#v", got, fixture.Expected)
+			}
+			if got.RiskAssessment.Version != "v9" || got.TotalPenalty < 0 || got.TotalPenalty > 40 {
+				t.Fatalf("invalid restored risk output: %#v", got.RiskAssessment)
 			}
 		})
 	}
@@ -109,5 +112,30 @@ func TestScanResultJSONHonorsNodeNullSemantics(t *testing.T) {
 		if _, isArray := value.([]any); !isArray {
 			t.Errorf("required array %q serialized as %T, want JSON array", array, value)
 		}
+	}
+}
+
+func TestRestoredRiskBreakdownAtFortyPointCap(t *testing.T) {
+	m := neutralRiskMetrics()
+	m.NonemptyOriginalRepoCount = 0
+	m.Following, m.Followers = 5000, 1
+	m.PRFloodSuspect, m.StarInflationSuspect = true, true
+	m.TopRepoPRShare, m.TemplatedPRRatio = 1, 1
+	m.RecentMergedPRSample, m.ExternalTrivialPRCount = 30, 30
+	got := Score(m)
+	if got.TotalPenalty != 40 || got.RiskAssessment.Version != "v9" || got.RiskAssessment.RiskScore != 100 {
+		t.Fatalf("invalid restored cap: %#v", got)
+	}
+	detail := &ProfileDetail{SubScores: got.SubScores, FinalScore: got.FinalScore}
+	if !validProfileScoring(&got, detail) {
+		t.Fatal("restored score lost its complete profile breakdown")
+	}
+	encoded, err := json.Marshal(got.RiskAssessment)
+	if err != nil || parseRiskAssessment(string(encoded)) == nil {
+		t.Fatal("stored v9 risk assessment was rejected")
+	}
+	got.RiskAssessment.Version = "v10"
+	if validProfileScoring(&got, detail) {
+		t.Fatal("v10 must retain its own 25-point cap")
 	}
 }

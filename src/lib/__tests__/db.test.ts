@@ -581,6 +581,9 @@ describe("canonical score materialization", () => {
       scannedAt,
       token: expect.any(String),
     });
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({
+      risk_assessment: { version: "v9", applied_penalty: score(scan.metrics).total_penalty },
+    });
     await expect(readScoreRow(username)).resolves.toMatchObject({
       username,
       final_score: score(scan.metrics).final_score,
@@ -610,7 +613,7 @@ describe("canonical score materialization", () => {
     await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toBeNull();
   });
 
-  it("recomputes v10 scoring when a promoted snapshot embeds legacy scoring", async () => {
+  it("recomputes canonical scoring when a promoted snapshot embeds legacy scoring", async () => {
     const username = "promoted-v9-snapshot-fixture";
     const scan = syntheticScan(username);
     scan.scoring = {
@@ -2117,14 +2120,14 @@ describe("profile snapshots", () => {
     });
   });
 
-  it("reads only v11 profile snapshots and ignores legacy snapshots", async () => {
+  it("reads only v12 profile snapshots and ignores legacy snapshots", async () => {
     const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
     const username = "profile-version-fixture";
     const rows = [
       ["profile-v8", username, 300, JSON.stringify({ followers: 8 }), "v8"],
       ["profile-v10", username, 350, JSON.stringify({ followers: 10 }), "v10"],
       ["profile-local", username, 400, JSON.stringify({ followers: 99 }), "local-fixture"],
-      ["profile-v11", username, 200, JSON.stringify({ followers: 9 }), "v11"],
+      ["profile-v12", username, 200, JSON.stringify({ followers: 9 }), "v12"],
     ];
     for (const row of rows) {
       await client.execute({
@@ -2140,7 +2143,7 @@ describe("profile snapshots", () => {
     });
     await client.execute({
       sql: `DELETE FROM profile_snapshots WHERE id = ?`,
-      args: ["profile-v11"],
+      args: ["profile-v12"],
     });
     await expect(db.getProfileSnapshot(username)).resolves.toBeNull();
 

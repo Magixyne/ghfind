@@ -1,5 +1,9 @@
 # Super newcomer maturity bonus (score v11)
 
+> Score v12 restores pre-v10 flat deductions. This bonus and its v10 eligibility
+> guard remain unchanged; final deductions can differ from the eligibility guard.
+> See the [account scoring RFC](../rfc/2026-10-15-account-scoring.md).
+
 ## Design goal
 
 Recognize unusually strong public work completed early in an account's life,
