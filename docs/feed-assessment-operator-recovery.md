@@ -102,3 +102,17 @@ Once retry-2 begins, the pre-0009 application is not a valid recovery target: it
 reads only the first attempt deadline. Use a compatible new paused Web/runtime
 as the rollback anchor; do not remove schema or replay an earlier program that
 can expire or modify the new attempt incorrectly.
+
+## Completed assessment checkpoint (2026-10-16)
+
+Normal releases now use `ops/feed-production-assessment-checkpoint.json` instead
+of rediscovering the completed recovery through expiring Actions artifacts. The
+checkpoint preserves the complete historical journal, provenance and canonical
+hash. Before mutation, the release checks the current core assessment and outbox;
+after baseline verification it also checks the current Go projection and completed
+executor job. All checks are read-only and accept only the pinned completed
+assessment. No provider invocation, recovery retry or budget reset occurs.
+
+A superseding assessment or incompatible projection remains a release failure:
+review and update the checkpoint from genuine durable evidence rather than
+weakening identity checks or reconstructing a successful result.
