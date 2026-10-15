@@ -8,8 +8,8 @@
  */
 // v12 restores pre-v10 flat deductions while preserving v11 newcomer eligibility.
 export const SCORE_CACHE_VERSION = "v12";
-// Formal successor to the previous production report contract.
-export const ROAST_CACHE_VERSION = "v11";
+// v12 keeps language proficiency out of engineering judgments and roast targets.
+export const ROAST_CACHE_VERSION = "v12";
 /** Bump when the PK (versus) verdict prompt / output semantics change. */
 export const VERDICT_CACHE_VERSION = "v1";
 

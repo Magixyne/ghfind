@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	roastArtifactVersion    = "v11"
+	roastArtifactVersion    = "v12"
 	legacyRoastScoreVersion = "v9"
 	legacyRoastVersion      = "v10"
 )
