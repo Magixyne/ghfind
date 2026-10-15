@@ -383,7 +383,7 @@ export async function handleRequest(
         let input: unknown;
         try { input = JSON.parse(new TextDecoder().decode(body)); }
         catch { throw new HTTPError(400, "invalid_transition"); }
-        if (env.FEED_MODE === "off") {
+        if (env.FEED_MODE === "off" && (input as Partial<TransitionRequest> | null)?.mode === "baseline") {
           // A configuration GET and the following POST can reach different edge
           // versions. Only this exact, validated pre-dispatch rejection proves
           // that retrying cannot repeat a lifecycle mutation.

@@ -1,14 +1,14 @@
 import { captureNativeProbe, classifyLifecycleError, probe, type RuntimeSettings, type Target } from "./router";
 import { HTTPError } from "./security";
 
-export type TransitionRequest = { sourceSha: string; imageBuildId: string; mode: "baseline"; writerEpoch: 1 };
+export type TransitionRequest = { sourceSha: string; imageBuildId: string; mode: "off" | "baseline"; writerEpoch: 1 };
 export function validateTransition(value: unknown, env: RuntimeSettings): asserts value is TransitionRequest {
   const data = value as TransitionRequest;
   if (!data || typeof data !== "object" || Array.isArray(data) ||
       Object.keys(data).sort().join(",") !== "imageBuildId,mode,sourceSha,writerEpoch" ||
-      env.FEED_ENVIRONMENT !== "production" || env.FEED_MODE !== "baseline" ||
+      env.FEED_ENVIRONMENT !== "production" || !["off", "baseline"].includes(env.FEED_MODE) ||
       env.FEED_WRITER_EPOCH !== "1" || data.sourceSha !== env.FEED_RELEASE_SHA ||
-      data.imageBuildId !== env.FEED_IMAGE_BUILD_ID || data.mode !== "baseline" || data.writerEpoch !== 1)
+      data.imageBuildId !== env.FEED_IMAGE_BUILD_ID || data.mode !== env.FEED_MODE || data.writerEpoch !== 1)
     throw new HTTPError(400, "invalid_transition");
 }
 export type TransitionHooks = {
@@ -58,7 +58,11 @@ export class ModeTransition {
         controller.signal.throwIfAborted();
       };
       if (initial.running) {
-        await check(true);
+        // Off bootstrap is an authorized replacement of this fixed actor's old
+        // process. It may belong to a previous release or retain baseline env.
+        // Requiring it to match the new binary would make upgrades impossible.
+        // Baseline activation still requires the already verified current image.
+        if (input.mode === "baseline") await check(true);
         const stopAt = Date.now() + this.limits.stopMs;
         let stopTimer: ReturnType<typeof setTimeout> | undefined;
         pendingStop = hooks.stop().catch((error: unknown) => { throw classifyLifecycleError(error, "stop"); });

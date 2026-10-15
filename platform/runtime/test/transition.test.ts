@@ -258,3 +258,57 @@ test("mixed-version DO and edge replies keep the successful receipt accepted by 
     assert.equal(calls, 1);
   }
 });
+
+
+test("off bootstrap replaces an old running process without claiming its binary is current", async () => {
+  const f = fixture(); f.state.mode = "baseline";
+  const off = {...env, FEED_MODE: "off"}, request: TransitionRequest = {...input, mode: "off"};
+  let probes = 0;
+  f.hooks.fetch = async () => {
+    probes++;
+    assert.equal(f.state.starts, 1, "old process must not be mistaken for new-release readiness");
+    return Response.json({ready:true,version:off.FEED_RELEASE_SHA,imageBuildId:off.FEED_IMAGE_BUILD_ID,
+      contractVersion:"1",storageWriterVersion:2,storeProfile:"cf_d1_r2",service:"feed-api",writerEpoch:1,mode:f.state.mode});
+  };
+  f.hooks.start = async () => { assert.equal(f.state.running,false); f.state.starts++; f.state.running=true; f.state.mode="off"; };
+  const result = await new ModeTransition(limits).run("api-0",off,request,f.hooks);
+  assert.deepEqual(result,{restarted:true,target:"api-0",...request});
+  assert.equal(f.state.stops,1); assert.equal(f.state.starts,1); assert.equal(probes,1);
+});
+test("off bootstrap keeps exact final identity and native stop requirements", async () => {
+  const off = {...env, FEED_MODE:"off"}, request: TransitionRequest = {...input,mode:"off"};
+  for (const patch of [{version:"c".repeat(40)},{imageBuildId:"e".repeat(64)},{mode:"baseline"},{contractVersion:"2"},{writerEpoch:2}]) {
+    const f=fixture(patch); const start=f.hooks.start;
+    f.hooks.start=async(signal)=>{await start(signal); f.state.mode="off";};
+    await assert.rejects(new ModeTransition(limits).run("api-0",off,request,f.hooks),/container_version_or_contract_mismatch/);
+    assert.equal(f.state.stops,1); assert.equal(f.state.starts,1);
+  }
+  const running=fixture(); running.hooks.stop=async()=>{running.state.stops++;};
+  await assert.rejects(new ModeTransition(limits).run("api-0",off,request,running.hooks),/transition_stop_timeout/);
+  assert.equal(running.state.starts,0);
+  const invalidActor=fixture(); invalidActor.state.actorId="wrong";
+  await assert.rejects(new ModeTransition(limits).run("api-0",off,request,invalidActor.hooks),/container_version_or_contract_mismatch/);
+  assert.equal(invalidActor.state.stops,0);
+  for (const mismatch of [{...input},{...request,mode:"unknown"},{...request,sourceSha:"c".repeat(40)}]) {
+    const f=fixture();
+    await assert.rejects(new ModeTransition(limits).run("api-0",off,mismatch as TransitionRequest,f.hooks),/invalid_transition/);
+    assert.equal(f.state.stops,0); assert.equal(f.state.starts,0);
+  }
+});
+test("off restart dispatches only matching off requests; stale baseline requests retain no-mutation 409", async () => {
+  const off={...env,FEED_MODE:"off"}; let calls=0;
+  const dispatch={fetch:async()=>Response.json({}),stop:async()=>{},restart:async(target:string,data:TransitionRequest)=>{calls++;return {restarted:true,target,...data};}};
+  const request=(body:unknown,auth=env.FEED_RUNTIME_ADMIN_SECRET,path="api-0")=>new Request(`https://runtime/internal/runtime/${path}/restart`,{
+    method:"POST",headers:{authorization:`Bearer ${auth}`},body:JSON.stringify(body)});
+  const body={...input,mode:"off"};
+  const response=await handleRequest(request(body),off,dispatch);
+  assert.equal(response.status,200); assert.deepEqual(await response.json(),{restarted:true,target:"api-0",...body});
+  assert.equal(calls,1);
+  assert.equal((await handleRequest(request(input),off,dispatch)).status,409);
+  assert.equal((await handleRequest(request(body),env,dispatch)).status,400);
+  for(const bad of [{...body,mode:"unknown"},{...body,extra:true},{...body,imageBuildId:"e".repeat(64)},null])
+    assert.equal((await handleRequest(request(bad),off,dispatch)).status,400);
+  assert.equal((await handleRequest(request(body,"wrong"),off,dispatch)).status,401);
+  assert.equal((await handleRequest(request(body,undefined,"api-3"),off,dispatch)).status,404);
+  assert.equal(calls,1);
+});
