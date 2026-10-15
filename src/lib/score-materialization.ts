@@ -353,9 +353,9 @@ function hasValidEmbeddedScoring(value: unknown): value is Scoring {
   ];
   const tiers = ["夯", "顶级", "人上人", "NPC", "拉完了"];
   const hasLegacyRiskShape = value.risk_assessment === undefined && value.risk_notes === undefined;
-  const hasV10RiskShape =
+  const hasStructuredRiskShape =
     isRecord(value.risk_assessment) &&
-    value.risk_assessment.version === "v10" &&
+    ["v9", "v10"].includes(String(value.risk_assessment.version)) &&
     isFiniteNumber(value.risk_assessment.risk_score) &&
     ["none", "review", "high"].includes(String(value.risk_assessment.level)) &&
     isFiniteNumber(value.risk_assessment.confidence) &&
@@ -381,7 +381,7 @@ function hasValidEmbeddedScoring(value: unknown): value is Scoring {
     typeof value.tier === "string" &&
     tiers.includes(value.tier) &&
     typeof value.tier_label === "string" &&
-    (hasLegacyRiskShape || hasV10RiskShape)
+    (hasLegacyRiskShape || hasStructuredRiskShape)
   );
 }
 

@@ -12,14 +12,14 @@ function manifestCopy(): ReleaseVersionManifest {
 }
 
 describe("release version contract", () => {
-  it("advances only the score version for the newcomer maturity bonus", () => {
+  it("advances only the score version for the risk deduction rollback", () => {
     expect(RELEASE_VERSION_MANIFEST.previousRelease).toEqual({
-      score: "v10",
+      score: "v11",
       roast: "v11",
       collection: "v5",
     });
     expect(RELEASE_VERSION_MANIFEST.targetRelease).toEqual({
-      score: "v11",
+      score: "v12",
       roast: "v11",
       collection: "v5",
     });
@@ -31,9 +31,9 @@ describe("release version contract", () => {
       RELEASE_VERSION_MANIFEST.previousRelease,
     );
     expect(RELEASE_VERSION_MANIFEST.compatibility.roastReplay).toEqual([
-      { score: "v11", roast: "v11" },
+      { score: "v12", roast: "v11" },
     ]);
-    expect(RELEASE_VERSION_MANIFEST.compatibility.publicScoreReadOrder).toEqual(["v11"]);
+    expect(RELEASE_VERSION_MANIFEST.compatibility.publicScoreReadOrder).toEqual(["v12"]);
   });
 
   it("requires the runtime to remain on the canonical release after normalization", () => {
@@ -98,7 +98,7 @@ describe("release version contract", () => {
     expect(
       changedVersionComponents(
         { score: "v9", roast: "v9", collection: "v4" },
-        { score: "v10", roast: "v10", collection: "v4" },
+        { score: "v11", roast: "v10", collection: "v4" },
       ),
     ).toEqual(["score", "roast"]);
   });

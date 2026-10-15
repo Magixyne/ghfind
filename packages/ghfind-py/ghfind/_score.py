@@ -23,6 +23,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional
 
 from ._risk import assess_risk
+from ._legacy_risk import legacy_risk_details
 
 SUBSCORE_MAX: Dict[str, float] = {
     "account_maturity": 10,
@@ -303,6 +304,131 @@ def _super_newcomer_bonus(
     return 4 * strength * confidence * decay * decay
 
 
+def templated_pr_flood_penalty(m: Mapping[str, Any]) -> Optional[int]:
+    if not _nz(m.get("pr_flood_suspect"), False):
+        return None
+
+    share = _nz(m.get("top_repo_pr_share"), 0)
+    templated = _nz(m.get("templated_pr_ratio"), 0)
+    concentration_severity = max(
+        0.0,
+        min(1.0, ((share - 0.5) / 0.5) * 0.5 + ((templated - 0.5) / 0.5) * 0.5),
+    )
+    sample = _nz(m.get("recent_merged_pr_sample"), _nz(m.get("recent_pr_sample"), 0))
+    if m.get("recent_external_doc_like_pr_ratio") is not None:
+        doc_like_ratio = m["recent_external_doc_like_pr_ratio"]
+    elif m.get("recent_doc_like_pr_ratio") is not None:
+        doc_like_ratio = m["recent_doc_like_pr_ratio"]
+    elif sample > 0 and m.get("recent_external_doc_like_pr_count") is not None:
+        doc_like_ratio = m["recent_external_doc_like_pr_count"] / sample
+    elif sample > 0 and m.get("recent_doc_like_pr_count") is not None:
+        doc_like_ratio = m["recent_doc_like_pr_count"] / sample
+    else:
+        doc_like_ratio = 0
+    rejection = _nz(m.get("pr_rejection_rate"), 0)
+    has_popular_impact_signal = (
+        _nz(m.get("impact_pr_count"), 0) > 0
+        or _nz(m.get("max_impact_repo_stars"), 0) >= 10_000
+    )
+    low_core_impact = (
+        has_popular_impact_signal
+        and _nz(m.get("core_impact_pr_count"), 0) <= 2
+        and (m.get("impact_quality_cap") is not None or _nz(m.get("max_impact_repo_stars"), 0) >= 10_000)
+    )
+    weak_own_project = (
+        m["total_stars"] < 300
+        and _nz(m.get("top_starred_original_repo_quality_score"), 1) < 0.5
+    )
+    low_quality_evidence = (
+        (1 if sample >= 20 and doc_like_ratio >= 0.55 else 0)
+        + (1 if rejection >= 0.35 else 0)
+        + (1 if low_core_impact else 0)
+        + (1 if weak_own_project else 0)
+    )
+    extreme_flood = share >= 0.85 and templated >= 0.75
+
+    if low_quality_evidence >= 2 or (extreme_flood and low_quality_evidence >= 1):
+        return 10 + _math_round(10 * concentration_severity)
+    if low_quality_evidence == 1 or extreme_flood:
+        return 6 + _math_round(4 * concentration_severity)
+    return 4 + _math_round(4 * concentration_severity)
+
+
+def author_self_closed_external_penalty(m: Mapping[str, Any]) -> float:
+    return 0
+
+
+def legacy_penalties(m: Mapping[str, Any]):
+    flags: List[Dict[str, Any]] = []
+
+    def flag(name: str, penalty: float, detail: str) -> None:
+        flags.append({"flag": name, "penalty": penalty, "detail": detail})
+
+    fetched = max(m["fetched_repo_count"], 1)
+    if m["account_age_years"] < 1 and m["public_repos"] > 30:
+        flag("new_account_mass_repos", 10, f"Account <1yr old with {m['public_repos']} repos — possible mass creation.")
+    if m["fork_repo_count"] / fetched > 0.7 and m["nonempty_original_repo_count"] <= 2:
+        flag("mostly_forks", 10, f"{m['fork_repo_count']}/{fetched} repos are forks with little original work.")
+    if m["nonempty_original_repo_count"] == 0:
+        flag("no_original_work", 10, "No non-empty original repositories.")
+    if m["empty_original_repo_count"] >= 5 and m["empty_original_repo_count"] / fetched > 0.5:
+        flag("mostly_empty_repos", 5, f"{m['empty_original_repo_count']} empty original repos — likely placeholder/spam.")
+    if m["following"] > 1000 and m["followers"] < m["following"] * 0.3:
+        flag("follow_farming", 10, f"following {m['following']} >> followers {m['followers']} — follow-farming pattern.")
+    if not m.get("bio") and m["followers"] < 3 and m["total_stars"] == 0 and m["merged_pr_count"] < 2:
+        flag("ghost_profile", 8, "Empty profile with negligible footprint.")
+    if (
+        m["contribution_years_active"] <= 1
+        and m["account_age_years"] > 2
+        and _nz(m.get("days_since_last_activity"), 999) > 365
+    ):
+        flag("burst_then_dormant", 5, "Active in only one year then dormant — burst pattern.")
+    if _has_social_only_dormant_signal(m):
+        flag(
+            "social_only_dormant_profile",
+            5,
+            f"{m['followers']} followers but 0 last-year contributions, 0 PRs, no external impact, "
+            "and no strong original project signal — social/profile attention is disconnected from code work.",
+        )
+    if m["star_inflation_suspect"]:
+        flag("possible_star_inflation", 5, "Top repo has many stars but near-zero forks/issues — possible bought stars.")
+    sample = m["recent_merged_pr_sample"]
+    external_trivial = _nz(m.get("external_trivial_pr_count"), 0)
+    if sample >= 10 and external_trivial / sample > 0.5:
+        flag(
+            "trivial_pr_farming",
+            8,
+            f"{external_trivial}/{sample} recent merged PRs are ≤5-line changes into others' "
+            "≥200★ repos — garbage PR farming into popular community projects.",
+        )
+    flood_penalty = templated_pr_flood_penalty(m)
+    if flood_penalty is not None:
+        flood_sample = _nz(m.get("recent_pr_sample"), 0)
+        repo = _nz(m.get("top_repo_pr_target"), "one repo")
+        share = _nz(m.get("top_repo_pr_share"), 0)
+        templated = _nz(m.get("templated_pr_ratio"), 0)
+        flag(
+            "templated_pr_flooding",
+            flood_penalty,
+            f"近期 {_math_round(share * 100)}% 的 PR 集中刷向 {repo}，"
+            f"{_math_round(templated * 100)}% 标题高度模板化（{flood_sample} 个样本）"
+            " — 模式化批量贡献风险，需结合 diff 质量人工复核。",
+        )
+    rejected_prs = _nz(m.get("maintainer_closed_unmerged_pr_count"), _nz(m.get("closed_unmerged_pr_count"), 0))
+    decided_prs = m["merged_pr_count"] + rejected_prs
+    rejection = _nz(m.get("pr_rejection_rate"), 0)
+    if decided_prs >= 10 and rejection > 0.5:
+        flag(
+            "high_pr_rejection",
+            10 if rejection > 0.7 else 8,
+            f"{rejected_prs}/{decided_prs} 个已决 PR 被维护者关闭未合并（被拒率 "
+            f"{_math_round(rejection * 100)}%）— 低质 / 频繁被拒。",
+        )
+
+    penalty = min(sum(f["penalty"] for f in flags), 40)
+    return flags, penalty
+
+
 def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     sub: Dict[str, float] = {
         "account_maturity": 0,
@@ -408,6 +534,8 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
 
     risk_assessment, risk_notes, flags, penalty = assess_risk(m)
     bonus = _super_newcomer_bonus(m, sub, risk_assessment, penalty)
+    flags, penalty = legacy_penalties(m)
+    risk_assessment, risk_notes = legacy_risk_details(flags, penalty, risk_assessment)
     if bonus > 0:
         sub["account_maturity"] = _round_half_even(min(SUBSCORE_MAX["account_maturity"], age_pts + span_pts + bonus), 1)
     base = round(sum(sub.values()), 1)

@@ -139,7 +139,7 @@ describe("POST /api/scan immediate quick contract", () => {
     await expect(response.json()).resolves.toMatchObject({
       coverage: "legacy",
       legacy_read_fallback: true,
-      served_score_version: "v10",
+      served_score_version: "v11",
       served_roast_version: "v11",
       served_collection_version: "v5",
     });

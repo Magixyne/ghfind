@@ -229,6 +229,30 @@ describe("getGoProfilePresentation", () => {
     expect(mocks.getCurrentCanonicalQuickScan).toHaveBeenCalledWith("octocat");
   });
 
+  it("preserves a complete v9-policy breakdown with the restored 40-point cap", async () => {
+    const final = 47.7;
+    mocks.getAccountDetail.mockResolvedValue({ ...detail, final_score: final });
+    const flags = [
+      { flag: "no_original_work", penalty: 10, detail: "No originals" },
+      { flag: "follow_farming", penalty: 10, detail: "Follow imbalance" },
+      { flag: "templated_pr_flooding", penalty: 20, detail: "Flood" },
+      { flag: "possible_star_inflation", penalty: 5, detail: "Stars" },
+    ];
+    mocks.getCurrentCanonicalQuickScan.mockResolvedValue(canonicalScan({
+      final_score: final, total_penalty: 40, red_flags: flags,
+      risk_assessment: {
+        version: "v9", applied_penalty: 40, risk_score: 100, level: "high",
+        confidence: 50, signals: [], coverage: { repo: 1, merged_pr: 1, all_pr: 1 },
+      },
+      risk_notes: [],
+    }));
+    const presentation = await getGoProfilePresentation("octocat");
+    expect(presentation?.detail.score_breakdown).toMatchObject({
+      complete: true, total_penalty: 40, applied_penalty: 40,
+      risk_assessment: { version: "v9", risk_score: 100 }, red_flags: flags,
+    });
+  });
+
   it.each([
     ["missing red flags", { red_flags: undefined }],
     ["dimension sum disagrees with base", { sub_scores: { ...subScores, activity_authenticity: 26.8 } }],

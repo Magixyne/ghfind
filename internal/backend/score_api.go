@@ -80,7 +80,7 @@ func parseSubScores(raw string) SubScores {
 
 func parseRiskAssessment(raw string) *RiskAssessment {
 	assessment := RiskAssessment{}
-	if err := json.Unmarshal([]byte(raw), &assessment); err != nil || assessment.Version != "v10" {
+	if err := json.Unmarshal([]byte(raw), &assessment); err != nil || (assessment.Version != "v9" && assessment.Version != "v10") {
 		return nil
 	}
 	return &assessment

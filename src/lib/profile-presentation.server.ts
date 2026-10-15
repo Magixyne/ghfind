@@ -92,7 +92,7 @@ function isValidRiskAssessment(value: unknown): value is RiskAssessment {
   const assessment = value as Record<string, unknown>;
   const coverage = assessment.coverage;
   return (
-    assessment.version === "v10" &&
+    (assessment.version === "v9" || assessment.version === "v10") &&
     (assessment.level === "none" || assessment.level === "review" || assessment.level === "high") &&
     isFiniteNumber(assessment.risk_score) &&
     isFiniteNumber(assessment.confidence) &&
@@ -102,8 +102,8 @@ function isValidRiskAssessment(value: unknown): value is RiskAssessment {
     assessment.confidence >= 0 &&
     assessment.confidence <= 100 &&
     assessment.applied_penalty >= 0 &&
-    assessment.applied_penalty <= 25 &&
-    isClose(assessment.risk_score, assessment.applied_penalty / 25 * 100) &&
+    assessment.applied_penalty <= (assessment.version === "v9" ? 40 : 25) &&
+    isClose(assessment.risk_score, assessment.applied_penalty / (assessment.version === "v9" ? 40 : 25) * 100) &&
     Array.isArray(assessment.signals) &&
     coverage !== null &&
     typeof coverage === "object" &&
@@ -145,7 +145,7 @@ function scoreBreakdownFromScan(
     scoring.base_score < 0 ||
     scoring.base_score > 100 ||
     scoring.total_penalty < 0 ||
-    scoring.total_penalty > 25 ||
+    scoring.total_penalty > (scoring.risk_assessment?.version === "v10" ? 25 : 40) ||
     scoring.final_score < 0 ||
     scoring.final_score > 100
   ) {
@@ -168,7 +168,7 @@ function scoreBreakdownFromScan(
 
   const flagPenaltyTotal = Math.min(
     scoring.red_flags.reduce((sum, flag) => sum + flag.penalty, 0),
-    25,
+    scoring.risk_assessment?.version === "v10" ? 25 : 40,
   );
   if (!isClose(flagPenaltyTotal, scoring.total_penalty)) return null;
 
@@ -188,7 +188,7 @@ function scoreBreakdownFromScan(
       !riskAssessment.signals.every(isValidRiskSignal) ||
       !riskNotes.every(isValidRiskSignal) ||
       riskAssessment.applied_penalty < 0 ||
-      riskAssessment.applied_penalty > 25 ||
+      riskAssessment.applied_penalty > (riskAssessment.version === "v9" ? 40 : 25) ||
       !isClose(riskAssessment.applied_penalty, scoring.total_penalty))
   ) {
     return null;

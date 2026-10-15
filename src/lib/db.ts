@@ -6047,7 +6047,7 @@ function parseRiskAssessment(raw: unknown): RiskAssessment | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<RiskAssessment>;
-    return parsed && parsed.version === "v10" && Array.isArray(parsed.signals)
+    return parsed && (parsed.version === "v9" || parsed.version === "v10") && Array.isArray(parsed.signals)
       ? (parsed as RiskAssessment)
       : null;
   } catch {
