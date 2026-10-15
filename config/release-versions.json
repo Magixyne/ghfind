@@ -29,7 +29,7 @@
     ]
   },
   "legacyReadFallback": {
-    "score": "v12",
+    "score": "v11",
     "roast": "v11",
     "collection": "v5"
   },

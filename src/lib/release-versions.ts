@@ -40,7 +40,7 @@ export interface ReleaseVersionManifest {
 export const RELEASE_VERSION_MANIFEST = manifestJson as ReleaseVersionManifest;
 
 /**
- * The immediately previous formal artifact tuple permitted for emergency reads.
+ * The explicitly retained formal artifact tuple permitted for emergency reads.
  * Keep this separate from `compatibility`: normal public score reads serve the
  * target release only.
  */
@@ -141,6 +141,12 @@ export function releaseTransitionErrors(input: {
   ) {
     errors.push("a new release must carry the prior target forward as previousRelease");
   }
+  if (
+    targetChanges.length === 1 && targetChanges[0] === "roast" &&
+    !sameVersions(input.afterManifest.legacyReadFallback, input.beforeManifest.legacyReadFallback)
+  ) {
+    errors.push("roast-only releases must preserve the existing read-only fallback");
+  }
   return errors;
 }
 
@@ -218,11 +224,19 @@ export function releaseVersionErrors(
     }
   }
 
-  if (
-    !isVersionSet(typed.legacyReadFallback) ||
-    !sameVersions(typed.legacyReadFallback, previousRelease)
-  ) {
-    errors.push("legacy read fallback must equal the immediately previous release tuple");
+  // A writer-only release must not retire the previous score's labeled history.
+  // Transitions additionally require this tuple to be retained byte-for-byte;
+  // this is not an alias, canonical read, or permission to choose older scores.
+  const fallback = typed.legacyReadFallback;
+  const retainedScoreFallback = isVersionSet(fallback) &&
+    previousRelease.score === targetRelease.score &&
+    previousRelease.collection === targetRelease.collection &&
+    fallback.score === `v${Number(targetRelease.score.slice(1)) - 1}` &&
+    fallback.collection === previousRelease.collection &&
+    Number(fallback.roast.slice(1)) <= Number(previousRelease.roast.slice(1));
+  if (!isVersionSet(fallback) ||
+      (!sameVersions(fallback, previousRelease) && !retainedScoreFallback)) {
+    errors.push("legacy read fallback must be the previous release or its retained previous-score tuple");
   }
 
   if (!Array.isArray(typed.aliases) || typed.aliases.length !== 0) {

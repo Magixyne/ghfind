@@ -26,9 +26,9 @@ describe("release version contract", () => {
     expect(RELEASE_VERSION_MANIFEST.aliases).toEqual([]);
   });
 
-  it("keeps the immediately previous release as a read-only emergency reader", () => {
+  it("preserves the prior score fallback across a writer-only release", () => {
     expect(RELEASE_VERSION_MANIFEST.legacyReadFallback).toEqual(
-      RELEASE_VERSION_MANIFEST.previousRelease,
+      { score: "v11", roast: "v11", collection: "v5" },
     );
     expect(RELEASE_VERSION_MANIFEST.compatibility.roastReplay).toEqual([
       { score: "v12", roast: "v12" },
@@ -90,7 +90,7 @@ describe("release version contract", () => {
     const changedFallback = manifestCopy();
     changedFallback.legacyReadFallback.score = "v6";
     expect(releaseVersionErrors(changedFallback)).toContain(
-      "legacy read fallback must equal the immediately previous release tuple",
+      "legacy read fallback must be the previous release or its retained previous-score tuple",
     );
   });
 
@@ -159,4 +159,18 @@ describe("release version contract", () => {
       }),
     ).toContain("previousRelease cannot change without advancing the formal target");
   });
+});
+
+
+it("forbids rotating the read-only fallback in a roast-only transition", () => {
+  const before = manifestCopy();
+  const after = manifestCopy();
+  after.previousRelease = { ...before.targetRelease };
+  after.targetRelease.roast = "v13";
+  after.legacyReadFallback = { ...before.targetRelease };
+  const input = { beforeManifest: before, afterManifest: after,
+    beforeRuntime: before.targetRelease, afterRuntime: after.targetRelease };
+  expect(releaseTransitionErrors(input)).toContain("roast-only releases must preserve the existing read-only fallback");
+  after.legacyReadFallback = { ...before.legacyReadFallback };
+  expect(releaseTransitionErrors(input)).toEqual([]);
 });
