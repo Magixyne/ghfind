@@ -19,7 +19,7 @@ test('wrong identity, targets, extra fields or an incomplete restart cannot adva
  for(const patch of [{sourceSha:'c'.repeat(40)},{imageBuildId:'c'.repeat(64)},{target:'api-1'},{mode:'off'},{writerEpoch:2},{restarted:false},{extra:'untrusted'}]){let sends=0;await assert.rejects(transitionActors(identity,{paused:async()=>anchor,send:async(target,body)=>{sends++;return {restarted:true,target,...body,...patch};}}));assert.equal(sends,1);}
 });
 
-import { edgePreflight } from './feed-production-transition.mjs';
+import { edgePreflight, configurationLimits } from './feed-production-transition.mjs';
 const offVersion='12345678-1234-4234-8234-123456789001', baselineVersion='12345678-1234-4234-8234-123456789002';
 const off={runtime:{versionId:offVersion},image:'image@sha256:exact'};
 const configuration=(mode='baseline')=>({service:'feed-runtime',version:identity.sourceSha,contractVersion:'1',workerVersionId:mode==='off'?offVersion:baselineVersion,configuredImage:off.image,imageBuildId:identity.imageBuildId,mode,writerEpoch:1});
@@ -27,14 +27,14 @@ test('known off propagates to exact baseline before each mutation',async()=>{
  let reads=0,clock=0;const observations=[];
  const preflight=edgePreflight(identity,off,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>configuration(++reads===1?'off':'baseline')});
  const result=await transitionActors(identity,{paused:async()=>anchor,preflight,send:async(target,body)=>({restarted:true,target,...body}),record:e=>observations.push(JSON.parse(JSON.stringify(e)))});
- assert.equal(reads,4);assert.equal(clock,2000);assert.equal(result.status,'passed');assert.equal(result.edgePreflight[1].status,'known_off');
+ assert.equal(reads,4);assert.equal(clock,configurationLimits.intervalMs);assert.equal(result.status,'passed');assert.equal(result.edgePreflight[1].status,'known_off');
 });
 test('bounded stale off and invalid identities fail without mutation',async()=>{
  for(const patch of [null,{version:'c'.repeat(40)},{imageBuildId:'c'.repeat(64)},{configuredImage:'wrong'},{writerEpoch:2},{extra:true},{workerVersionId:baselineVersion,mode:'off'}]){
  let reads=0,sends=0,clock=0;
  const preflight=edgePreflight(identity,off,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>{reads++;return patch?{...configuration(),...patch}:configuration('off');}});
  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}));
- assert.equal(sends,0);assert.equal(reads,patch?1:15);assert.ok(clock<45000);
+ assert.equal(sends,0);assert.equal(reads,patch?1:36);assert.ok(clock<configurationLimits.durationMs);
  }
 });
 test('only explicit pre-dispatch rejection repeats preflight and preserves unknown outcomes',async()=>{
@@ -48,7 +48,7 @@ test('only explicit pre-dispatch rejection repeats preflight and preserves unkno
 });
 test('read transport error and overall deadline cannot reach restart',async()=>{
  for(const slow of [false,true]){let clock=0,sends=0;
- const preflight=edgePreflight(identity,off,{now:()=>clock,read:async()=>{if(!slow)throw Error('network');clock=45000;return configuration();}});
+ const preflight=edgePreflight(identity,off,{now:()=>clock,read:async()=>{if(!slow)throw Error('network');clock=configurationLimits.durationMs;return configuration();}});
  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}));assert.equal(sends,0);
  }
 });
@@ -69,7 +69,7 @@ test('successful lifecycle time between probes does not spend cumulative preflig
 });
 test('preflight wall time accumulates across calls and never gains a fresh allowance',async()=>{
  let clock=1000,reads=0;
- const preflight=edgePreflight(identity,off,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>{reads++;clock+=15000;return configuration(reads===2?'off':'baseline');}});
+ const preflight=edgePreflight(identity,off,{now:()=>clock,sleep:async ms=>{clock+=ms;},read:async()=>{reads++;clock+=configurationLimits.durationMs/3;return configuration(reads===2?'off':'baseline');}});
  await preflight(()=>{});clock+=90000;
  await assert.rejects(preflight(()=>{}),/deadline exceeded/);
  assert.equal(reads,3);
@@ -181,7 +181,7 @@ test('all three DO environments converge before first lifecycle mutation; each l
   assert.deepEqual([...new Set(seen)],['api-0','api-1','executor-0']);calls.push(`post:${target}`);clock+=30000;return {restarted:true,target,...body};
  }});
  assert.deepEqual(calls,['read:api-0','read:api-0','read:api-1','read:executor-0','post:api-0','read:api-1','post:api-1','read:executor-0','post:executor-0']);
- assert.equal(clock,92000);
+ assert.equal(clock,90000+configurationLimits.intervalMs);
 });
 test('foreign, malformed or unavailable DO configuration never grants a first lifecycle POST', async () => {
  for(const patch of [null,{}, {actorId:'f'.repeat(64)},{target:'api-1'}, {sourceSha:'c'.repeat(40)},
@@ -199,8 +199,8 @@ test('foreign, malformed or unavailable DO configuration never grants a first li
 test('edge and all actor reads share time and request budgets before first mutation', async () => {
  let clock=0,reads=0,sends=0;
  const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},
-  read:async()=>{reads++;clock+=30000;return configuration();},
-  readActor:async target=>{reads++;clock+=10000;return actorConfiguration(target,'off');},
+  read:async()=>{reads++;clock+=120000;return configuration();},
+  readActor:async target=>{reads++;clock+=30000;return actorConfiguration(target,'off');},
  });
  await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}),/deadline exceeded/);
  assert.equal(reads,3);assert.equal(sends,0);
@@ -209,7 +209,7 @@ test('edge and all actor reads share time and request budgets before first mutat
  const capped=edgePreflight(identity,nativeOff,{now:()=>0,sleep:async()=>{},read:async()=>{gets++;return configuration();},
   readActor:async target=>{gets++;return actorConfiguration(target,'off');},
  });
- await assert.rejects(capped(()=>{}),/exhausted/);assert.equal(gets,30);
+ await assert.rejects(capped(()=>{}),/exhausted/);assert.equal(gets,configurationLimits.reads);
 });
 test('configuration proof does not authorize replay if a POST races propagation or loses its reply', async () => {
  for(const response of [Response.json({error:'invalid_transition'},{status:400}),null]) {
@@ -219,4 +219,25 @@ test('configuration proof does not authorize replay if a POST races propagation 
    sends++;if(!response)throw Error('lost reply');return readTransitionResponse(response,target,offVersion);
   }}));assert.equal(sends,1);
  }
+});
+
+
+test('exact known-off DO may converge after 90 seconds without any lifecycle call before all actors match',async()=>{
+ let clock=0,sends=0,gets=0;
+ const seen=new Set();
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},
+  read:async()=>{gets++;return configuration();},readActor:async target=>{gets++;const mode=clock<90000?'off':'baseline';if(mode==='baseline')seen.add(target);return actorConfiguration(target,mode);}});
+ const result=await transitionActors(identity,{paused:async()=>anchor,preflight,send:async(target,body)=>{
+  assert.equal(clock,90000);assert.equal(seen.size,3);sends++;return {restarted:true,target,...body};}});
+ assert.equal(result.status,'passed');assert.equal(sends,3);assert.ok(gets<configurationLimits.reads);
+ assert.ok(result.edgePreflight.some(o=>o.elapsedMs===90000&&o.scope==='actor'&&o.status==='baseline_verified'));
+ assert.ok(result.edgePreflight.every(o=>o.elapsedMs<=configurationLimits.durationMs));
+});
+test('slow actors share one three-minute allowance rather than each receiving a new window',async()=>{
+ let clock=0,sends=0,gets=0;
+ const preflight=edgePreflight(identity,nativeOff,{now:()=>clock,sleep:async ms=>{clock+=ms;},
+  read:async()=>{gets++;return configuration();},readActor:async target=>{gets++;return actorConfiguration(target,
+   clock>=({'api-0':90000,'api-1':190000,'executor-0':190000}[target])?'baseline':'off');}});
+ await assert.rejects(transitionActors(identity,{paused:async()=>anchor,preflight,send:async()=>{sends++;}}),/exhausted/);
+ assert.equal(sends,0);assert.ok(clock<configurationLimits.durationMs);assert.ok(gets<configurationLimits.reads);
 });

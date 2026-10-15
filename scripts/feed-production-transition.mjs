@@ -44,24 +44,30 @@ export async function readTransitionResponse(response, target, offVersion) {
     receipt.restarted === true, 'transition reply shape differs');
   return receipt;
 }
+// Code updates reach globally unique DOs eventually (seconds to minutes).
+// This allowance covers metadata reads only, never unknown lifecycle retries.
+// https://developers.cloudflare.com/durable-objects/platform/known-issues/#code-updates
+export const configurationLimits = Object.freeze({ durationMs: 180000, reads: 90, edgeAttempts: 45, intervalMs: 5000 });
 export function edgePreflight(identity, off, { read, readActor, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   requireThat(/^[a-f0-9-]{36}$/.test(off?.runtime?.versionId ?? '') && typeof off.image === 'string', 'off edge identity required');
-  let remainingMs = 45000;
+  let remainingMs = configurationLimits.durationMs;
   let attempts = 0, reads = 0, baselineVersion, actorsVerified = false;
   const actorIds = new Map((off.readiness ?? []).map(value => [value.target, value.actorId]));
   if (readActor) requireThat(actorIds.size === 3 && targets.every(target => /^[a-f0-9]{64}$/.test(actorIds.get(target) ?? '')) &&
     new Set(actorIds.values()).size === 3, 'off actor identity required');
   return async (record, currentTarget = targets[0]) => {
     const startedAt = now(), deadline = startedAt + remainingMs;
+    const observe = value => record({ ...value,
+      elapsedMs: configurationLimits.durationMs - remainingMs + Math.max(0, now() - startedAt) });
     try {
     const remaining = () => {
-      requireThat(now() < deadline && reads < 30, 'runtime configuration preflight exhausted');
+      requireThat(now() < deadline && reads < configurationLimits.reads, 'runtime configuration preflight exhausted');
       reads++;
       return Math.max(1, deadline - now());
     };
-    while (attempts < 15 && now() < deadline && reads < 30) {
+    while (attempts < configurationLimits.edgeAttempts && now() < deadline && reads < configurationLimits.reads) {
       const attempt = ++attempts;
-      record({ attempt, status: 'attempted_unverified' });
+      observe({ attempt, status: 'attempted_unverified' });
       const value = await read(remaining());
       requireThat(now() < deadline, 'runtime edge preflight deadline exceeded');
       requireThat(value && Object.keys(value).sort().join(',') === ['service','version','contractVersion','workerVersionId','configuredImage','imageBuildId','mode','writerEpoch'].sort().join(',') &&
@@ -71,7 +77,7 @@ export function edgePreflight(identity, off, { read, readActor, now = Date.now, 
       if (value.mode === 'baseline' && value.workerVersionId !== off.runtime.versionId) {
         requireThat(!baselineVersion || baselineVersion === value.workerVersionId, 'baseline edge version changed');
         baselineVersion = value.workerVersionId;
-        record({ attempt, status: 'baseline_verified', workerVersionId: baselineVersion });
+        observe({ attempt, status: 'baseline_verified', workerVersionId: baselineVersion });
         // Prove every fixed actor before the first lifecycle POST; subsequent
         // invocations recheck the current actor within the same shared budget.
         if (readActor) for (const actor of actorsVerified ? [currentTarget] : targets) {
@@ -86,22 +92,22 @@ export function edgePreflight(identity, off, { read, readActor, now = Date.now, 
               configuration.imageBuildId === identity.imageBuildId && configuration.writerEpoch === identity.writerEpoch,
               'runtime actor identity differs');
             if (configuration.mode === 'baseline' && configuration.workerVersionId === baselineVersion) {
-              record({ scope: 'actor', actor, read: reads, status: 'baseline_verified', workerVersionId: baselineVersion });
+              observe({ scope: 'actor', actor, read: reads, status: 'baseline_verified', workerVersionId: baselineVersion });
               break;
             }
             requireThat(configuration.mode === 'off' && configuration.workerVersionId === off.runtime.versionId,
               'unexpected runtime actor state');
-            record({ scope: 'actor', actor, read: reads, status: 'known_off', workerVersionId: configuration.workerVersionId });
-            requireThat(reads < 30 && now() + 2000 < deadline, 'runtime configuration preflight exhausted');
-            await sleep(2000);
+            observe({ scope: 'actor', actor, read: reads, status: 'known_off', workerVersionId: configuration.workerVersionId });
+            requireThat(reads < configurationLimits.reads && now() + configurationLimits.intervalMs < deadline, 'runtime configuration preflight exhausted');
+            await sleep(configurationLimits.intervalMs);
           }
         }
         actorsVerified = true;
         return;
       }
       requireThat(value.mode === 'off' && value.workerVersionId === off.runtime.versionId, 'unexpected runtime edge state');
-      record({ attempt, status: 'known_off', workerVersionId: value.workerVersionId });
-      if (attempts < 15 && now() + 2000 < deadline) await sleep(2000);
+      observe({ attempt, status: 'known_off', workerVersionId: value.workerVersionId });
+      if (attempts < configurationLimits.edgeAttempts && now() + configurationLimits.intervalMs < deadline) await sleep(configurationLimits.intervalMs);
       else break;
     }
     throw new Error('runtime edge preflight exhausted');

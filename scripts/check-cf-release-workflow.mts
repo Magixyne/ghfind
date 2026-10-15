@@ -90,7 +90,7 @@ for (const [mode, title] of [['off', 'Deploy private adapter and off-mode candid
   if (!step.includes(capture) || !step.includes(verify) || step.indexOf(capture) >= deployAt || step.indexOf(verify) <= deployAt) throw new Error(`Production ${mode} requires its own predeployment application snapshot`);
 }
 const baselineStep = /      - name: Activate executor and verify actual baseline[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
-const transitionAt = baselineStep.indexOf('240s node scripts/feed-production-transition.mjs');
+const transitionAt = baselineStep.indexOf('420s node scripts/feed-production-transition.mjs');
 if (transitionAt < baselineStep.indexOf('wrangler deploy --config platform/runtime/wrangler.production.generated.json') ||
     transitionAt >= baselineStep.indexOf('node scripts/feed-platform-production.mjs verify') ||
     !baselineStep.includes('mode-transition.json') || baselineStep.includes('sleep 130'))

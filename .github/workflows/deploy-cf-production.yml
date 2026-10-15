@@ -184,7 +184,7 @@ jobs:
           platform/runtime/node_modules/.bin/wrangler deploy --config platform/runtime/wrangler.production.generated.json --containers-rollout=immediate --secrets-file "$RUNNER_TEMP/feed-runtime-secrets.json" --tag "production-$RELEASE_SHA"
           # Explicitly stop and restart each fixed actor with baseline env.
           # The SDK does not replace envVars in an already running process.
-          timeout --signal=TERM --kill-after=5s 240s node scripts/feed-production-transition.mjs ops/feed-production-manifest.json "$RUNNER_TEMP/feed-production-evidence/runtime-off.json" "$RUNNER_TEMP/feed-production-evidence/mode-transition.json"
+          timeout --signal=TERM --kill-after=5s 420s node scripts/feed-production-transition.mjs ops/feed-production-manifest.json "$RUNNER_TEMP/feed-production-evidence/runtime-off.json" "$RUNNER_TEMP/feed-production-evidence/mode-transition.json"
           node scripts/feed-platform-production.mjs verify ops/feed-production-manifest.json "$RELEASE_SHA" "${{ steps.image.outputs.reference }}" baseline "$RUNNER_TEMP/feed-production-evidence/runtime-baseline.json" "$RUNNER_TEMP/feed-production-evidence/applications-before-baseline.json"
       - name: Verify completed assessment and current durable projection
         run: |

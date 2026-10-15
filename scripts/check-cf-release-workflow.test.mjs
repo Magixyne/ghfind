@@ -104,7 +104,7 @@ test('a configured image identity does not replace inspection of both compiled e
 
 test('baseline cannot replace native mode transition with an idle wait or move it after readiness', () => {
   const production = originals['deploy-cf-production.yml'];
-  assert.throws(() => check({'deploy-cf-production.yml':production.replace('240s node scripts/feed-production-transition.mjs','240s node missing-transition.mjs')}));
+  assert.throws(() => check({'deploy-cf-production.yml':production.replace('420s node scripts/feed-production-transition.mjs','420s node missing-transition.mjs')}));
   assert.throws(() => check({'deploy-cf-production.yml':production.replace('          # Explicitly stop and restart','          sleep 130\n          # Explicitly stop and restart')}));
   assert.throws(() => check({'deploy-cf-production.yml':production.replace('      FEED_ASSESSMENT_CARRYOVER: ops/feed-production-assessment-carryover.json\n','')}));
 });
