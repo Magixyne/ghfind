@@ -707,3 +707,34 @@ func TestRoastPromptScoreContractExcludesJudgeArtifacts(t *testing.T) {
 		}
 	}
 }
+
+func TestRoastLanguageEvidenceDoesNotJudgeAuthorProficiency(t *testing.T) {
+	for _, username := range []string{"Alanxtl", "another-contributor"} {
+		scan := roastPromptBaseScan()
+		scan.Metrics.Username = username
+		scan.Metrics.Bio = stringPointer("Apache Dubbo Committer; Oceanbase Powercontext; vllm semantic-router")
+		for _, language := range []roastLanguage{roastLanguageZH, roastLanguageEN} {
+			messages := buildRoastPrompt(scan, language)
+			payload := roastPromptUserPayload(t, messages)
+			if !strings.Contains(messages[0].Content, "context_notes.language_evidence") {
+				t.Fatal("missing system language guardrail")
+			}
+			note := roastPayloadMap(t, payload, "context_notes")["language_evidence"].(string)
+			needles := []string{"不是开发能力", "标签、顶部短评、报告正文或建议", "不能反推错误由作者制造", "品牌写法", "可验证的内容", "不得为了凑毒舌编造英文错误"}
+			if language == roastLanguageEN {
+				needles = []string{"not evidence of engineering ability", "tags, the top roast, report, or recommendations", "not proof that its author made the original mistake", "brand spellings", "verifiable missing installation", "instead of inventing English mistakes"}
+			}
+			for _, needle := range needles {
+				if !strings.Contains(note, needle) {
+					t.Fatalf("missing language boundary %q", needle)
+				}
+			}
+			if roastPayloadMap(t, payload, "metrics")["bio"] != *scan.Metrics.Bio {
+				t.Fatal("profile evidence altered")
+			}
+			if roastPayloadMap(t, payload, "scoring")["final_score"] != scan.Scoring.FinalScore {
+				t.Fatal("language rule changed score")
+			}
+		}
+	}
+}
