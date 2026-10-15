@@ -57,6 +57,10 @@ const runtimeDeploys = deployJob.split('\n').filter(line => line.includes('wrang
 if (runtimeDeploys.length !== 2 || runtimeDeploys.some(line => !line.includes('--containers-rollout=immediate'))) throw new Error('Paused production runtime requires explicit immediate Container rollout');
 const offStep = /      - name: Deploy private adapter and off-mode[^\n]*\n([\s\S]*?)(?=      - name:)/.exec(deployJob)?.[1] ?? '';
 const offTransition = offStep.indexOf('240s node scripts/feed-production-off-transition.mjs');
+const offRollout = offStep.indexOf('310s node scripts/feed-production-rollout.mjs');
+if (offRollout < offStep.indexOf('wrangler deploy --config platform/runtime/wrangler.production.generated.json') ||
+    offRollout < 0 || offRollout >= offTransition || !offStep.includes('applications-before-off.json\" \"$RUNNER_TEMP/feed-production-evidence/off-rollout.json\"'))
+  throw new Error('Off restart requires completed image rollout evidence before lifecycle mutation');
 if (offTransition < offStep.indexOf('wrangler deploy --config platform/runtime/wrangler.production.generated.json') ||
     offTransition < 0 || offTransition >= offStep.indexOf('node scripts/feed-platform-production.mjs verify') ||
     !offStep.includes('consumer-pause.json" "$RUNNER_TEMP/feed-production-evidence/off-transition.json"') ||

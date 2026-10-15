@@ -137,3 +137,7 @@ test('off process replacement cannot bypass pause evidence, deployment or readin
     assert.throws(()=>check({'deploy-cf-production.yml':production.replace(part,'removed')}));
   assert.throws(()=>check({'deploy-cf-production.yml':production.replace('off-transition.json"','off-transition.json" || true')}));
 });
+
+test("off restart requires bounded platform rollout completion", () => {
+  assert.throws(() => check({"deploy-cf-production.yml": originals["deploy-cf-production.yml"].replace("310s node scripts/feed-production-rollout.mjs", "310s node scripts/removed.mjs")}));
+});
