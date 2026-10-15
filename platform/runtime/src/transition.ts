@@ -22,6 +22,7 @@ export type TransitionHooks = {
 // A caller deadline never authorizes concurrent lifecycle mutations on that actor.
 export class ModeTransition {
   private busy = false;
+  get inProgress(): boolean { return this.busy; }
   constructor(private readonly limits = { totalMs: 30000, stopMs: 15000, pollMs: 100 }) {
     if (!Number.isSafeInteger(limits.totalMs) || limits.totalMs < 1 || limits.totalMs > 30000 ||
         !Number.isSafeInteger(limits.stopMs) || limits.stopMs < 1 || limits.stopMs > 15000 ||

@@ -1,3 +1,4 @@
+import { validateRefresh, readRefreshFailure, type RefreshRequest } from "./refresh";
 import { validateTransition, type TransitionRequest } from "./transition";
 import {
   bearerAuthorized,
@@ -17,6 +18,7 @@ export type NativeProbe = { actorId: string; running: boolean } & (
 export interface Dispatch {
   fetch(target: Target, request: Request): Promise<Response>;
   stop(target: Target): Promise<void>;
+  refresh?(target: Target, input: RefreshRequest): Promise<unknown>;
   restart?(target: Target, input: TransitionRequest): Promise<unknown>;
   // These are binding-only capabilities, never client-provided identities.
   probe?(target: Target): Promise<NativeProbe>;
@@ -366,7 +368,7 @@ export async function handleRequest(
         });
       }
       const match =
-        /^\/internal\/runtime\/(api-[01]|executor-0)\/(ready|stop|restart|configuration)$/.exec(
+        /^\/internal\/runtime\/(api-[01]|executor-0)\/(ready|stop|restart|configuration|refresh)$/.exec(
           url.pathname,
         );
       if (!match?.[1] || !match[2] || url.search)
@@ -376,6 +378,23 @@ export async function handleRequest(
       // remain inspectable while every process/lifecycle route stays gated.
       if (match[2] === "configuration" && request.method === "GET" && env.FEED_ENVIRONMENT === "production")
         return json(await readActorConfiguration(target, dispatch));
+      if (match[2] === "refresh" && request.method === "POST") {
+        const body = await readBounded(request, 1024);
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder().decode(body)); }
+        catch { throw new HTTPError(400, "invalid_refresh"); }
+        if (!dispatch.actorId || !dispatch.refresh) throw new HTTPError(503, "refresh_unavailable");
+        validateRefresh(input, env, dispatch.actorId(target), "edge");
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let result: unknown;
+        try {
+          result = await Promise.race([dispatch.refresh(target, input), new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error("refresh timeout")), 2000);
+          })]);
+        } catch { throw new HTTPError(503, "refresh_outcome_unknown"); }
+        finally { clearTimeout(timer); }
+        readRefreshFailure(result);
+      }
       if (target === "executor-0" && env.FEED_EXECUTOR_ENABLED !== "true")
         throw new HTTPError(503, "executor_not_enabled");
       if (match[2] === "restart" && request.method === "POST" && env.FEED_ENVIRONMENT === "production") {

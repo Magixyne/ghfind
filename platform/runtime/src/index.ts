@@ -1,3 +1,4 @@
+import { refreshActor, type RefreshRequest } from "./refresh";
 import { ModeTransition, type TransitionRequest } from "./transition";
 import { captureTransitionResult, readTransitionResult } from "./transition-rpc";
 import { assertDeploymentIdentity } from "./deployment-identity";
@@ -33,6 +34,11 @@ export class FeedAPI extends Container<RuntimeEnv> {
   }
   // Accessible only through this namespace binding, not a public HTTP route.
   private readonly modeTransition = new ModeTransition();
+  runtimeRefresh(target: Target, input: RefreshRequest) {
+    return refreshActor(input, this.env, target, this.ctx.id.toString(),
+      this.env.FEED_API.idFromName(target).toString(), "api", this.modeTransition.inProgress,
+      () => this.ctx.abort("feed_runtime_phase_refresh"));
+  }
   runtimeConfiguration(target: Target) {
     return actorConfiguration(this.env, target, this.ctx.id.toString());
   }
@@ -65,6 +71,11 @@ export class FeedExecutor extends Container<RuntimeEnv> {
     this.envVars = containerEnvironment(env, "executor");
   }
   private readonly modeTransition = new ModeTransition();
+  runtimeRefresh(target: Target, input: RefreshRequest) {
+    return refreshActor(input, this.env, target, this.ctx.id.toString(),
+      this.env.FEED_EXECUTOR.idFromName(target).toString(), "executor", this.modeTransition.inProgress,
+      () => this.ctx.abort("feed_runtime_phase_refresh"));
+  }
   runtimeConfiguration(target: Target) {
     return actorConfiguration(this.env, target, this.ctx.id.toString());
   }
@@ -103,6 +114,7 @@ function dispatcher(env: RuntimeEnv): Dispatch {
     stop: (target) => instance(target).stop("SIGTERM"),
     restart: async (target, input) => readTransitionResult(await instance(target).runtimeRestart(target, input)),
     probe: (target) => instance(target).runtimeProbe(),
+    refresh: (target, input) => instance(target).runtimeRefresh(target, input),
     configuration: (target) => instance(target).runtimeConfiguration(target),
     actorId: (target) => (target === "executor-0" ? env.FEED_EXECUTOR : env.FEED_API)
       .idFromName(target).toString(),
