@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Cloud, ClipboardPaste, Database, Printer, RefreshCw, FileText, HardDrive, LayoutTemplate, Plus, Save, Sparkles, Trash2, Undo2 } from "lucide-react";
-import { createResume, emptyEntry, isResumeEmpty, newSection, profileFromResume, readResumeLibrary, readResumeLibraryFull, resumeStorageSnapshot, sameResumeContent, RESUME_STORAGE_KEY, sampleResume, SECTION_TYPES, sectionNames, serializeResumeLibrary, TEMPLATE_IDS, upsertResume, type Profile, type Resume, type ResumeSection, type TemplateId } from "@/lib/resume";
+import { createResume, emptyEntry, isResumeEmpty, moveItem, newSection, profileFromResume, readResumeLibrary, readResumeLibraryFull, resumeStorageSnapshot, sameResumeContent, RESUME_STORAGE_KEY, sampleResume, SECTION_TYPES, sectionNames, serializeResumeLibrary, TEMPLATE_IDS, upsertResume, type Profile, type Resume, type ResumeSection, type TemplateId } from "@/lib/resume";
 import { fetchMe, type Me } from "@/lib/me-client";
 import { signInWithGitHub } from "@/lib/oauth-client";
 import { ResumePhotoInput } from "./ResumePhotoInput";
@@ -174,10 +174,10 @@ export function ResumeBuilder({ zh }: { zh: boolean }) {
     setDraft(current => current && ({ ...current, sections: current.sections.map(section => section.id === id ? update(section) : section) })); setNotice("");
   }
   function moveSection(index: number, delta: number) {
-    if (!draft) return;
-    const sections = [...draft.sections];
-    [sections[index], sections[index + delta]] = [sections[index + delta], sections[index]];
-    setDraft({ ...draft, sections });
+    setDraft(current => current && ({ ...current, sections: moveItem(current.sections, index, delta) })); setNotice("");
+  }
+  function moveEntry(sectionId: string, index: number, delta: number) {
+    updateSection(sectionId, section => ({ ...section, entries: moveItem(section.entries, index, delta) }));
   }
   function selectTemplate(template: TemplateId) { setDraft(current => current && ({ ...current, template })); setNotice(""); }
 
@@ -328,12 +328,12 @@ export function ResumeBuilder({ zh }: { zh: boolean }) {
               <label className="resume-field">{copy("个人简介", "Summary")}<textarea rows={5} maxLength={20000} value={draft.basics.summary} placeholder={copy("用两三句话介绍你的方向、擅长的领域和代表性成果。", "Introduce your focus, strengths and a meaningful achievement.")} onChange={event => setDraft({ ...draft, basics: { ...draft.basics, summary: event.target.value } })} /></label>
               <button className="resume-button resume-next" onClick={() => setTab("sections")}>{copy("接下来，补充经历", "Next, add your experience")}<ArrowRight size={15} /></button>
             </>}
-            {tab === "sections" && <><div className="resume-section-heading"><h2>{copy("经历与技能", "Experience & skills")}</h2>{undo && <button className="resume-text-button" onClick={() => { setDraft({ ...undo, updatedAt: draft.updatedAt }); setUndo(null); }}><Undo2 size={14} />{copy("撤销删除", "Undo delete")}</button>}</div><p className="resume-editor-hint">{copy("展开区块编辑；用箭头调整顺序。每个区块可添加多条经历。", "Expand a section to edit it. Reorder with arrows and add multiple entries.")}</p>
+            {tab === "sections" && <><div className="resume-section-heading"><h2>{copy("经历与技能", "Experience & skills")}</h2>{undo && <button className="resume-text-button" onClick={() => { setDraft({ ...undo, updatedAt: draft.updatedAt }); setUndo(null); }}><Undo2 size={14} />{copy("撤销删除", "Undo delete")}</button>}</div><p className="resume-editor-hint">{copy("展开区块编辑；用箭头调整区块和条目的顺序。每个区块可添加多条经历。", "Expand a section to edit it. Use the arrows to reorder sections and entries, and add multiple entries.")}</p>
               {draft.sections.map((section, index) => <details className="resume-section-editor" key={section.id}>
                 <summary><span>{String(index + 1).padStart(2, "0")}</span>{section.title || copy("未命名区块", "Untitled section")}<Plus size={14} /></summary>
                 <div className="resume-section-body"><div className="resume-block-tools"><button className="shell-icon" disabled={index === 0} onClick={() => moveSection(index, -1)} aria-label={copy(`上移${section.title}`, `Move ${section.title} up`)}><ArrowUp size={15} /></button><button className="shell-icon" disabled={index === draft.sections.length - 1} onClick={() => moveSection(index, 1)} aria-label={copy(`下移${section.title}`, `Move ${section.title} down`)}><ArrowDown size={15} /></button><button className="resume-text-button" onClick={() => { setUndo(draft); setDraft({ ...draft, sections: draft.sections.filter(item => item.id !== section.id) }); }}><Trash2 size={14} />{copy("删除区块", "Remove section")}</button></div>
                   <label className="resume-field">{copy("区块名称", "Section title")}<input maxLength={200} value={section.title} onChange={event => updateSection(section.id, value => ({ ...value, title: event.target.value }))} /></label>
-                  {section.entries.map((entry, entryIndex) => <div className="resume-entry-editor" key={entry.id}><div className="resume-entry-heading"><span>{copy("条目", "Entry")} {entryIndex + 1}</span><button className="shell-icon" aria-label={copy(`删除条目 ${entryIndex + 1}`, `Remove entry ${entryIndex + 1}`)} onClick={() => { setUndo(draft); updateSection(section.id, value => ({ ...value, entries: value.entries.filter(item => item.id !== entry.id) })); }}><Trash2 size={13} /></button></div>
+                  {section.entries.map((entry, entryIndex) => <div className="resume-entry-editor" key={entry.id}><div className="resume-entry-heading"><span>{copy("条目", "Entry")} {entryIndex + 1}</span><div className="resume-entry-actions"><button className="shell-icon" disabled={entryIndex === 0} aria-label={copy(`上移条目 ${entryIndex + 1}`, `Move entry ${entryIndex + 1} up`)} onClick={() => moveEntry(section.id, entryIndex, -1)}><ArrowUp size={13} /></button><button className="shell-icon" disabled={entryIndex === section.entries.length - 1} aria-label={copy(`下移条目 ${entryIndex + 1}`, `Move entry ${entryIndex + 1} down`)} onClick={() => moveEntry(section.id, entryIndex, 1)}><ArrowDown size={13} /></button><button className="shell-icon" aria-label={copy(`删除条目 ${entryIndex + 1}`, `Remove entry ${entryIndex + 1}`)} onClick={() => { setUndo(draft); updateSection(section.id, value => ({ ...value, entries: value.entries.filter(item => item.id !== entry.id) })); }}><Trash2 size={13} /></button></div></div>
                     {(["title", "subtitle", "period", "details"] as const).map((key, fieldIndex) => <label className="resume-field" key={key}>{[copy("职位 / 项目 / 学位", "Role / project / degree"), copy("公司 / 学校 / 补充信息", "Organization / supporting details"), copy("起止时间", "Dates"), copy("详细描述", "Description")][fieldIndex]}{key === "details" ? <textarea rows={4} maxLength={20000} value={entry[key]} placeholder={copy("写下你的职责、行动与成果，可用换行分隔要点。", "Describe your contribution and outcomes. Use new lines for separate points.")} onChange={event => updateSection(section.id, value => ({ ...value, entries: value.entries.map(item => item.id === entry.id ? { ...item, [key]: event.target.value } : item) }))} /> : <input maxLength={1000} value={entry[key]} onChange={event => updateSection(section.id, value => ({ ...value, entries: value.entries.map(item => item.id === entry.id ? { ...item, [key]: event.target.value } : item) }))} />}</label>)}
                   </div>)}
                   <button className="resume-text-button" disabled={section.entries.length >= 100} onClick={() => updateSection(section.id, value => ({ ...value, entries: [...value.entries, emptyEntry()] }))}><Plus size={14} />{copy("添加一条经历", "Add entry")}</button>
