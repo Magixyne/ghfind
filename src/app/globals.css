@@ -1435,6 +1435,9 @@ html[data-theme="light"] :is(.text-zinc-500, .text-zinc-600) { color: #777773; }
 .resume-page-clip { position: absolute; inset-inline: 0; overflow: hidden; }
 .resume-page-content { position: absolute; inset-inline: 0; }
 .resume-page-content .resume-paper { box-shadow: none; }
+/* Click any preview text to jump to its field. The paper is white in every theme. */
+.resume-pages-editable .resume-page-content [data-edit] { cursor: text; border-radius: 2px; transition: background-color .12s; }
+.resume-pages-editable .resume-page-content [data-edit]:hover { background: rgb(37 99 235 / .1); box-shadow: 0 0 0 2px rgb(37 99 235 / .1); }
 
 /* Résumé dialogs: photo crop, saved-data offer, save confirmation. */
 .resume-dialog-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 18px; background: rgb(0 0 0 / .55); }
