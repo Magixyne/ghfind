@@ -321,13 +321,20 @@ func titlePrefix(title string) string {
 // IsEcosystemImpactPR mirrors isEcosystemImpactPr in src/lib/github.ts: a
 // substantial PR into someone else's repo with >=200 stars. Own repos are
 // credited through the contribution aggregates, never as ecosystem PRs.
-func IsEcosystemImpactPR(pr RecentPR, loginLower string) bool {
+func IsEcosystemImpactPR(pr RecentPR, loginLower string, repoSets ...[]ContribRepoAgg) bool {
 	if pr.Repo == nil || pr.Trivial {
 		return false
 	}
 	owner := repoOwner(*pr.Repo)
 	if owner == "" || owner == strings.ToLower(loginLower) {
 		return false
+	}
+	for _, repos := range repoSets {
+		for _, repo := range repos {
+			if strings.EqualFold(repo.Repo, *pr.Repo) && isOwnImpactRepo(repo, loginLower) {
+				return hasAttributedCreatorStarCredit(repo, loginLower) && passesImpactRepoGates(repo, loginLower) && (repo.Stars >= docResourceImpactMinStars || !isDocOrResourceRepo(repo))
+			}
+		}
 	}
 	return pr.RepoStars >= 200
 }
@@ -438,10 +445,10 @@ type ImpactQualitySignals struct {
 // ComputeImpactQualitySignals mirrors computeImpactQualitySignals: verified
 // external ecosystem PRs split into core and doc-like. Doc-heavy work is
 // weighted per repo by code share in ComputeImpactFromContribMap.
-func ComputeImpactQualitySignals(recentPRs []RecentPR, impactPRCount float64, loginLower string, workflowLandedImpactPRCount float64) ImpactQualitySignals {
+func ComputeImpactQualitySignals(recentPRs []RecentPR, impactPRCount float64, loginLower string, workflowLandedImpactPRCount float64, repoSets ...[]ContribRepoAgg) ImpactQualitySignals {
 	verified, docLike := 0.0, 0.0
 	for _, pr := range recentPRs {
-		if IsEcosystemImpactPR(pr, loginLower) {
+		if IsEcosystemImpactPR(pr, loginLower, repoSets...) {
 			verified++
 			if IsDocLikeImpactPR(pr) {
 				docLike++
@@ -482,7 +489,10 @@ type ContribRepoAgg struct {
 	Engagement *float64 `json:"engagement,omitempty"`
 	// AttributedOriginal marks an org repo credited as the user's original
 	// project: it counts as own.
-	AttributedOriginal bool `json:"attributed_original,omitempty"`
+	AttributedOriginal   bool     `json:"attributed_original,omitempty"`
+	AttributionEvidence  []string `json:"attribution_evidence,omitempty"`
+	Forks                float64  `json:"forks,omitempty"`
+	StarInflationSuspect bool     `json:"star_inflation_suspect,omitempty"`
 	// CommunityFacts/Community: own-project community (absent = not measured);
 	// Community is 0 for star-inflation suspects.
 	CommunityFacts *OwnRepoCommunityFacts `json:"community_facts,omitempty"`
@@ -532,7 +542,7 @@ func passesImpactRepoGates(repo ContribRepoAgg, loginLower string) bool {
 	}
 	// Own repos need 1000★ unless a measured outside community vouches for them.
 	threshold := 200.0
-	if isOwnImpactRepo(repo, loginLower) && !(valueOrZero(repo.Community) > 0) {
+	if isOwnImpactRepo(repo, loginLower) && !(valueOrZero(repo.Community) > 0) && !hasAttributedCreatorStarCredit(repo, loginLower) {
 		threshold = ownRepoImpactMinStars
 	}
 	return repo.Stars >= threshold && (repo.Commits >= defaultBranchCommitMin(repo.Repo) || repo.PRs >= 1)
@@ -540,6 +550,24 @@ func passesImpactRepoGates(repo ContribRepoAgg, loginLower string) bool {
 
 // isOwnImpactRepo covers the user's own repos and org repos credited as
 // their original projects.
+func hasAttributedCreatorStarCredit(repo ContribRepoAgg, loginLower string) bool {
+	if !repo.AttributedOriginal || repo.StarInflationSuspect {
+		return false
+	}
+	author := false
+	for _, e := range repo.AttributionEvidence {
+		if e == "release/tag author" || strings.EqualFold(e, "first commit author is "+loginLower) {
+			author = true
+		}
+	}
+	forks, outside := repo.Forks, 0.0
+	if repo.CommunityFacts != nil {
+		forks = max(forks, repo.CommunityFacts.Forks)
+		outside = repo.CommunityFacts.OutsideMergedPRs
+	}
+	return author && (outside >= 1 || forks >= 10)
+}
+
 func isOwnImpactRepo(repo ContribRepoAgg, loginLower string) bool {
 	return repo.AttributedOriginal || strings.EqualFold(repo.OwnerLogin, loginLower)
 }
@@ -592,7 +620,9 @@ func authoredCommits(repo ContribRepoAgg) float64 {
 // ComputeImpactFromContribMap mirrors computeImpactFromContribMap in
 // src/lib/github.ts. Each repo is weighted by doc/resource kind, code share and
 // tenure. Own repos (including attributed originals) earn impact from their
-// outside community, never from stars: community-based prestige, plus
+// outside community by default; proven attributed creators with outside adoption
+// retain the historical external star formula unless inflation is suspected.
+// Otherwise they earn community-based prestige, plus
 // 2.5 x community depth on top of the legacy damped star depth (>=1000★).
 //
 // TODO(content-repos): also treat a repo as content when its file tree is
@@ -624,6 +654,9 @@ func ComputeImpactFromContribMap(repos []ContribRepoAgg, loginLower string) Impa
 			prestigeBase = valueOrZero(repo.Community)
 		}
 		prestige = max(prestige, prestigeBase*prestigeWorkMultiplier(authoredCommits(repo), repo.PRs)*repoWeight)
+		if hasAttributedCreatorStarCredit(repo, loginLower) {
+			prestige = max(prestige, LogRatio(repo.Stars, 100000)*prestigeWorkMultiplier(authoredCommits(repo), repo.PRs)*docWeight)
+		}
 		work := authoredCommits(repo) + repo.PRs
 		weight := 0.0
 		if work > 0 {
@@ -635,7 +668,11 @@ func ComputeImpactFromContribMap(repos []ContribRepoAgg, loginLower string) Impa
 			if repo.Stars >= ownRepoImpactMinStars {
 				starDepth = LogRatio(repo.Stars, 5000) * weight * repoWeight * (ownRepoImpactDepthWeight * starEngagementMultiplier(repo.Engagement))
 			}
-			depth = depth + starDepth + communityDepth*valueOrZero(repo.Community)*repoWeight
+			ownDepth := starDepth + communityDepth*valueOrZero(repo.Community)*repoWeight
+			if hasAttributedCreatorStarCredit(repo, loginLower) {
+				ownDepth = max(ownDepth, LogRatio(repo.Stars, 5000)*weight*docWeight)
+			}
+			depth += ownDepth
 		} else {
 			depth += LogRatio(repo.Stars, 5000) * weight * repoWeight
 		}
@@ -714,7 +751,7 @@ func hasStrongLongTermOrgContribution(repo ContribRepoAgg) bool {
 // non-documentation repository owned by a public organization the developer
 // belongs to may be credited as their original work, and it needs long-term
 // contribution evidence. Pinned/release/maintainer proofs strengthen it.
-func ComputeOrgRepoAttribution(repo ContribRepoAgg, organizations, pinnedRepos []string, releaseOrTagAuthorHit, maintainerFileHit bool) *OrgRepoAttribution {
+func ComputeOrgRepoAttribution(repo ContribRepoAgg, organizations, pinnedRepos []string, releaseOrTagAuthorHit, maintainerFileHit bool, creatorLogins ...string) *OrgRepoAttribution {
 	member := false
 	for _, organization := range organizations {
 		if strings.EqualFold(organization, repo.OwnerLogin) {
@@ -722,10 +759,15 @@ func ComputeOrgRepoAttribution(repo ContribRepoAgg, organizations, pinnedRepos [
 			break
 		}
 	}
-	if !member || repo.IsPrivate || repo.IsFork || isDocLikeRepo(repo.Repo) || !hasStrongLongTermOrgContribution(repo) {
+	firstCommitMatch := len(creatorLogins) == 2 && strings.TrimSpace(creatorLogins[0]) != "" && strings.EqualFold(strings.TrimSpace(creatorLogins[0]), strings.TrimSpace(creatorLogins[1]))
+	if (!member && !firstCommitMatch) || repo.IsPrivate || repo.IsFork || isDocLikeRepo(repo.Repo) || !hasStrongLongTermOrgContribution(repo) {
 		return nil
 	}
-	evidence := []string{"org member of " + repo.OwnerLogin, formatNumber(repo.Commits) + " commits + " + formatNumber(repo.PRs) + " PRs across " + formatNumber(repo.ActiveYears) + " years"}
+	identity := "org member of " + repo.OwnerLogin
+	if !member {
+		identity = "first commit author is " + creatorLogins[1]
+	}
+	evidence := []string{identity, formatNumber(repo.Commits) + " commits + " + formatNumber(repo.PRs) + " PRs across " + formatNumber(repo.ActiveYears) + " years"}
 	score := 5.0
 	for _, pinned := range pinnedRepos {
 		if strings.EqualFold(pinned, repo.Repo) {
