@@ -1298,6 +1298,7 @@ html[data-theme="light"] .login-apple-mark { filter: invert(1); }
 .resume-block-tools > button:last-child { margin-inline-start: auto; }
 .resume-entry-editor { padding: 14px 0; border-top: 1px dashed var(--border); margin-top: 18px; }
 .resume-entry-heading { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--muted-foreground); }
+.resume-entry-actions { display: flex; gap: 2px; }
 .resume-add-section { margin-top: 24px; }
 .resume-add-section h3 { font-size: 12px; margin-bottom: 12px; }
 .resume-add-section > div { display: flex; flex-wrap: wrap; gap: 7px; }
