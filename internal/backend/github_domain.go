@@ -43,33 +43,43 @@ type RepoLanguage struct {
 }
 
 type TopRepo struct {
-	Name                string         `json:"name"`
-	OwnerLogin          *string        `json:"owner_login,omitempty"`
-	NameWithOwner       *string        `json:"name_with_owner,omitempty"`
-	Stars               float64        `json:"stars"`
-	Forks               float64        `json:"forks"`
-	OpenIssues          float64        `json:"open_issues"`
-	OpenIssueCount      *float64       `json:"open_issue_count,omitempty"`
-	Size                float64        `json:"size"`
-	Language            *string        `json:"language"`
-	Description         *string        `json:"description"`
-	PushedAt            *string        `json:"pushed_at"`
-	Readme              *RepoReadme    `json:"readme,omitempty"`
-	ReadmeExcerpt       *string        `json:"readme_excerpt,omitempty"`
-	Topics              []string       `json:"topics,omitempty"`
-	Languages           []RepoLanguage `json:"languages,omitempty"`
-	AttributedOriginal  bool           `json:"attributed_original,omitempty"`
-	AttributionEvidence []string       `json:"attribution_evidence,omitempty"`
+	AttributionShare    *float64        `json:"attribution_share,omitempty"`
+	CoCreatorFacts      *CoCreatorFacts `json:"co_creator_facts,omitempty"`
+	Name                string          `json:"name"`
+	OwnerLogin          *string         `json:"owner_login,omitempty"`
+	NameWithOwner       *string         `json:"name_with_owner,omitempty"`
+	Stars               float64         `json:"stars"`
+	Forks               float64         `json:"forks"`
+	OpenIssues          float64         `json:"open_issues"`
+	OpenIssueCount      *float64        `json:"open_issue_count,omitempty"`
+	Size                float64         `json:"size"`
+	Language            *string         `json:"language"`
+	Description         *string         `json:"description"`
+	PushedAt            *string         `json:"pushed_at"`
+	Readme              *RepoReadme     `json:"readme,omitempty"`
+	ReadmeExcerpt       *string         `json:"readme_excerpt,omitempty"`
+	Topics              []string        `json:"topics,omitempty"`
+	Languages           []RepoLanguage  `json:"languages,omitempty"`
+	AttributedOriginal  bool            `json:"attributed_original,omitempty"`
+	AttributionEvidence []string        `json:"attribution_evidence,omitempty"`
+}
+
+type PRFileChange struct {
+	Path      string  `json:"path"`
+	Additions float64 `json:"additions"`
+	Deletions float64 `json:"deletions"`
 }
 
 type RecentPR struct {
-	Title        *string  `json:"title"`
-	Repo         *string  `json:"repo"`
-	RepoStars    float64  `json:"repo_stars"`
-	Churn        float64  `json:"churn"`
-	ChangedFiles float64  `json:"changed_files"`
-	Trivial      bool     `json:"trivial"`
-	Files        []string `json:"files,omitempty"`
+	PresentationShare *float64       `json:"presentation_share,omitempty"`
+	FileChanges       []PRFileChange `json:"file_changes,omitempty"`
+	Title             *string        `json:"title"`
+	Repo              *string        `json:"repo"`
+	RepoStars         float64        `json:"repo_stars"`
+	Churn             float64        `json:"churn"`
+	ChangedFiles      float64        `json:"changed_files"`
+	Trivial           bool           `json:"trivial"`
+	Files             []string       `json:"files,omitempty"`
 }
 
 type ImpactRepo struct {
@@ -220,7 +230,7 @@ func BestOriginalRepoQuality(repos []TopRepo, loginLower string, now time.Time) 
 	best := 0.0
 	var bestRepo *string
 	for _, repo := range repos {
-		quality := OriginalRepoQualityScore(repo, loginLower, now)
+		quality := OriginalRepoQualityScore(repo, loginLower, now) * projectShare(repo.AttributionShare)
 		if quality > best {
 			best = quality
 			name := repoDisplayName(repo)
@@ -233,7 +243,7 @@ func BestOriginalRepoQuality(repos []TopRepo, loginLower string, now time.Time) 
 func TopStarredOriginalRepoQuality(repos []TopRepo, loginLower string, now time.Time) (float64, *string) {
 	var top *TopRepo
 	for index := range repos {
-		if repos[index].Stars > 0 && (top == nil || repos[index].Stars > top.Stars) {
+		if repos[index].Stars > 0 && (top == nil || repos[index].Stars*projectShare(repos[index].AttributionShare) > top.Stars*projectShare(top.AttributionShare)) {
 			top = &repos[index]
 		}
 	}
@@ -241,7 +251,7 @@ func TopStarredOriginalRepoQuality(repos []TopRepo, loginLower string, now time.
 		return 0, nil
 	}
 	name := repoDisplayName(*top)
-	return OriginalRepoQualityScore(*top, loginLower, now), &name
+	return OriginalRepoQualityScore(*top, loginLower, now) * projectShare(top.AttributionShare), &name
 }
 
 type AnyPR struct {
@@ -331,7 +341,7 @@ func IsEcosystemImpactPR(pr RecentPR, loginLower string, repoSets ...[]ContribRe
 	}
 	for _, repos := range repoSets {
 		for _, repo := range repos {
-			if strings.EqualFold(repo.Repo, *pr.Repo) && isOwnImpactRepo(repo, loginLower) {
+			if strings.EqualFold(repo.Repo, *pr.Repo) && isOwnImpactRepo(repo, loginLower) && projectShare(repo.AttributionShare) >= 1 {
 				return hasAttributedCreatorStarCredit(repo, loginLower) && passesImpactRepoGates(repo, loginLower) && (repo.Stars >= docResourceImpactMinStars || !isDocOrResourceRepo(repo))
 			}
 		}
@@ -392,7 +402,7 @@ func isDocOrResourceRepo(repo ContribRepoAgg) bool {
 // UI libraries, design systems and component kits ship their styles: there a
 // stylesheet is product code, not presentation (e.g. ant-design/x).
 var styleFileRE = regexp.MustCompile(`(?i)\.(css|scss|sass|less|styl)$`)
-var uiLibraryRepoRE = regexp.MustCompile(`(?i)(^|[-_./])(ui|design|design-system|components?|widgets?|styles?|css|themes?|antd|mui|chakra|shadcn|tailwind(css)?)([-_./]|$)`)
+var uiLibraryRepoRE = regexp.MustCompile(`(?i)(^|[-_./])(ui|design|design-system|components?|widgets?|styles?|css|themes?|antd|mui|chakra|shadcn|patternfly|tailwind(css)?)([-_./]|$)`)
 
 func isUiLibraryRepo(repo string) bool { return uiLibraryRepoRE.MatchString(repo) }
 
@@ -413,6 +423,9 @@ func isCoreCodePath(path string, uiLibrary bool) bool {
 }
 
 func IsDocLikeImpactPR(pr RecentPR) bool {
+	if share, ok := prPresentationShare(pr); ok {
+		return share >= .6
+	}
 	if pr.Repo != nil && isDocLikeRepo(*pr.Repo) {
 		return true
 	}
@@ -464,14 +477,16 @@ func ComputeImpactQualitySignals(recentPRs []RecentPR, impactPRCount float64, lo
 }
 
 type ContribRepoAgg struct {
-	Repo        string  `json:"repo"`
-	Stars       float64 `json:"stars"`
-	IsPrivate   bool    `json:"is_private"`
-	IsFork      bool    `json:"is_fork"`
-	OwnerLogin  string  `json:"owner_login"`
-	Commits     float64 `json:"commits"`
-	PRs         float64 `json:"prs"`
-	ActiveYears float64 `json:"active_years"`
+	AttributionShare *float64        `json:"attribution_share,omitempty"`
+	CoCreatorFacts   *CoCreatorFacts `json:"co_creator_facts,omitempty"`
+	Repo             string          `json:"repo"`
+	Stars            float64         `json:"stars"`
+	IsPrivate        bool            `json:"is_private"`
+	IsFork           bool            `json:"is_fork"`
+	OwnerLogin       string          `json:"owner_login"`
+	Commits          float64         `json:"commits"`
+	PRs              float64         `json:"prs"`
+	ActiveYears      float64         `json:"active_years"`
 	// MergeCommits estimates how many of Commits are merge commits (more than
 	// one parent); Topics feeds resource-repo detection. Both are absent when
 	// the repo signal query was unavailable.
@@ -551,14 +566,14 @@ func passesImpactRepoGates(repo ContribRepoAgg, loginLower string) bool {
 	return repo.Commits >= defaultBranchCommitMin(repo.Repo) || repo.PRs >= 1
 }
 
-// v14 adoption saturates in log space; merged PRs outweigh forks.
+// v15 adoption saturates in log space; merged PRs outweigh forks.
 func impactEvidenceWeight(repo ContribRepoAgg) float64 {
 	forks, prs := max(0, repo.Forks), 0.0
 	if repo.CommunityFacts != nil {
 		forks = max(forks, repo.CommunityFacts.Forks)
 		prs = max(0, repo.CommunityFacts.OutsideMergedPRs)
 	}
-	return 1 - math.Exp(-1.5*math.Log1p(prs)-0.6*math.Log1p(forks))
+	return 1 - math.Exp(-2.6*math.Log1p(prs)-0.6*math.Log1p(forks))
 }
 func impactStarSeverity(repo ContribRepoAgg) float64 {
 	forks, prs := max(0, repo.Forks), 0.0
@@ -567,7 +582,7 @@ func impactStarSeverity(repo ContribRepoAgg) float64 {
 		prs = max(0, repo.CommunityFacts.OutsideMergedPRs)
 	}
 	stars := max(0, repo.Stars)
-	return stars / (stars + 100) / ((1 + forks) * (1 + forks) * (1 + prs) * (1 + prs))
+	return stars / (stars + 100) / ((1 + forks) * (1 + forks) * (1 + 6*prs) * (1 + 6*prs))
 }
 func impactStarDiscount(repo ContribRepoAgg) float64 {
 	severity := impactStarSeverity(repo)
@@ -693,10 +708,16 @@ func ComputeImpactFromContribMap(repos []ContribRepoAgg, loginLower string) Impa
 			prestigeBase = valueOrZero(repo.Community)
 		}
 		base := prestigeBase * prestigeWorkMultiplier(authoredCommits(repo), repo.PRs) * repoWeight
-		prestige = max(prestige, base)
+		repoPrestige := base
 		if hasAttributedCreatorStarCredit(repo, loginLower) {
-			prestige = max(prestige, base+attributedCreatorWeight(repo, loginLower)*max(0, LogRatio(repo.Stars, 100000)*prestigeWorkMultiplier(authoredCommits(repo), repo.PRs)*docWeight-base))
+			repoPrestige = base + attributedCreatorWeight(repo, loginLower)*max(0, LogRatio(repo.Stars, 100000)*prestigeWorkMultiplier(authoredCommits(repo), repo.PRs)*docWeight-base)
 		}
+		share := projectShare(repo.AttributionShare)
+		externalPrestige := 0.0
+		if repo.Stars >= 200 {
+			externalPrestige = LogRatio(repo.Stars, 100000) * prestigeWorkMultiplier(authoredCommits(repo), repo.PRs) * repoWeight
+		}
+		prestige = max(prestige, share*repoPrestige+(1-share)*externalPrestige)
 		work := authoredCommits(repo) + repo.PRs
 		weight := 0.0
 		if work > 0 {
@@ -709,7 +730,11 @@ func ComputeImpactFromContribMap(repos []ContribRepoAgg, loginLower string) Impa
 			if hasAttributedCreatorStarCredit(repo, loginLower) {
 				ownDepth += attributedCreatorWeight(repo, loginLower) * max(0, LogRatio(repo.Stars, 5000)*weight*docWeight-ownDepth)
 			}
-			depth += ownDepth
+			externalDepth := 0.0
+			if repo.Stars >= 200 {
+				externalDepth = LogRatio(repo.Stars, 5000) * weight * repoWeight
+			}
+			depth += share*ownDepth + (1-share)*externalDepth
 		} else {
 			depth += LogRatio(repo.Stars, 5000) * weight * repoWeight
 		}
@@ -772,6 +797,8 @@ func MergeContribRepoAggs(groups ...[]ContribRepoAgg) []ContribRepoAgg {
 }
 
 type OrgRepoAttribution struct {
+	Share    *float64
+	Facts    *CoCreatorFacts
 	Repo     string
 	Evidence []string
 	Score    float64
@@ -797,6 +824,41 @@ func ComputeOrgRepoAttribution(repo ContribRepoAgg, organizations, pinnedRepos [
 		}
 	}
 	firstCommitMatch := len(creatorLogins) == 2 && strings.TrimSpace(creatorLogins[0]) != "" && strings.EqualFold(strings.TrimSpace(creatorLogins[0]), strings.TrimSpace(creatorLogins[1]))
+	if repo.CoCreatorFacts != nil {
+		if (len(creatorLogins) > 0 && strings.EqualFold(repo.OwnerLogin, creatorLogins[0])) || repo.IsPrivate || repo.IsFork || isDocOrResourceRepo(repo) {
+			return nil
+		}
+		f := *repo.CoCreatorFacts
+		f.FirstAuthor = firstCommitMatch
+		f.ReleaseAuthor = releaseOrTagAuthorHit
+		f.MaintainerFile = maintainerFileHit
+		if f.Association == "" && member {
+			f.Association = "MEMBER"
+		}
+		for _, p := range pinnedRepos {
+			if strings.EqualFold(p, repo.Repo) {
+				f.Pinned = true
+			}
+		}
+		share := coCreatorShare(f)
+		if share <= 0 {
+			return nil
+		}
+		evidence := []string{formatNumber(f.UserCommits) + "/" + formatNumber(f.TotalCommits) + " commits; leader " + formatNumber(f.LeadingCommits), formatNumber(f.UserMergedPRs) + "/" + formatNumber(f.TotalMergedPRs) + " merged PRs; " + formatNumber(f.ActiveYears) + " active years", formatNumber(f.CoreChurn) + " core lines in " + formatNumber(f.Samples) + " complete samples"}
+		if firstCommitMatch {
+			evidence = append(evidence, "first commit author is "+strings.ToLower(creatorLogins[0]))
+		}
+		if f.ReleaseAuthor {
+			evidence = append(evidence, "release/tag author")
+		}
+		if f.MaintainerFile {
+			evidence = append(evidence, "listed in maintainer/codeowner docs")
+		}
+		if f.Association != "" {
+			evidence = append(evidence, "author association "+f.Association)
+		}
+		return &OrgRepoAttribution{Repo: repo.Repo, Score: share, Share: &share, Facts: &f, Evidence: evidence}
+	}
 	if (!member && !firstCommitMatch) || repo.IsPrivate || repo.IsFork || isDocLikeRepo(repo.Repo) || !hasStrongLongTermOrgContribution(repo) {
 		return nil
 	}
@@ -971,7 +1033,7 @@ func OriginalRepoStarWeight(repo TopRepo, now time.Time) float64 {
 func WeightedOriginalStars(repos []TopRepo, now time.Time) (float64, float64) {
 	total, maximum := 0.0, 0.0
 	for _, repo := range repos {
-		weighted := max(0, repo.Stars) * OriginalRepoStarWeight(repo, now)
+		weighted := max(0, repo.Stars) * projectShare(repo.AttributionShare) * OriginalRepoStarWeight(repo, now)
 		total += weighted
 		maximum = max(maximum, weighted)
 	}

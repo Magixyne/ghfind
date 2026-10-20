@@ -16,6 +16,8 @@ Parity notes (why this reproduces the TS output bit-for-bit):
 
 from __future__ import annotations
 
+from ._presentation import presentation_discount
+
 import math
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -125,39 +127,12 @@ def _doc_like_ratio(m: Mapping[str, Any]) -> tuple:
 
 
 def doc_like_pr_volume_discount(m: Mapping[str, Any], pr_volume: float) -> float:
-    sample, ratio = _doc_like_ratio(m)
-    if sample < 20 or ratio < 0.55:
-        return 0
-    severity = max(0.0, min(1.0, (ratio - 0.55) / 0.075))
-    return min(pr_volume * 0.55, 2.5 + severity * 3.0)
+    from ._presentation import presentation_discount
+    share = min(1, max(0, m.get("external_merged_pr_count") or 0) / max(1, m["merged_pr_count"]))
+    return pr_volume * share * (1-presentation_discount(m)) * .8
 
 
 def contribution_quality_cap(m: Mapping[str, Any]) -> Optional[float]:
-    sample, ratio = _doc_like_ratio(m)
-    if sample < 20 or ratio < 0.55:
-        return None
-    low_trust_impact = (
-        m.get("impact_quality_cap") is not None
-        and m["impact_quality_cap"] <= 4
-        and _nz(m.get("core_impact_pr_count"), 0) <= 2
-    )
-    weak_top_star_project = (
-        _nz(m.get("top_starred_original_repo_quality_score"), 1) < 0.3 and m["total_stars"] > 0
-    )
-    self_closed_external = _nz(m.get("self_closed_external_pr_count"), 0)
-    total_externalish = (
-        m["merged_pr_count"] + _nz(m.get("maintainer_closed_unmerged_pr_count"), 0) + self_closed_external
-    )
-    heavy_self_closed_external = (
-        total_externalish >= 20 and self_closed_external / total_externalish >= 0.25
-    )
-    weak_own_project_signal = (
-        m["max_stars"] < 100
-        and m["total_stars"] < 300
-        and _nz(m.get("top_starred_original_repo_quality_score"), 1) < 0.6
-    )
-    if low_trust_impact and (weak_top_star_project or weak_own_project_signal or heavy_self_closed_external):
-        return 12
     return None
 
 
@@ -197,13 +172,16 @@ def impact_prestige_signal(m: Mapping[str, Any]) -> float:
 
 
 def low_prestige_bulk_contribution_cap(m: Mapping[str, Any]) -> Optional[float]:
-    if m["merged_pr_count"] < 80:
-        return None
-    if impact_prestige_signal(m) >= log_ratio(10_000, 100_000):
-        return None
-    if m["max_stars"] >= 1000:
-        return None
-    return 22
+    def smooth(value):
+        x = max(0, min(1, value))
+        return x*x*(3-2*x)
+    volume = smooth((m["merged_pr_count"]-40)/80)
+    protection = smooth((m["max_stars"]-950)/100)
+    prestige=impact_prestige_signal(m)
+    strong_prestige=smooth((prestige-.65)/.15)
+    core_protection=smooth(((m.get("core_impact_pr_count") or 0)-40)/60)
+    prestige_cap=20+3*smooth((prestige-.3)/.5)+4*strong_prestige+2.5*core_protection*(1-strong_prestige)
+    return 27-(27-prestige_cap)*volume*(1-protection)
 
 
 def author_self_closed_external_penalty(m: Mapping[str, Any]) -> float:
@@ -250,6 +228,24 @@ def next_tier(final: float) -> Optional[Dict[str, Any]]:
     return None
 
 
+def original_project_quality(m):
+    if m["nonempty_original_repo_count"] == 0:
+        return 0.0
+    else:
+        star_quality = (
+            max(0, min(_nz(m.get("top_starred_original_repo_quality_score"), 1), 1))
+            if m["total_stars"] > 0
+            else 1
+        )
+        star_pts = (
+            (log_ratio(m["total_stars"], 5000) * 7 + log_ratio(m["max_stars"], 2000) * 5)
+            * star_quality
+            * star_engagement_multiplier(m.get("top_repo_engagement_ratio"))
+        )
+        project_substance = max(0, min(_nz(m.get("best_original_repo_quality_score"), 0), 1)) * 6
+        return round(star_pts + project_substance, 1)
+
+
 def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     sub: Dict[str, float] = {
         "account_maturity": 0,
@@ -267,21 +263,7 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     sub["account_maturity"] = round(age_pts + span_pts, 1)
 
     # 2. Original Project Quality (18)
-    if m["nonempty_original_repo_count"] == 0:
-        sub["original_project_quality"] = 0.0
-    else:
-        star_quality = (
-            max(0, min(_nz(m.get("top_starred_original_repo_quality_score"), 1), 1))
-            if m["total_stars"] > 0
-            else 1
-        )
-        star_pts = (
-            (log_ratio(m["total_stars"], 5000) * 7 + log_ratio(m["max_stars"], 2000) * 5)
-            * star_quality
-            * star_engagement_multiplier(m.get("top_repo_engagement_ratio"))
-        )
-        project_substance = max(0, min(_nz(m.get("best_original_repo_quality_score"), 0), 1)) * 6
-        sub["original_project_quality"] = round(star_pts + project_substance, 1)
+    sub["original_project_quality"] = max(original_project_quality(m), max(0,min(18,m.get("personal_original_project_quality_score",0))))
 
     # 3. Contribution Quality (27)
     pr_volume_raw = log_ratio(m["merged_pr_count"], 200) * 16
@@ -307,9 +289,9 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     contribution_quality_raw = (
         pr_volume
         + own_pr_community_credit(m)
-        + acceptance
+        + acceptance - doc_like_pr_volume_discount(m, acceptance)
         + issue_pts
-        + high_impact_core_pr_bonus(m)
+        + high_impact_core_pr_bonus(m) * (1-(1-presentation_discount(m))*.8)
         - author_self_closed_external_penalty(m)
     )
     contribution_cap = min(
@@ -322,9 +304,10 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     # 4. Ecosystem & Maintainer Impact (20)
     prestige = impact_prestige_signal(m) * 9
     depth = min(m["impact_depth_raw"] / 8.0, 1.0) * 11
-    ecosystem_raw = prestige + depth
+    from ._presentation import ecosystem_presentation_discount
+    ecosystem_raw = (prestige + depth) * ecosystem_presentation_discount(m)
     sub["ecosystem_impact"] = round(
-        ecosystem_raw if m.get("impact_quality_cap") is None else min(ecosystem_raw, m["impact_quality_cap"]),
+        ecosystem_raw,
         1,
     )
 

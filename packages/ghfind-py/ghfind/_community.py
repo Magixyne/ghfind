@@ -1,4 +1,5 @@
 """Own-project community facts, mirrored from the TS/Go collectors."""
+from ._co_creator import project_share
 import math
 import re
 from datetime import datetime
@@ -114,7 +115,7 @@ def impact_evidence_weight(r):
     facts = r.get('community_facts') or {}
     prs = max(0, facts.get('outside_merged_prs', 0))
     forks = max(0, r.get('forks', 0), facts.get('forks', 0))
-    return 1 - math.exp(-1.5 * math.log1p(prs) - .6 * math.log1p(forks))
+    return 1 - math.exp(-2.6 * math.log1p(prs) - .6 * math.log1p(forks))
 
 
 def impact_star_severity(r):
@@ -122,7 +123,7 @@ def impact_star_severity(r):
     prs = max(0, facts.get('outside_merged_prs', 0))
     forks = max(0, r.get('forks', 0), facts.get('forks', 0))
     stars = max(0, r['stars'])
-    return stars / (stars + 100) / ((1 + forks) ** 2 * (1 + prs) ** 2)
+    return stars / (stars + 100) / ((1 + forks) ** 2 * (1 + 6 * prs) ** 2)
 
 
 def impact_star_discount(r):
@@ -151,7 +152,7 @@ def has_attributed_creator_star_credit(r, login):
 def own_pr_community_share(repos, login, own_prs):
     if own_prs <= 0:
         return 0
-    return _round4(max(0, min(1, sum(r['prs'] * r.get('community', 0) for r in repos
+    return _round4(max(0, min(1, sum(r['prs'] * project_share(r) * r.get('community', 0) for r in repos
         if is_own_impact_repo(r, login) and not r['is_fork'] and r.get('community', 0) > 0) / own_prs)))
 
 
@@ -173,7 +174,10 @@ def collect_own_repo_communities(repos, login, organizations, now):
             continue
     profiles = {}
     mutual = sorted({r['owner_login'].lower() for r in repos if not is_own_impact_repo(r, login.lower()) and r['commits'] + r['prs'] > 0})
-    for r, _ in sorted(counts, key=lambda item: (-item[1], -item[0]['stars'], item[0]['repo']))[:3]:
+    ranked=sorted(counts,key=lambda item:(-item[1]*project_share(item[0]),-item[0]['stars'],item[0]['repo']))
+    established=lambda r: 'attribution_share' not in r or (r.get('co_creator_facts') or {}).get('first_author',False)
+    picked=[x for x in ranked if established(x[0])][:3]+[x for x in ranked if not established(x[0])][:3]
+    for r, _ in picked:
         try:
             owner, name = r['repo'].split('/', 1)
             def query(filter_):
