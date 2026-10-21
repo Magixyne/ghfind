@@ -58,6 +58,7 @@ import {
   isPublicScoreVersion,
   isRetainedPublicScoreArtifact,
   LEGACY_READ_FALLBACK,
+  PUBLIC_SCORE_READ_ORDER,
   publicScoreVersionSql,
   RELEASE_VERSION_MANIFEST,
 } from "./release-versions";
@@ -286,6 +287,46 @@ async function getLegacyReadFallbackRow(
       args: [username.toLowerCase(), LEGACY_READ_FALLBACK.score, LEGACY_READ_FALLBACK.collection],
     });
     return (result.rows[0] as Record<string, unknown> | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Newest-public-version verified copy in score_release_fallbacks, for accounts
+ * whose `scores` row was written by a release that is no longer publicly read
+ * (e.g. v11/v12 after the v10 restore). Without it those profiles 404 even
+ * though an older public-version artifact was captured for them.
+ */
+async function getRetainedPublicFallbackRow(
+  db: Client,
+  username: string,
+): Promise<Record<string, unknown> | null> {
+  const collections = RELEASE_VERSION_MANIFEST.compatibility.collectionReadOrder;
+  try {
+    const result = await db.execute({
+      sql: `SELECT username, display_name, avatar_url, profile_url, final_score, tier,
+                   tags, roast_line, roast, roast_en, roast_version, roast_en_version,
+                   bot_score, sub_scores, risk_assessment, risk_notes, score_version,
+                   collection_version, collection_version AS score_source_collection_version,
+                   snapshot_hash AS score_source_snapshot_hash, scanned_at,
+                   NULL AS prev_score, NULL AS prev_scanned_at
+            FROM score_release_fallbacks
+            WHERE username = ?
+              AND score_version IN (${PUBLIC_SCORE_READ_ORDER.map(() => "?").join(", ")})
+              AND collection_version IN (${collections.map(() => "?").join(", ")})`,
+      args: [username.toLowerCase(), ...PUBLIC_SCORE_READ_ORDER, ...collections],
+    });
+    const rank = (row: Record<string, unknown>) =>
+      PUBLIC_SCORE_READ_ORDER.indexOf(String(row.score_version)) * collections.length +
+      collections.indexOf(String(row.collection_version));
+    const rows = (result.rows as unknown as Record<string, unknown>[])
+      .filter((row) =>
+        typeof row.score_source_snapshot_hash === "string" &&
+        /^[a-f0-9]{64}$/.test(row.score_source_snapshot_hash),
+      )
+      .sort((a, b) => rank(a) - rank(b));
+    return rows[0] ?? null;
   } catch {
     return null;
   }
@@ -6392,14 +6433,24 @@ export async function getAccountDetail(username: string): Promise<AccountDetail 
     const retainedScore = Boolean(currentRow && isRetainedPublicScoreArtifact(
       currentRow.score_version, currentRow.score_source_collection_version, currentRow.score_source_snapshot_hash,
     ));
-    const fallbackRow = canonicalScore || retainedScore
+    const legacyFallbackRow = canonicalScore || retainedScore
       ? null
       : await getLegacyReadFallbackRow(db, username);
+    // The scores row is from a retired release and there is no previous-release
+    // copy: serve the newest captured public-version artifact instead of 404ing.
+    const currentReadable = Boolean(
+      currentRow && (currentScore || retainedScore || isLegacyReadFallbackProfile(currentRow)),
+    );
+    const retainedFallbackRow = legacyFallbackRow || currentReadable
+      ? null
+      : await getRetainedPublicFallbackRow(db, username);
+    const fallbackRow = legacyFallbackRow ?? retainedFallbackRow;
     const r = fallbackRow ?? currentRow;
     if (!r) return null;
     const resolvedCurrentScore = !fallbackRow && isTargetReleaseScoreRow(r);
     const legacyReadFallback =
-      !resolvedCurrentScore && (retainedScore || isLegacyReadFallbackProfile(r));
+      !resolvedCurrentScore &&
+      (retainedScore || Boolean(retainedFallbackRow) || isLegacyReadFallbackProfile(r));
     const readableArtifacts = resolvedCurrentScore || legacyReadFallback;
     if (!readableArtifacts) return null;
     const artifactRoastVersion = canonicalScore && resolvedCurrentScore
