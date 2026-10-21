@@ -204,6 +204,12 @@ function runtimeConfiguration(m, image, sha, mode) {
     FEED_QUEUE_NAME: m.queue,
     FEED_DLQ_NAME: m.deadLetterQueue,
   };
+  // off -> baseline must be a code update, not only a binding update: existing
+  // Durable Objects may retain constructor-derived bindings until replacement.
+  // This value is consumed by both DO constructors, so bundlers cannot erase it.
+  c.define = { ...c.define, __FEED_DEPLOYMENT_IDENTITY__: JSON.stringify({
+    sourceSha: sha, imageBuildId, mode, writerEpoch: String(m.writerEpoch),
+  }) };
   c.services = [{ binding: "FEED_ADAPTER", service: m.adapterWorker }];
   c.containers = ["FeedAPI", "FeedExecutor"].map((class_name) => ({
     class_name,

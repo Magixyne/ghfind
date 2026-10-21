@@ -214,6 +214,25 @@ async function writeLegacyReadFallback(username: string): Promise<void> {
           now,
         ],
       },
+      {
+        sql: `INSERT OR IGNORE INTO score_release_fallbacks
+                (username, score_version, collection_version, display_name, avatar_url,
+                 profile_url, final_score, tier, tags, roast_line, roast, roast_en,
+                 roast_version, roast_en_version, bot_score, sub_scores, risk_assessment,
+                 risk_notes, snapshot, snapshot_hash, source_status, scanned_at, captured_at)
+              SELECT s.username, s.score_version, ?, s.display_name, s.avatar_url,
+                     s.profile_url, s.final_score, s.tier, s.tags, s.roast_line, s.roast,
+                     s.roast_en, s.roast_version, s.roast_en_version, s.bot_score,
+                     s.sub_scores, s.risk_assessment, s.risk_notes, ?, ?, '{}', s.scanned_at, ?
+              FROM scores s WHERE s.username = ?`,
+        args: [
+          LEGACY_READ_FALLBACK.collection,
+          serialized.snapshot,
+          serialized.snapshotHash,
+          now,
+          username,
+        ],
+      },
     ],
     "write",
   );
@@ -282,7 +301,38 @@ describe("getArchivedRoast", () => {
     await expect(db.getAccountDetail(username)).resolves.toMatchObject({ roast: null });
   });
 
-  it("serves an exact v10/v10/v4 artifact as a stale read without changing its score", async () => {
+  it("retains v10/v5 artifacts after the v14 score advance", async () => {
+    const username = "retired-score-v10";
+    await writeScore({ ...entry, username });
+    const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
+    await client.execute({ sql: `UPDATE scores SET score_version = 'v10', score_source_collection_version = 'v5' WHERE username = ?`, args: [username] });
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({
+      score_version: "v10", score_source_collection_version: "v5", legacy_read_fallback: true,
+    });
+    await client.execute({ sql: `UPDATE scores SET score_source_snapshot_hash = NULL WHERE username = ?`, args: [username] });
+    await expect(db.getAccountDetail(username)).resolves.toBeNull();
+  });
+
+  it("serves a leftover public v13 scores row as current, not emergency fallback", async () => {
+    const username = "public-v13-leftover-fixture";
+    await writeScore({ ...entry, username });
+    const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
+    await client.execute({
+      sql: `UPDATE scores SET score_version = 'v13' WHERE username = ?`,
+      args: [username],
+    });
+
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({
+      username,
+      final_score: entry.final_score,
+      score_version: "v13",
+      legacy_read_fallback: false,
+    });
+    await expect(db.hasLegacyReadFallbackProfile(username)).resolves.toBe(false);
+    await expect(db.getLegacyReadFallbackRoast(username, "zh")).resolves.toBeNull();
+  });
+
+  it("serves an exact previous-release artifact as a stale read without changing its score", async () => {
     const username = "legacy-read-fixture";
     await writeLegacyReadFallback(username);
 
@@ -309,7 +359,7 @@ describe("getArchivedRoast", () => {
     });
   });
 
-  it("keeps a v10/v10/v4 profile readable when its old snapshot is no longer usable", async () => {
+  it("keeps a previous-release profile readable when its old snapshot is no longer usable", async () => {
     const username = "legacy-fallback-mismatch";
     await writeLegacyReadFallback(username);
     const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
@@ -357,7 +407,7 @@ describe("getArchivedRoast", () => {
     await expect(db.getLegacyReadFallbackScan(username)).resolves.toBeNull();
   });
 
-  it("preserves the previous release when v10 overwrites the mutable score row", async () => {
+  it("preserves the previous release when the canonical score overwrites the mutable score row", async () => {
     const username = "legacy-copy-before-v10-fixture";
     await writeLegacyReadFallback(username);
 
@@ -581,6 +631,9 @@ describe("canonical score materialization", () => {
       scannedAt,
       token: expect.any(String),
     });
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({
+      risk_assessment: { version: "v10", applied_penalty: score(scan.metrics).total_penalty },
+    });
     await expect(readScoreRow(username)).resolves.toMatchObject({
       username,
       final_score: score(scan.metrics).final_score,
@@ -610,7 +663,29 @@ describe("canonical score materialization", () => {
     await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toBeNull();
   });
 
-  it("recomputes v10 scoring when a promoted snapshot embeds legacy scoring", async () => {
+  it("keeps a verified public snapshot readable after the scores row moves off the read order", async () => {
+    const username = "verified-v10-after-overwrite-fixture";
+    const scannedAt = 1_910_000_020_000;
+    const scan = syntheticScan(username);
+    await expect(db.publishCompleteQuickScan(scan, scannedAt)).resolves.toBeTruthy();
+    await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toMatchObject({
+      scan: { metrics: { username } },
+      scannedAt,
+    });
+
+    const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
+    await client.execute({
+      sql: `UPDATE scores SET score_version = ? WHERE username = ?`,
+      args: ["v12", username],
+    });
+    await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toBeNull();
+    await expect(db.getLatestVerifiedCanonicalScan(username)).resolves.toMatchObject({
+      scan: { metrics: { username } },
+      scannedAt,
+    });
+  });
+
+  it("recomputes canonical scoring when a promoted snapshot embeds legacy scoring", async () => {
     const username = "promoted-v9-snapshot-fixture";
     const scan = syntheticScan(username);
     scan.scoring = {
@@ -2117,14 +2192,14 @@ describe("profile snapshots", () => {
     });
   });
 
-  it("reads only v11 profile snapshots and ignores legacy snapshots", async () => {
+  it("reads only canonical profile snapshots and ignores legacy snapshots", async () => {
     const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
     const username = "profile-version-fixture";
     const rows = [
       ["profile-v8", username, 300, JSON.stringify({ followers: 8 }), "v8"],
-      ["profile-v10", username, 350, JSON.stringify({ followers: 10 }), "v10"],
+      ["profile-v12", username, 350, JSON.stringify({ followers: 12 }), "v12"],
       ["profile-local", username, 400, JSON.stringify({ followers: 99 }), "local-fixture"],
-      ["profile-v11", username, 200, JSON.stringify({ followers: 9 }), "v11"],
+      ["profile-canonical", username, 200, JSON.stringify({ followers: 9 }), SCORE_CACHE_VERSION],
     ];
     for (const row of rows) {
       await client.execute({
@@ -2140,7 +2215,7 @@ describe("profile snapshots", () => {
     });
     await client.execute({
       sql: `DELETE FROM profile_snapshots WHERE id = ?`,
-      args: ["profile-v11"],
+      args: ["profile-canonical"],
     });
     await expect(db.getProfileSnapshot(username)).resolves.toBeNull();
 

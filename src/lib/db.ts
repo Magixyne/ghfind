@@ -54,7 +54,13 @@ import {
 } from "./redis";
 import type { Lang } from "./lang";
 import { rankSimilar } from "./similarity";
-import { LEGACY_READ_FALLBACK, RELEASE_VERSION_MANIFEST } from "./release-versions";
+import {
+  isPublicScoreVersion,
+  isRetainedPublicScoreArtifact,
+  LEGACY_READ_FALLBACK,
+  publicScoreVersionSql,
+  RELEASE_VERSION_MANIFEST,
+} from "./release-versions";
 import {
   materializeCanonicalScore,
   type CanonicalScoreMaterialization,
@@ -104,19 +110,19 @@ const MAX_PUBLIC_SCAN_EXECUTION_CAPACITY = 4;
 
 /**
  * Public reads must never surface a score merely because it is the newest row.
- * A row is readable only after the current quick collector has materialized the
- * current formal v10 score. The roast route separately requires an exact v10/v4
- * snapshot hash before it generates or replays text. The previous-release
- * emergency path is handled explicitly by the profile/roast readers and never
- * joins rankings.
+ * A row is readable when it is in publicScoreReadOrder (v13, then v10 until
+ * rescan) and the current collector materialized it. The roast route separately
+ * requires an exact target-score snapshot hash before it generates or replays
+ * text. The previous-release emergency path is handled explicitly by the
+ * profile/roast readers and never joins rankings.
  */
 function canonicalPublicScorePredicate(alias: string): string {
-  return `${alias}.score_version = '${SCORE_CACHE_VERSION}'`;
+  return publicScoreVersionSql(alias);
 }
 
 function isTargetReleaseScoreRow(row: Record<string, unknown>): boolean {
   return (
-    row.score_version === SCORE_CACHE_VERSION &&
+    isPublicScoreVersion(row.score_version) &&
     (row.score_source_collection_version === PUBLIC_SCAN_COLLECTION_VERSION ||
       row.collection_version === PUBLIC_SCAN_COLLECTION_VERSION)
   );
@@ -2283,24 +2289,62 @@ export async function getLatestPublicScanRun(
  * bytes. Historical queue rows are ignored unless their fingerprint is still
  * the score row currently served to users.
  */
+function parseVerifiedCanonicalSnapshot(
+  username: string,
+  snapshot: string,
+  snapshotHash: string,
+  scannedAt?: number,
+): { scan: ScanResult; snapshotHash: string; scannedAt?: number } | null {
+  if (
+    !/^[a-f0-9]{64}$/.test(snapshotHash) ||
+    createHash("sha256").update(snapshot).digest("hex") !== snapshotHash
+  ) {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(snapshot);
+  } catch {
+    return null;
+  }
+  const scan = parsed as Partial<ScanResult>;
+  if (
+    typeof scan.metrics?.username !== "string" ||
+    scan.metrics.username.toLowerCase() !== username.toLowerCase() ||
+    !scan.scoring
+  ) {
+    return null;
+  }
+  const currentScan = scan as ScanResult;
+  const scanned =
+    typeof scannedAt === "number" && Number.isSafeInteger(scannedAt) && scannedAt > 0
+      ? scannedAt
+      : undefined;
+  return {
+    scan: { ...currentScan, scoring: score(currentScan.metrics) },
+    snapshotHash,
+    ...(scanned ? { scannedAt: scanned } : {}),
+  };
+}
+
 export async function getCurrentCanonicalQuickScan(
   username: string,
-): Promise<{ scan: ScanResult; snapshotHash: string } | null> {
+): Promise<{ scan: ScanResult; snapshotHash: string; scannedAt?: number } | null> {
   const db = getClient();
   if (!db) return null;
   try {
     await ensureSchema(db);
     const result = await db.execute({
-      sql: `SELECT r.snapshot, r.snapshot_hash
+      sql: `SELECT r.snapshot, r.snapshot_hash, s.scanned_at
             FROM public_scan_runs r
             INNER JOIN scores s
               ON s.username = r.username
              AND s.hidden = 0
-             AND s.score_version = ?
+             AND ${publicScoreVersionSql("s")}
              AND s.score_source_collection_version = ?
              AND s.score_source_snapshot_hash = r.snapshot_hash
             WHERE r.username = ?
-              AND r.score_version = ?
+              AND ${publicScoreVersionSql("r")}
               AND r.collection_version = ?
               AND r.state = 'complete_public'
               AND r.coverage = 'complete_public'
@@ -2309,40 +2353,75 @@ export async function getCurrentCanonicalQuickScan(
             ORDER BY s.scanned_at DESC, r.completed_at DESC, r.id DESC
             LIMIT 1`,
       args: [
-        SCORE_CACHE_VERSION,
         PUBLIC_SCAN_COLLECTION_VERSION,
         username.toLowerCase(),
-        SCORE_CACHE_VERSION,
         PUBLIC_SCAN_COLLECTION_VERSION,
       ],
     });
     const row = result.rows[0] as Record<string, unknown> | undefined;
     const snapshot = typeof row?.snapshot === "string" ? row.snapshot : null;
     const snapshotHash = typeof row?.snapshot_hash === "string" ? row.snapshot_hash : null;
-    if (
-      !snapshot ||
-      !snapshotHash ||
-      !/^[a-f0-9]{64}$/.test(snapshotHash) ||
-      createHash("sha256").update(snapshot).digest("hex") !== snapshotHash
-    ) {
-      return null;
-    }
-    const scan = JSON.parse(snapshot) as Partial<ScanResult>;
-    if (
-      typeof scan.metrics?.username !== "string" ||
-      scan.metrics.username.toLowerCase() !== username.toLowerCase() ||
-      !scan.scoring
-    ) {
-      return null;
-    }
+    if (!snapshot || !snapshotHash) return null;
     // A v9 snapshot can be promoted to a v10 canonical score during the
     // bounded backfill without rewriting its immutable bytes/hash. Recompute
     // the embedded scoring object at the read boundary so roast/profile paths
     // never consume the legacy embedded rules after that promotion.
-    const currentScan = scan as ScanResult;
-    return { scan: { ...currentScan, scoring: score(currentScan.metrics) }, snapshotHash };
+    return parseVerifiedCanonicalSnapshot(
+      username,
+      snapshot,
+      snapshotHash,
+      Number(row?.scanned_at),
+    );
   } catch (error) {
     console.error("getCurrentCanonicalQuickScan failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Latest verified public snapshot for emergency /api/scan reads. Prefers the
+ * currently published scores row; otherwise the newest matching public_scan_runs
+ * row, with no age limit. Provenance matches getCurrentCanonicalQuickScan:
+ * public score version (v13, then leftover v10) + v5 + complete_public + 64-hex
+ * hash of the snapshot bytes. Snapshots are rescored with the current formula.
+ */
+export async function getLatestVerifiedCanonicalScan(
+  username: string,
+): Promise<{ scan: ScanResult; snapshotHash: string; scannedAt?: number } | null> {
+  const indexed = await getCurrentCanonicalQuickScan(username);
+  if (indexed) return indexed;
+  const db = getClient();
+  if (!db) return null;
+  try {
+    await ensureSchema(db);
+    const result = await db.execute({
+      sql: `SELECT snapshot, snapshot_hash, started_at, completed_at
+            FROM public_scan_runs
+            WHERE username = ?
+              AND ${publicScoreVersionSql()}
+              AND collection_version = ?
+              AND state = 'complete_public'
+              AND coverage = 'complete_public'
+              AND snapshot IS NOT NULL
+              AND snapshot_hash IS NOT NULL
+            ORDER BY COALESCE(completed_at, started_at) DESC, id DESC
+            LIMIT 8`,
+      args: [
+        username.toLowerCase(),
+        PUBLIC_SCAN_COLLECTION_VERSION,
+      ],
+    });
+    for (const row of result.rows as Record<string, unknown>[]) {
+      const snapshot = typeof row.snapshot === "string" ? row.snapshot : null;
+      const snapshotHash = typeof row.snapshot_hash === "string" ? row.snapshot_hash : null;
+      if (!snapshot || !snapshotHash) continue;
+      const scannedAt = Number(row.completed_at ?? row.started_at);
+      const parsed = parseVerifiedCanonicalSnapshot(username, snapshot, snapshotHash, scannedAt);
+      if (parsed) return parsed;
+    }
+    return null;
+  } catch (error) {
+    console.error("getLatestVerifiedCanonicalScan failed:", error);
     return null;
   }
 }
@@ -4971,7 +5050,7 @@ function toLeaderboardEntry(r: LeaderboardRow, now = Date.now()): LeaderboardEnt
     profile_url: r.profile_url as string | null,
     final_score,
     tier: String(r.tier) as Tier,
-    tags: r.score_version === SCORE_CACHE_VERSION ? parseTags(r.tags) : EMPTY_TAGS,
+    tags: isPublicScoreVersion(r.score_version) ? parseTags(r.tags) : EMPTY_TAGS,
     lookup_count,
     recent_lookup_count,
     trending_score: computeTrendingScore(
@@ -6067,7 +6146,7 @@ function parseRiskAssessment(raw: unknown): RiskAssessment | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<RiskAssessment>;
-    return parsed && parsed.version === "v10" && Array.isArray(parsed.signals)
+    return parsed && (parsed.version === "v9" || parsed.version === "v10") && Array.isArray(parsed.signals)
       ? (parsed as RiskAssessment)
       : null;
   } catch {
@@ -6307,17 +6386,20 @@ export async function getAccountDetail(username: string): Promise<AccountDetail 
       currentScore &&
       typeof currentRow?.score_source_snapshot_hash === "string" &&
       /^[a-f0-9]{64}$/.test(currentRow.score_source_snapshot_hash);
-    // A broken/incomplete target-version row must not hide the last verified
-    // release during an incident. A canonical v10 row always wins; otherwise
-    // prefer the immutable previous-release copy when one was captured.
-    const fallbackRow = canonicalScore
+    // A broken/incomplete public-version row must not hide the last verified
+    // release during an incident. A hashed public v13/v10 row always wins;
+    // otherwise prefer the immutable previous-release copy when one was captured.
+    const retainedScore = Boolean(currentRow && isRetainedPublicScoreArtifact(
+      currentRow.score_version, currentRow.score_source_collection_version, currentRow.score_source_snapshot_hash,
+    ));
+    const fallbackRow = canonicalScore || retainedScore
       ? null
       : await getLegacyReadFallbackRow(db, username);
     const r = fallbackRow ?? currentRow;
     if (!r) return null;
     const resolvedCurrentScore = !fallbackRow && isTargetReleaseScoreRow(r);
     const legacyReadFallback =
-      !resolvedCurrentScore && isLegacyReadFallbackProfile(r);
+      !resolvedCurrentScore && (retainedScore || isLegacyReadFallbackProfile(r));
     const readableArtifacts = resolvedCurrentScore || legacyReadFallback;
     if (!readableArtifacts) return null;
     const artifactRoastVersion = canonicalScore && resolvedCurrentScore
@@ -6376,6 +6458,9 @@ export async function hasLegacyReadFallbackProfile(username: string): Promise<bo
     await ensureSchema(db);
     const fallback = await getLegacyReadFallbackRow(db, username);
     if (fallback && isLegacyReadFallbackProfile(fallback)) return true;
+    // When the retained previous score is still a public read (v10 in v13's
+    // read order), the live scores row is canonical, not an emergency artifact.
+    if (isPublicScoreVersion(LEGACY_READ_FALLBACK.score)) return false;
     const result = await db.execute({
       sql: `SELECT score_version, score_source_collection_version
             FROM scores
@@ -6407,6 +6492,7 @@ export async function getLegacyReadFallbackScan(username: string): Promise<ScanR
       const scan = await getVerifiedLegacyReadFallbackScan(db, fallback);
       if (scan) return scan;
     }
+    if (isPublicScoreVersion(LEGACY_READ_FALLBACK.score)) return null;
     const result = await db.execute({
       sql: `SELECT username, final_score, score_version,
                    score_source_collection_version, roast, roast_en,
@@ -6443,6 +6529,8 @@ export async function getLegacyReadFallbackRoast(
     const fallback = await getLegacyReadFallbackRow(db, username);
     const result = fallback
       ? { rows: [fallback] }
+      : isPublicScoreVersion(LEGACY_READ_FALLBACK.score)
+        ? { rows: [] }
       : await db.execute({
       sql: `SELECT username, final_score, tier, tags, roast_line, score_version,
                    roast, roast_en, roast_version, roast_en_version
@@ -6707,12 +6795,12 @@ export async function hasCanonicalPublicScore(username: string): Promise<boolean
     await ensureSchema(db);
     const res = await db.execute({
       sql: `SELECT 1 FROM scores
-            WHERE username = ? AND hidden = 0 AND score_version = ?
+            WHERE username = ? AND hidden = 0 AND ${publicScoreVersionSql()}
               AND score_source_collection_version = ?
               AND length(score_source_snapshot_hash) = 64
               AND score_source_snapshot_hash NOT GLOB '*[^0-9a-f]*'
             LIMIT 1`,
-      args: [username.toLowerCase(), SCORE_CACHE_VERSION, PUBLIC_SCAN_COLLECTION_VERSION],
+      args: [username.toLowerCase(), PUBLIC_SCAN_COLLECTION_VERSION],
     });
     return res.rows.length > 0;
   } catch (e) {

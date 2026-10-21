@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ModeTransition, type TransitionRequest, type TransitionHooks } from "../src/transition";
+import { ModeTransition, transitionTeardown, type TransitionRequest, type TransitionHooks } from "../src/transition";
 import { handleRequest, type RuntimeSettings } from "../src/router";
 const env: RuntimeSettings = {
   FEED_ENVIRONMENT: "production", FEED_IMAGE_BUILD_ID: "d".repeat(64), FEED_RELEASE_SHA: "a".repeat(40),
@@ -45,6 +45,26 @@ test("pinned SDK start leaves running off-mode environment unchanged until nativ
   const stillRunning = {container:{running:true,signal:()=>{signals++;}},syncPendingStoppedEvents:async()=>{}};
   await stop.call(stillRunning);
   assert.equal(signals,1); assert.equal(stillRunning.container.running,true);
+  const onStartAt = sdk.indexOf("    onStart()", destroyAt);
+  assert.ok(onStartAt > destroyAt);
+  const destroy = Function(`return ({${sdk.slice(destroyAt, onStartAt)}})` )().destroy;
+  let destroyed = 0;
+  await destroy.call({container:{destroy:async()=>{destroyed++;}}});
+  assert.equal(destroyed,1);
+});
+test("off teardown destroys the instance; baseline still SIGTERM-stops the current image", async () => {
+  const calls: string[] = [];
+  const sdk = {
+    destroy: async () => { calls.push("destroy"); },
+    stop: async (signal: "SIGTERM") => { calls.push(`stop:${signal}`); },
+  };
+  await transitionTeardown("off", sdk);
+  await transitionTeardown("baseline", sdk);
+  assert.deepEqual(calls, ["destroy", "stop:SIGTERM"]);
+  const source = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+  assert.equal(source.split("transitionTeardown(input.mode").length - 1, 2);
+  assert.equal(source.split("super.destroy()").length - 1, 2);
+  assert.equal(source.split('instance(target).stop("SIGTERM")').length - 1, 1);
 });
 test("off to baseline waits for native stop, applies new env, then verifies the actual binary", async () => {
   const f = fixture();
@@ -178,4 +198,149 @@ test("restart RPC failures answer a fixed code, never the platform message",asyn
     assert.equal(response.status, 503);
     assert.deepEqual(await response.json(), { error: code });
   }
+});
+
+// Production invokes runtimeRestart over a DO RPC boundary, which strips custom
+// Error prototypes. The result envelope must survive that boundary unchanged.
+test("stale DO validation is returned as a typed failure without a lifecycle retry", async () => {
+  const { captureTransitionResult, readTransitionResult } = await import("../src/transition-rpc");
+  const f = fixture(); let calls = 0;
+  const dispatch = { fetch: (_target: string, request: Request) => f.hooks.fetch(request), stop: f.hooks.stop,
+    restart: async (target: string, data: TransitionRequest) => {
+      calls++;
+      const encoded = await captureTransitionResult(() => new ModeTransition(limits).run(
+        target as "api-0", { ...env, FEED_MODE: "off" }, data, f.hooks));
+      return readTransitionResult(structuredClone(encoded));
+    },
+  };
+  const response = await handleRequest(new Request("https://runtime/internal/runtime/api-0/restart", {
+    method: "POST", headers: { authorization: `Bearer ${env.FEED_RUNTIME_ADMIN_SECRET}` }, body: JSON.stringify(input),
+  }), env, dispatch);
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "invalid_transition" });
+  assert.equal(calls, 1); assert.equal(f.state.stops, 0); assert.equal(f.state.starts, 0);
+});
+
+test("transition RPC carries only allowlisted local errors and no messages or stack", async () => {
+  const { captureTransitionResult, readTransitionResult } = await import("../src/transition-rpc");
+  const { HTTPError } = await import("../src/security");
+  for (const [code, status] of Object.entries({ invalid_transition: 400, transition_in_progress: 409,
+    transition_timeout: 503, transition_stop_timeout: 503, container_version_or_contract_mismatch: 503,
+    container_dependency_not_ready: 503, container_not_ready: 503, body_too_large: 413, body_timeout: 408 })) {
+    const error = new HTTPError(status, code); error.message = "private diagnostic"; error.stack = "private stack";
+    const encoded = await captureTransitionResult(async () => { throw error; });
+    assert.deepEqual(encoded, { kind: "http-error", code, status });
+    assert.throws(() => readTransitionResult(structuredClone(encoded)),
+      (received: unknown) => received instanceof HTTPError && received.code === code && received.status === status && received.message === code);
+  }
+  for (const error of [Object.assign(new Error("provider failure"), { code: "invalid_transition", status: 400 }),
+    new HTTPError(503, "invalid_transition"), new HTTPError(503, "private_provider_error")])
+    await assert.rejects(captureTransitionResult(async () => { throw error; }), (received: unknown) => received === error);
+});
+
+test("malformed transition RPC replies fail closed and successful receipts retain their exact shape", async () => {
+  const { captureTransitionResult, readTransitionResult } = await import("../src/transition-rpc");
+  const success = { restarted: true, target: "api-0", ...input };
+  assert.deepEqual(readTransitionResult(structuredClone(await captureTransitionResult(async () => success))), success);
+  for (const reply of [null, [], {}, { kind: "http-error", code: "toString", status: 503 },
+    { kind: "http-error", code: "invalid_transition", status: 503 },
+    { kind: "http-error", code: "invalid_transition", status: 400, message: "private data" },
+    { kind: "http-error", code: "transition_environment_not_ready", status: 409 },
+    { kind: "result" }, { kind: "result", value: success, extra: true }])
+    assert.throws(() => readTransitionResult(reply as never), /^Error: invalid transition RPC result$/);
+});
+
+
+test("mixed-version DO and edge replies keep the successful receipt accepted by release identity checks", async () => {
+  const { captureTransitionResult, readTransitionResult } = await import("../src/transition-rpc");
+  const { transitionActors } = await import(new URL("../../../scripts/feed-production-transition.mjs", import.meta.url).href);
+  const anchor = { status: "passed", mode: "paused", sourceSha: input.sourceSha, backend: "go", store: "cf_d1_r2",
+    workerVersionId: env.WORKER_VERSION.id };
+  for (const newDO of [false, true]) for (const newEdge of [false, true]) {
+    let calls = 0;
+    const evidence = await transitionActors(input, { paused: async () => anchor,
+      send: async (target: string) => {
+        calls++;
+        const receipt = { restarted: true, target, ...input };
+        const wire = structuredClone(newDO ? await captureTransitionResult(async () => receipt) : receipt);
+        assert.deepEqual(wire, receipt);
+        return newEdge ? readTransitionResult(wire) : wire;
+      },
+    });
+    assert.equal(calls, 3); assert.equal(evidence.status, "passed");
+  }
+  for (const reply of [{ rejectedWithoutMutation: true }, { restarted: true, target: "api-0", ...input, extra: true },
+    { restarted: true, target: "api-0", ...input, sourceSha: "b".repeat(40) }]) {
+    let calls = 0;
+    await assert.rejects(transitionActors(input, { paused: async () => anchor, preflight: async () => {},
+      send: async () => { calls++; return readTransitionResult(structuredClone(reply)); },
+    }));
+    assert.equal(calls, 1);
+  }
+});
+
+
+test("off bootstrap destroy-then-start cannot reuse a still-running old instance", async () => {
+  const f = fixture(); f.state.mode = "baseline";
+  const off = {...env, FEED_MODE: "off"}, request: TransitionRequest = {...input, mode: "off"};
+  f.hooks.stop = async () => { f.state.stops++; f.state.running = false; };
+  f.hooks.start = async () => {
+    assert.equal(f.state.running, false, "start must observe the destroyed instance");
+    f.state.starts++; f.state.running = true; f.state.mode = "off";
+  };
+  const result = await new ModeTransition(limits).run("api-0", off, request, f.hooks);
+  assert.deepEqual(result, {restarted: true, target: "api-0", ...request});
+  assert.equal(f.state.stops, 1); assert.equal(f.state.starts, 1);
+});
+test("off bootstrap replaces an old running process without claiming its binary is current", async () => {
+  const f = fixture(); f.state.mode = "baseline";
+  const off = {...env, FEED_MODE: "off"}, request: TransitionRequest = {...input, mode: "off"};
+  let probes = 0;
+  f.hooks.fetch = async () => {
+    probes++;
+    assert.equal(f.state.starts, 1, "old process must not be mistaken for new-release readiness");
+    return Response.json({ready:true,version:off.FEED_RELEASE_SHA,imageBuildId:off.FEED_IMAGE_BUILD_ID,
+      contractVersion:"1",storageWriterVersion:2,storeProfile:"cf_d1_r2",service:"feed-api",writerEpoch:1,mode:f.state.mode});
+  };
+  f.hooks.start = async () => { assert.equal(f.state.running,false); f.state.starts++; f.state.running=true; f.state.mode="off"; };
+  const result = await new ModeTransition(limits).run("api-0",off,request,f.hooks);
+  assert.deepEqual(result,{restarted:true,target:"api-0",...request});
+  assert.equal(f.state.stops,1); assert.equal(f.state.starts,1); assert.equal(probes,1);
+});
+test("off bootstrap keeps exact final identity and native stop requirements", async () => {
+  const off = {...env, FEED_MODE:"off"}, request: TransitionRequest = {...input,mode:"off"};
+  for (const patch of [{version:"c".repeat(40)},{imageBuildId:"e".repeat(64)},{mode:"baseline"},{contractVersion:"2"},{writerEpoch:2}]) {
+    const f=fixture(patch); const start=f.hooks.start;
+    f.hooks.start=async(signal)=>{await start(signal); f.state.mode="off";};
+    await assert.rejects(new ModeTransition(limits).run("api-0",off,request,f.hooks),/container_version_or_contract_mismatch/);
+    assert.equal(f.state.stops,1); assert.equal(f.state.starts,1);
+  }
+  const running=fixture(); running.hooks.stop=async()=>{running.state.stops++;};
+  await assert.rejects(new ModeTransition(limits).run("api-0",off,request,running.hooks),/transition_stop_timeout/);
+  assert.equal(running.state.starts,0);
+  const invalidActor=fixture(); invalidActor.state.actorId="wrong";
+  await assert.rejects(new ModeTransition(limits).run("api-0",off,request,invalidActor.hooks),/container_version_or_contract_mismatch/);
+  assert.equal(invalidActor.state.stops,0);
+  for (const mismatch of [{...input},{...request,mode:"unknown"},{...request,sourceSha:"c".repeat(40)}]) {
+    const f=fixture();
+    await assert.rejects(new ModeTransition(limits).run("api-0",off,mismatch as TransitionRequest,f.hooks),/invalid_transition/);
+    assert.equal(f.state.stops,0); assert.equal(f.state.starts,0);
+  }
+});
+test("off restart dispatches only matching off requests; stale baseline requests retain no-mutation 409", async () => {
+  const off={...env,FEED_MODE:"off"}; let calls=0;
+  const dispatch={fetch:async()=>Response.json({}),stop:async()=>{},restart:async(target:string,data:TransitionRequest)=>{calls++;return {restarted:true,target,...data};}};
+  const request=(body:unknown,auth=env.FEED_RUNTIME_ADMIN_SECRET,path="api-0")=>new Request(`https://runtime/internal/runtime/${path}/restart`,{
+    method:"POST",headers:{authorization:`Bearer ${auth}`},body:JSON.stringify(body)});
+  const body={...input,mode:"off"};
+  const response=await handleRequest(request(body),off,dispatch);
+  assert.equal(response.status,200); assert.deepEqual(await response.json(),{restarted:true,target:"api-0",...body});
+  assert.equal(calls,1);
+  assert.equal((await handleRequest(request(input),off,dispatch)).status,409);
+  assert.equal((await handleRequest(request(body),env,dispatch)).status,400);
+  for(const bad of [{...body,mode:"unknown"},{...body,extra:true},{...body,imageBuildId:"e".repeat(64)},null])
+    assert.equal((await handleRequest(request(bad),off,dispatch)).status,400);
+  assert.equal((await handleRequest(request(body,"wrong"),off,dispatch)).status,401);
+  assert.equal((await handleRequest(request(body,undefined,"api-3"),off,dispatch)).status,404);
+  assert.equal(calls,1);
 });

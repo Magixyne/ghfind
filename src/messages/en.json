@@ -2,16 +2,27 @@
   "loginDialog": {
     "entry": "Sign in",
     "title": "Sign in to ghfind",
-    "description": "Keep your follows and résumés across devices.",
+    "description": "Choose an account to continue.",
     "close": "Close",
     "google": "Continue with Google",
     "github": "Continue with GitHub",
-    "emailDivider": "Or use email",
-    "emailLabel": "Email address",
-    "emailPlaceholder": "Enter your email",
-    "sendCode": "Send verification code",
-    "githubUnavailable": "GitHub sign-in is unavailable here.",
-    "comingSoon": "Google and email sign-in are coming soon."
+    "apple": "Continue with Apple",
+    "redirecting": "Opening {provider}…",
+    "loading": "Checking sign-in options…",
+    "retry": "Try again",
+    "loadFailed": "Could not load sign-in options. Check your connection and try again.",
+    "unavailable": "Sign-in is temporarily unavailable. You can continue browsing and try again later.",
+    "githubFeatures": "Following, cloud résumés and API tokens currently require a GitHub account.",
+    "providerAccount": "{provider} account",
+    "switchToGitHub": "Switch to GitHub sign-in",
+    "errors": {
+      "denied": "Sign-in was cancelled. Choose an account to try again.",
+      "expired": "This sign-in request has expired. Please start again.",
+      "failed": "Sign-in did not finish. Please try again.",
+      "unavailable": "This sign-in method is unavailable. Choose another option or try again later."
+    },
+    "signingOut": "Signing out…",
+    "signOutFailed": "Could not sign out. Check your connection and try again."
   },
   "meta": {
     "title": "ghfind | Savage GitHub Score, Self-Test & Discover Top Devs",
@@ -363,7 +374,8 @@
     "battleLoss": "Loss",
     "battleTie": "Tie",
     "selfCta": "Rate your own GitHub →",
-    "reportLangNotice": "The AI roast report is currently written in English and Chinese only — you're reading the English version."
+    "reportLangNotice": "The AI roast report is currently written in English and Chinese only — you're reading the English version.",
+    "coCreatorShare": "Led / co-built ({share}% share)"
   },
   "reactions": {
     "heading": "Community reactions",
@@ -418,8 +430,10 @@
     "errRoastFailed": "Roast generation failed — try again later or use your own key.",
     "errNetworkRoast": "Connection dropped — the roast got cut off.",
     "errScanFailed": "Scan failed, try again later.",
+    "largeAccountCollecting": "Collecting data for a large account…",
     "errScanPending": "Collecting the account's full public PR and commit history. This will continue automatically when ready.",
     "errNetworkScan": "Network error — couldn't even reach GitHub.",
+    "dataUpdating": "Score data is updating…",
     "byoReasonQuota": "Free quota's used up 😵 Add your own API key to keep roasting (OpenAI / StepFun / Groq all work).",
     "byoReasonRate": "You've roasted a lot today 🥵 Take a breather, or add your own API key for unlimited roasts.",
     "byoReasonDefault": "No default model is configured on the server — add your own API key to start roasting."
@@ -431,6 +445,9 @@
     "rate_limited": "Too fast — take a breath and try again in a minute.",
     "github_rate_limited": "GitHub's API is maxed out right now — give it a moment.",
     "github_unavailable": "GitHub data is temporarily unavailable — try again later.",
+    "github_collect_deadline": "GitHub collection timed out — retry shortly.",
+    "scan_pending": "Collecting data for a large account…",
+    "scan_busy": "Score generation is busy — retry shortly.",
     "scan_failed": "The scan crashed — try again later."
   },
   "share": {
@@ -525,7 +542,7 @@
   },
   "dimensions": {
     "account_maturity": "Account maturity",
-    "original_project_quality": "Original project quality",
+    "original_project_quality": "Original & Led Projects",
     "contribution_quality": "Contribution quality",
     "ecosystem_impact": "Ecosystem / maintenance impact",
     "community_influence": "Community influence",
@@ -585,7 +602,7 @@
       },
       {
         "q": "How is the score calculated?",
-        "a": "The engine scores six weighted dimensions that sum to 100 — account maturity, original project quality, contribution quality, ecosystem impact, community influence, and activity authenticity — and subtracts penalties for red flags such as PR farming or star inflation. It runs only on public GitHub data."
+        "a": "The engine scores six weighted dimensions that sum to 100 — account maturity, original and led project quality, contribution quality, ecosystem impact, community influence, and activity authenticity — and subtracts penalties for red flags such as PR farming or star inflation. It runs only on public GitHub data."
       },
       {
         "q": "Is the score deterministic and reproducible?",
@@ -607,7 +624,7 @@
   },
   "homeIntro": {
     "whatHeading": "What is ghfind?",
-    "whatBody": "ghfind is a developer-scoring and discovery tool for GitHub. It rates any account from 0 to 100 across six weighted dimensions — account maturity, original project quality, contribution quality, ecosystem impact, community influence, and activity authenticity — using a fully deterministic engine (the open-source github-account-value skill, AGPL). The same inputs always produce the same score; no LLM touches the number. On top of the score it adds an optional AI-written roast, developer-vs-developer battles, language and organization leaderboards, and README score badges.",
+    "whatBody": "ghfind is a developer-scoring and discovery tool for GitHub. It rates any account from 0 to 100 across six weighted dimensions — account maturity, original and led project quality, contribution quality, ecosystem impact, community influence, and activity authenticity — using a fully deterministic engine (the open-source github-account-value skill, AGPL). The same inputs always produce the same score; no LLM touches the number. On top of the score it adds an optional AI-written roast, developer-vs-developer battles, language and organization leaderboards, and README score badges.",
     "howHeading": "How ghfind works",
     "steps": [
       {
@@ -616,7 +633,7 @@
       },
       {
         "title": "2. Score six deterministic dimensions",
-        "body": "The snapshot is scored across account maturity, original project quality, contribution quality, ecosystem impact, community influence, and activity authenticity, with penalties for PR-farming, star inflation, and template-spam patterns."
+        "body": "The snapshot is scored across account maturity, original and led project quality, contribution quality, ecosystem impact, community influence, and activity authenticity, with penalties for PR-farming, star inflation, and template-spam patterns."
       },
       {
         "title": "3. Get a score, tier, and roast",
@@ -764,7 +781,7 @@
     "heading": "About ghfind",
     "paragraphs": [
       "ghfind is a developer-scoring and discovery tool for GitHub. It rates any account from 0 to 100 for real contribution value and trustworthiness, using a fully deterministic engine that runs only on public GitHub data. The same inputs always produce the same score — no large language model is involved in the number itself — so results are reproducible and auditable rather than opaque.",
-      "The score is built from six weighted dimensions that sum to 100: account maturity, original project quality, contribution quality, ecosystem impact, community influence, and activity authenticity. On top of that factual core, ghfind adds an optional AI-written roast, developer-versus-developer battles, leaderboards by programming language, organization, and project, and README score badges you can embed on your own profile.",
+      "The score is built from six weighted dimensions that sum to 100: account maturity, original and led project quality, contribution quality, ecosystem impact, community influence, and activity authenticity. On top of that factual core, ghfind adds an optional AI-written roast, developer-versus-developer battles, leaderboards by programming language, organization, and project, and README score badges you can embed on your own profile.",
       "The scoring engine is open source under the AGPL license as the github-account-value skill, and the same code paths power the website, the official npm and PyPI packages, the command-line tool, and the Model Context Protocol server. ghfind exists to make GitHub contribution legible: to reward genuine open-source work, surface developers worth following, and make farmed or faked activity easy to spot by looking at patterns instead of raw counts."
     ]
   },
@@ -799,6 +816,10 @@
         "p": "For accounts that are scored, we cache the computed score, tier, and derived metrics so shared reports load quickly and the leaderboard stays fast. Only accounts scoring 60 or above are indexed and listed publicly; lower-scoring pages are reachable by direct link but kept out of search engines. We use privacy-respecting, aggregate analytics to understand traffic and do not sell personal data."
       },
       {
+        "h": "Google sign-in and account cookies",
+        "p": "If you choose Google sign-in, we receive your Google account identifier (subject), name and profile image to establish your ghfind session. Google may also return your email address during sign-in; we do not persist it. A signed, HttpOnly session cookie stores your basic identity for up to 30 days. We do not retain Google API access tokens or refresh tokens. Signing out clears the session cookie. Google sign-in does not grant GitHub permissions, and we do not automatically link accounts by email address."
+      },
+      {
         "h": "Bring-your-own-key roasts",
         "p": "The optional roast feature can use your own model provider key. When you supply one, it stays in your browser and is relayed once through our server to call the model — it is never stored and never logged, and is discarded after the request completes."
       },
@@ -817,7 +838,7 @@
     "dimensionsIntro": "Each dimension contributes to the 100-point base score. Together they reward sustained, original, widely-used open-source work over raw activity counts.",
     "dimensionDetails": {
       "account_maturity": "How established and consistent the account is over time — age, sustained activity, and a credibility curve that resists overnight inflation.",
-      "original_project_quality": "The quality and reception of repositories the account actually owns and authored, not forks or trivial projects.",
+      "original_project_quality": "Quality and reception of personally authored projects and substantially led or co-built projects, weighted by attribution share; excludes forks.",
       "contribution_quality": "The substance of contributions to other projects — merged, meaningful pull requests versus template spam.",
       "ecosystem_impact": "How much the account's work is depended on and maintained across the wider ecosystem.",
       "community_influence": "Genuine reach and standing in the community, normalized so raw follower or star counts cannot dominate.",

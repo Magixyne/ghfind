@@ -6,11 +6,10 @@
  * change. Development bypasses these caches entirely so local prompt/scoring
  * edits are visible on the next request.
  */
-// v11 adds an evidence-gated, age-decaying maturity bonus for exceptional
-// newcomers. The six dimensions and v10 risk layer keep their existing limits.
-export const SCORE_CACHE_VERSION = "v11";
-// Formal successor to the previous production report contract.
-export const ROAST_CACHE_VERSION = "v11";
+// v16 weights original stars by continuous content/skill evidence.
+export const SCORE_CACHE_VERSION = "v16";
+// v12 keeps language proficiency out of engineering judgments and roast targets.
+export const ROAST_CACHE_VERSION = "v12";
 /** Bump when the PK (versus) verdict prompt / output semantics change. */
 export const VERDICT_CACHE_VERSION = "v1";
 

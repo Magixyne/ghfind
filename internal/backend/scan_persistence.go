@@ -13,14 +13,30 @@ import (
 )
 
 const (
-	// goCanonicalScoreVersion is the single source for both the score_version
-	// written on every scan and every read filter (canonicalScoreVersion in
-	// turso.go aliases it). A scoring-rule bump changes this one line, in the
-	// same review as src/lib/cache-version.ts and release-versions.json.
-	goCanonicalScoreVersion      = "v11"
-	goCanonicalCollectionVersion = "v4"
+	// goCanonicalScoreVersion is the write-side score_version. Public reads
+	// also accept goPreviousPublicScoreVersion until organic rescan (see
+	// publicScoreVersionClause). Keep this in the same review as
+	// src/lib/cache-version.ts and release-versions.json.
+	goCanonicalScoreVersion      = "v16"
+	goPreviousPublicScoreVersion = "v15"
+	goSecondPublicScoreVersion   = "v14"
+	goRetainedPublicScoreVersion = "v13"
+	goOldestPublicScoreVersion   = "v10"
+	goCanonicalCollectionVersion = "v5"
 	progressMinGapMilliseconds   = int64(time.Hour / time.Millisecond)
 )
+
+func publicScoreVersionClause(column string) string {
+	return column + " IN (?, ?, ?, ?, ?)"
+}
+
+func publicScoreVersionArgs() []any {
+	return []any{goCanonicalScoreVersion, goPreviousPublicScoreVersion, goSecondPublicScoreVersion, goRetainedPublicScoreVersion, goOldestPublicScoreVersion}
+}
+
+func isPublicScoreVersion(version string) bool {
+	return version == goCanonicalScoreVersion || version == goPreviousPublicScoreVersion || version == goSecondPublicScoreVersion || version == goRetainedPublicScoreVersion || version == goOldestPublicScoreVersion
+}
 
 var ErrScanJobConflict = errors.New("scan job conflicts with an existing result")
 

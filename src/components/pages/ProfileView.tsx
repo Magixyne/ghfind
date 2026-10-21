@@ -24,6 +24,7 @@ import { TIER_KEY, tierStyle } from "@/lib/tier";
 import { normLang } from "@/lib/lang";
 import { scoreRedFlagLabel } from "@/lib/score-red-flags";
 import { RescanButton } from "@/components/RescanButton";
+import { StaleScanHint } from "@/components/StaleScanHint";
 import { BadgeReferralBanner } from "@/components/BadgeReferralBanner";
 import { RepoCardLink } from "@/components/RepoCardLink";
 import { ProfileLandingBeacon } from "@/components/ProfileLandingBeacon";
@@ -416,6 +417,7 @@ export function ProfileView({
           {d.final_score.toFixed(2)}
           <span className="text-2xl text-zinc-600">/100</span>
         </div>
+        {fromHome && <StaleScanHint username={d.username} />}
         <ScoreBreakdownSummary breakdown={scoreBreakdown} copy={scoreBreakdownCopy} />
         <div className={`mt-1 text-2xl font-bold ${style.text}`}>
           {style.emoji} {tTier(`${tierKey}.name`)}
@@ -703,6 +705,7 @@ export function ProfileView({
                     {work.commits ? <span>{nf.format(work.commits)} {t("commits")}</span> : null}
                     {work.orgContextRepo ? <span>↔ {work.orgContextRepo}</span> : null}
                     {work.language ? <span>{work.language}</span> : null}
+                    {work.attributionShare !== undefined ? <span className="whitespace-nowrap text-zinc-400">{t("coCreatorShare", {share: work.attributionShare>0 && work.attributionShare<0.001 ? "<0.1" : nf.format(Math.round(work.attributionShare*1000)/10)})}</span> : null}
                   </div>
                   {evidence && (
                     <p className="line-clamp-2 text-xs text-zinc-400">{evidence}</p>

@@ -1,3 +1,4 @@
+import { presentationDiscount, ecosystemPresentationDiscount, externalPrShare } from "./presentation-concentration";
 /**
  * Deterministic 0-100 value/trust scorer.
  *
@@ -116,54 +117,12 @@ export function spamBotScore(m: RawMetrics): number {
   return Math.round(Math.max(0, Math.min(s, 10)) * 10) / 10;
 }
 
+/** Retained API: v15 replaces binary caps with evidence-based continuous weighting. */
 export function docLikePrVolumeDiscount(m: RawMetrics, prVolume: number): number {
-  const sample = m.recent_external_pr_sample ?? m.recent_merged_pr_sample ?? 0;
-  const ratio =
-    m.recent_external_doc_like_pr_ratio ??
-    m.recent_doc_like_pr_ratio ??
-    (sample > 0 && m.recent_external_doc_like_pr_count !== undefined
-      ? m.recent_external_doc_like_pr_count / sample
-      : sample > 0 && m.recent_doc_like_pr_count !== undefined
-        ? m.recent_doc_like_pr_count / sample
-      : 0);
-  if (sample < 20 || ratio < 0.55) return 0;
-
-  const severity = Math.max(0, Math.min(1, (ratio - 0.55) / 0.075));
-  return Math.min(prVolume * 0.55, 2.5 + severity * 3.0);
+  const share = Math.min(1, Math.max(0, m.external_merged_pr_count ?? 0) / Math.max(1, m.merged_pr_count));
+  return prVolume * share * (1 - presentationDiscount(m)) * 0.8;
 }
-
-export function contributionQualityCap(m: RawMetrics): number | undefined {
-  const sample = m.recent_external_pr_sample ?? m.recent_merged_pr_sample ?? 0;
-  const ratio =
-    m.recent_external_doc_like_pr_ratio ??
-    m.recent_doc_like_pr_ratio ??
-    (sample > 0 && m.recent_external_doc_like_pr_count !== undefined
-      ? m.recent_external_doc_like_pr_count / sample
-      : sample > 0 && m.recent_doc_like_pr_count !== undefined
-        ? m.recent_doc_like_pr_count / sample
-        : 0);
-  if (sample < 20 || ratio < 0.55) return undefined;
-
-  // Weak, doc-dominated popular-repo impact: little ecosystem credit and the
-  // verified high-star sample is mostly docs/site/example work.
-  const lowTrustImpact =
-    ecosystemImpactPoints(m) <= 4 &&
-    (m.core_impact_pr_count ?? 0) <= 2 &&
-    (m.doc_like_impact_pr_count ?? 0) > (m.core_impact_pr_count ?? 0);
-  const weakTopStarProject =
-    (m.top_starred_original_repo_quality_score ?? 1) < 0.3 && m.total_stars > 0;
-  const selfClosedExternal = m.self_closed_external_pr_count ?? 0;
-  const totalExternalish =
-    m.merged_pr_count + (m.maintainer_closed_unmerged_pr_count ?? 0) + selfClosedExternal;
-  const heavySelfClosedExternal =
-    totalExternalish >= 20 && selfClosedExternal / totalExternalish >= 0.25;
-  const weakOwnProjectSignal =
-    m.max_stars < 100 &&
-    m.total_stars < 300 &&
-    (m.top_starred_original_repo_quality_score ?? 1) < 0.6;
-  if (lowTrustImpact && (weakTopStarProject || weakOwnProjectSignal || heavySelfClosedExternal)) {
-    return 12;
-  }
+export function contributionQualityCap(_m: RawMetrics): number | undefined {
   return undefined;
 }
 
@@ -183,14 +142,27 @@ export function highImpactCorePrBonus(m: RawMetrics): number {
   return Math.min(2, starSignal * 0.8 + coreSignal * 1.2);
 }
 
-/** Impact depth (`impact_depth_raw`) at which the depth points saturate. */
-const IMPACT_DEPTH_FULL_AT = 10;
+/** Own-repo merged PRs saturate at 200. */
+const OWN_PR_VOLUME_FULL_AT = 200;
+/**
+ * 209ff9f5 community extra on own-repo PR volume. In that formula own volume
+ * was `(4 + 6·A)·logRatio(own, 200)` capped at 10; v10 already counts own PRs
+ * in the 16-point combined pool (the 4), so v13 restores only `6·A·logRatio`.
+ */
+const OWN_PR_COMMUNITY_BONUS = 6;
 
-/** Unrounded Ecosystem & Maintainer Impact points (max 20). */
-function ecosystemImpactPoints(m: RawMetrics): number {
-  const prestige = impactPrestigeSignal(m) * 9;
-  const depth = Math.min(m.impact_depth_raw / IMPACT_DEPTH_FULL_AT, 1.0) * 11;
-  return prestige + depth;
+/**
+ * Extra contribution-quality points when own-repo merged PRs landed in an
+ * outside community. `A` is `own_pr_community` (0..1). Snapshots without
+ * `external_merged_pr_count` keep the v10 single-pool score (credit 0).
+ */
+export function ownPrCommunityCredit(m: RawMetrics): number {
+  if (m.external_merged_pr_count === undefined) return 0;
+  const community = Math.max(0, Math.min(m.own_pr_community ?? 0, 1));
+  if (community === 0) return 0;
+  const external = Math.max(0, Math.min(m.external_merged_pr_count, m.merged_pr_count));
+  const own = Math.max(0, m.merged_pr_count - external);
+  return logRatio(own, OWN_PR_VOLUME_FULL_AT) * OWN_PR_COMMUNITY_BONUS * community;
 }
 
 export function impactPrestigeSignal(m: RawMetrics): number {
@@ -211,10 +183,14 @@ export function impactPrestigeSignal(m: RawMetrics): number {
  * volume from outranking fewer high-impact core PRs.
  */
 export function lowPrestigeBulkContributionCap(m: RawMetrics): number | undefined {
-  if (m.merged_pr_count < 80) return undefined;
-  if (impactPrestigeSignal(m) >= logRatio(10_000, 100_000)) return undefined;
-  if (m.max_stars >= 1000) return undefined;
-  return 22;
+  const smooth = (value: number) => { const x = Math.max(0, Math.min(1, value)); return x*x*(3-2*x); };
+  const volume = smooth((m.merged_pr_count - 40) / 80);
+  const projectProtection = smooth((m.max_stars - 950) / 100);
+  const prestige = impactPrestigeSignal(m);
+  const strongPrestige = smooth((prestige - .65) / .15);
+  const coreProtection = smooth(((m.core_impact_pr_count ?? 0) - 40) / 60);
+  const prestigeCap = 20 + 3*smooth((prestige-.3)/.5) + 4*strongPrestige + 2.5*coreProtection*(1-strongPrestige);
+  return 27 - (27 - prestigeCap) * volume * (1 - projectProtection);
 }
 
 /**
@@ -241,139 +217,38 @@ function hasSocialOnlyDormantSignal(m: RawMetrics): boolean {
   );
 }
 
-/** Smoothly reward strength above 55%, reaching full credit at 85%. */
-function newcomerStrength(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  const x = Math.max(0, Math.min((value - 0.55) / 0.3, 1));
-  return x * x * (3 - 2 * x);
+/** Only star points are discounted; independently measured substance survives. */
+export function contentSkillDiscount(m: RawMetrics): number {
+  const share = Math.max(0, Math.min(1, m.content_skill_star_share ?? 0));
+  const confidence = Math.max(0, Math.min(1, m.content_skill_confidence ?? 0));
+  const external = Math.max(0, m.external_merged_pr_count ?? 0);
+  const engineering = Math.max(Math.max(0, m.core_impact_pr_count ?? 0) * externalPrShare({ ...m, merged_pr_count: m.merged_pr_count ?? 0 }), external * (1 - Math.max(0, Math.min(1, m.presentation_churn_share ?? 0))) / 20);
+  const starMass = Math.max(0, m.total_stars) / (Math.max(0, m.total_stars) + 5000);
+  return 1 - 0.9 * share * share * (3 - 2 * share) * confidence * starMass / (1 + engineering);
 }
 
-function newcomerConfidence(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.min(value, 1)) : 0;
-}
-
-/**
- * Up to four maturity points for evidence-backed, well-rounded newcomers.
- * Same snapshot in, same bonus out: no clock, history, followers, or age-based
- * normalization of PR volume. Core PR count is the existing non-doc-like proxy,
- * not an audit of code quality. See docs/scoring/super-newcomer.md.
- */
-export function superNewcomerBonus(
-  m: RawMetrics,
-  sub: SubScores,
-  risk: ReturnType<typeof assessRisk>,
-): number {
-  const age = m.account_age_years;
-  const created = m.created_at;
-  const days = m.days_since_last_activity;
-  if (
-    !Number.isFinite(age) || age < 0 || age >= 3 ||
-    !created || created.startsWith("0000") || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(created) ||
-    !Number.isFinite(m.nonempty_original_repo_count) || m.nonempty_original_repo_count <= 0 ||
-    days === null || !Number.isFinite(days) || days < 0 || days > 90 ||
-    m.merged_pr_contribution_aggregation_incomplete || m.star_inflation_suspect ||
-    !Number.isFinite(risk.total_penalty) || risk.total_penalty > 0 ||
-    risk.risk_assessment.signals.some((signal) => signal.family === "contribution")
-  ) return 0;
-
-  // Date.parse normalizes e.g. February 30; roundtrip rejects impossible dates.
-  const timestamp = Date.parse(created);
-  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== created.slice(0, -1) + ".000Z") {
-    return 0;
+export function originalProjectQuality(m: RawMetrics): number {
+  if (m.nonempty_original_repo_count === 0) {
+    return 0.0;
+  } else {
+    const starQuality =
+      m.total_stars > 0
+        ? Math.max(0, Math.min(m.top_starred_original_repo_quality_score ?? 1, 1))
+        : 1;
+    const starPts =
+      (logRatio(m.weighted_total_stars ?? m.total_stars, 5000) * 7 + logRatio(m.weighted_max_stars ?? m.max_stars, 2000) * 5) *
+      starQuality *
+      starEngagementMultiplier(m.top_repo_engagement_ratio) * contentSkillDiscount(m);
+    const projectSubstance = Math.max(
+      0,
+      Math.min(m.best_original_repo_quality_score ?? 0, 1),
+    ) * 6;
+    return roundHalfEven(
+      starPts + projectSubstance,
+      1,
+    );
   }
 
-  // Use project substance and impact work, not star-weighted dimension totals.
-  // The weakest dimension limits credit: stars/followers cannot replace work.
-  // Ecosystem strength accepts EITHER multi-repo depth OR total landed work
-  // volume in star-qualified repos: a creator maintaining one exceptional
-  // repo is not weaker than a contributor touching many (the dimension itself
-  // credits both contributor and maintainer value). Volume only counts work
-  // that already passed the same >=200-star external / >=1000-star own gates,
-  // so it cannot be farmed in small or self-created low-star repos.
-  const impactWork = (m.impact_commit_count ?? 0) + m.impact_pr_count;
-  const ecosystemRatio = Math.max(m.impact_depth_raw / 8, logRatio(impactWork, 400));
-  const strength = Math.min(
-    newcomerStrength(m.best_original_repo_quality_score ?? 0),
-    newcomerStrength(sub.contribution_quality / SUBSCORE_MAX.contribution_quality),
-    newcomerStrength(ecosystemRatio),
-    newcomerStrength(sub.activity_authenticity / SUBSCORE_MAX.activity_authenticity),
-  );
-  const confidence = Math.min(
-    newcomerConfidence((m.verified_impact_pr_count ?? 0) / 5),
-    newcomerConfidence((m.core_impact_pr_count ?? 0) / 3),
-    newcomerConfidence(m.recent_merged_pr_sample / 20),
-  );
-  const decay = 1 - age / 3;
-  return 4 * strength * confidence * decay * decay;
-}
-
-/** Followers at which follow-ratio points reach full weight. */
-const FOLLOW_RATIO_FULL_AT = 500;
-
-/** Contribution Quality volume: external merged PRs (full at 150 effective). */
-const EXTERNAL_PR_VOLUME_MAX = 12;
-const EXTERNAL_PR_VOLUME_FULL_AT = 150;
-/** Own-repo merged PRs (full at 200): 4 points, up to 6 more (10 in total)
- * when the repos they land in have an outside community. */
-const OWN_PR_VOLUME_MAX = 4;
-const OWN_PR_COMMUNITY_BONUS = 6;
-const OWN_PR_VOLUME_FULL_AT = 200;
-/** Weight of an external PR into a repo under 200 stars. */
-const LOW_STAR_EXTERNAL_PR_WEIGHT = 0.6;
-
-function legacyAcceptance(m: RawMetrics): number {
-  const hasClosedPrBreakdown =
-    m.maintainer_closed_unmerged_pr_count !== undefined ||
-    m.self_closed_external_pr_count !== undefined ||
-    m.self_closed_own_repo_pr_count !== undefined;
-  const acceptanceTotal = hasClosedPrBreakdown
-    ? Math.max(
-        m.merged_pr_count,
-        m.merged_pr_count + (m.maintainer_closed_unmerged_pr_count ?? 0),
-      )
-    : Math.max(m.merged_pr_count, m.total_pr_count);
-  if (acceptanceTotal >= 3) return (m.merged_pr_count / acceptanceTotal) * 6;
-  return m.merged_pr_count * 1.2; // tiny history: ~1pt per merged
-}
-
-/**
- * PR volume and acceptance for Contribution Quality. With an external merged
- * PR count, volume = 12·logRatio(effective external, 150) +
- * (4 + 6·A)·logRatio(own, 200), where A (`own_pr_community`) is the
- * community-weighted share of own PRs that landed in repos other people build
- * on, PRs into repos under 200 stars count at 0.6, and the doc-like discount
- * applies to the external part only. Acceptance uses external decided PRs
- * (merged + maintainer-closed) once there are at least 3. Snapshots without
- * the external count keep the single-pool formula.
- */
-export function contributionVolumeAndAcceptance(m: RawMetrics): {
-  prVolume: number;
-  acceptance: number;
-} {
-  if (m.external_merged_pr_count === undefined) {
-    const prVolumeRaw = logRatio(m.merged_pr_count, 200) * 16;
-    return {
-      prVolume: Math.max(0, prVolumeRaw - docLikePrVolumeDiscount(m, prVolumeRaw)),
-      acceptance: Math.min(legacyAcceptance(m), 6.0),
-    };
-  }
-
-  const external = Math.max(0, Math.min(m.external_merged_pr_count, m.merged_pr_count));
-  const own = Math.max(0, m.merged_pr_count - external);
-  const highStarShare = Math.max(0, Math.min(m.external_high_star_pr_share ?? 1, 1));
-  const effectiveExternal =
-    external * (highStarShare + LOW_STAR_EXTERNAL_PR_WEIGHT * (1 - highStarShare));
-  const externalRaw =
-    logRatio(effectiveExternal, EXTERNAL_PR_VOLUME_FULL_AT) * EXTERNAL_PR_VOLUME_MAX;
-  const externalVolume = Math.max(0, externalRaw - docLikePrVolumeDiscount(m, externalRaw));
-  const community = Math.max(0, Math.min(m.own_pr_community ?? 0, 1));
-  const ownVolume =
-    logRatio(own, OWN_PR_VOLUME_FULL_AT) * (OWN_PR_VOLUME_MAX + OWN_PR_COMMUNITY_BONUS * community);
-
-  const externalDecided = external + (m.maintainer_closed_unmerged_pr_count ?? 0);
-  const acceptance =
-    externalDecided >= 3 ? (external / externalDecided) * 6 : legacyAcceptance(m);
-  return { prVolume: externalVolume + ownVolume, acceptance: Math.min(acceptance, 6.0) };
 }
 
 export function score(m: RawMetrics): Scoring {
@@ -395,40 +270,37 @@ export function score(m: RawMetrics): Scoring {
   // 2. Original Project Quality (18) — stars are only part of quality. A useful
   // 0-star project can still earn substance points, while stars alone cannot
   // max out the dimension without a complete-looking original repo.
-  if (m.nonempty_original_repo_count === 0) {
-    sub.original_project_quality = 0.0;
-  } else {
-    const starQuality =
-      m.total_stars > 0
-        ? Math.max(0, Math.min(m.top_starred_original_repo_quality_score ?? 1, 1))
-        : 1;
-    const starPts =
-      (logRatio(m.weighted_total_stars ?? m.total_stars, 5000) * 7 +
-        logRatio(m.weighted_max_stars ?? m.max_stars, 2000) * 5) *
-      starQuality *
-      starEngagementMultiplier(m.top_repo_engagement_ratio);
-    const projectSubstance = Math.max(
-      0,
-      Math.min(m.best_original_repo_quality_score ?? 0, 1),
-    ) * 6;
-    sub.original_project_quality = roundHalfEven(
-      starPts + projectSubstance,
-      1,
-    );
-  }
+  sub.original_project_quality = Math.max(originalProjectQuality(m), Math.max(0, Math.min(18, m.personal_original_project_quality_score ?? 0)));
 
   // 3. Contribution Quality (27) — merged-PR volume, acceptance, issue engagement.
-  // The dimension measures work someone else reviewed and accepted: external
-  // PRs carry most of the volume, while PRs into one's own projects (already
-  // credited in Original Project Quality and Activity) earn at most 4 points.
-  // Spam is judged separately by the external-trivial / flood flags.
-  const { prVolume, acceptance } = contributionVolumeAndAcceptance(m);
+  // PRs into one's own projects count normally (solo-dev work / learning / testing
+  // is legitimate); spam is judged separately by the external-trivial / flood flags.
+  const prVolumeRaw = logRatio(m.merged_pr_count, 200) * 16;
+  const prVolume = Math.max(0, prVolumeRaw - docLikePrVolumeDiscount(m, prVolumeRaw));
+  let acceptance: number;
+  const hasClosedPrBreakdown =
+    m.maintainer_closed_unmerged_pr_count !== undefined ||
+    m.self_closed_external_pr_count !== undefined ||
+    m.self_closed_own_repo_pr_count !== undefined;
+  const acceptanceTotal = hasClosedPrBreakdown
+    ? Math.max(
+        m.merged_pr_count,
+        m.merged_pr_count + (m.maintainer_closed_unmerged_pr_count ?? 0),
+      )
+    : Math.max(m.merged_pr_count, m.total_pr_count);
+  if (acceptanceTotal >= 3) {
+    acceptance = (m.merged_pr_count / acceptanceTotal) * 6;
+  } else {
+    acceptance = m.merged_pr_count * 1.2; // tiny history: ~1pt per merged
+  }
+  acceptance = Math.min(acceptance, 6.0);
   const issuePts = logRatio(m.issues_created, 100) * 5;
   const contributionQualityRaw =
     prVolume +
-    acceptance +
+    ownPrCommunityCredit(m) +
+    acceptance - docLikePrVolumeDiscount(m, acceptance) +
     issuePts +
-    highImpactCorePrBonus(m) -
+    highImpactCorePrBonus(m) * (1 - (1 - presentationDiscount(m)) * 0.8) -
     authorSelfClosedExternalPenalty(m);
   const contributionCap = Math.min(
     contributionQualityCap(m) ?? Infinity,
@@ -444,12 +316,16 @@ export function score(m: RawMetrics): Scoring {
   // whether contributing to others' projects or actively maintaining one's own
   // popular repo. Hardest signal to fake; captures both contributor and
   // creator/maintainer value.
-  // Doc-heavy work is weighted per repo by code share in the collector, so
-  // there is no global quality cap here.
-  sub.ecosystem_impact = roundHalfEven(ecosystemImpactPoints(m), 1);
+  const prestige = impactPrestigeSignal(m) * 9;
+  const depth = Math.min(m.impact_depth_raw / 8.0, 1.0) * 11;
+  const ecosystemRaw = (prestige + depth) * ecosystemPresentationDiscount(m) *
+    (1 - (1 - contentSkillDiscount(m)) * (1 - externalPrShare(m)));
+  sub.ecosystem_impact = roundHalfEven(
+    ecosystemRaw,
+    1,
+  );
 
-  // 5. Community Influence (8). A healthy follow ratio only means something
-  // once there is an audience, so ratio points scale with follower count.
+  // 5. Community Influence (8)
   const followerPts = logRatio(m.followers, 2000) * 5;
   const following = m.following;
   const followers = m.followers;
@@ -462,7 +338,7 @@ export function score(m: RawMetrics): Scoring {
     const ratio = followers / following;
     ratioPts = ratio >= 2 ? 3 : ratio >= 1 ? 2 : ratio >= 0.5 ? 1.5 : 1;
   }
-  const communityRaw = followerPts + ratioPts * logRatio(m.followers, FOLLOW_RATIO_FULL_AT);
+  const communityRaw = followerPts + ratioPts;
   sub.community_influence = roundHalfEven(
     hasSocialOnlyDormantSignal(m) ? Math.min(communityRaw, 2.5) : communityRaw,
     1,
@@ -479,20 +355,13 @@ export function score(m: RawMetrics): Scoring {
   const diversityPts = Math.min(m.activity_type_count, 4) * 1.125;
   sub.activity_authenticity = roundHalfEven(contribPts + recencyPts + diversityPts, 1);
 
-  const risk = assessRisk(m);
-  const penalty = risk.total_penalty;
-  const newcomerBonus = superNewcomerBonus(m, sub, risk);
-  if (newcomerBonus > 0) {
-    sub.account_maturity = roundHalfEven(
-      Math.min(SUBSCORE_MAX.account_maturity, agePts + spanPts + newcomerBonus),
-      1,
-    );
-  }
-
   const base = roundHalfEven(
     Object.values(sub).reduce((a, b) => a + b, 0),
     1,
   );
+
+  const risk = assessRisk(m);
+  const penalty = risk.total_penalty;
   // Keep two decimals (not integer) so the leaderboard can rank finely.
   const final = clampScore(roundHalfEven(base - penalty, 2));
   const { tier, tier_label: tierLabel } = tierFor(final);

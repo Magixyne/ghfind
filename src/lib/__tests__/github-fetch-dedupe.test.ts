@@ -26,6 +26,17 @@ it("preserves a caller's abort signal", async () => {
   expect(upstream.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
 });
 
+it("does not retry an aborted GitHub fetch", async () => {
+  vi.stubEnv("GITHUB_TOKEN", "one,two,three");
+  const abort = Object.assign(new Error("aborted"), { name: "AbortError" });
+  const upstream = vi.fn<typeof fetch>(async () => {
+    throw abort;
+  });
+  vi.stubGlobal("fetch", upstream);
+  await expect(ghFetch("https://api.github.com/users/example")).rejects.toBe(abort);
+  expect(upstream).toHaveBeenCalledOnce();
+});
+
 
 it("releases a truncated raw README body through Next fetch", async () => {
   vi.stubEnv("GITHUB_TOKEN", "test-token");
@@ -35,6 +46,7 @@ it("releases a truncated raw README body through Next fetch", async () => {
     if (url.endsWith("/readme")) return Response.json({
       size: 2 * 1024 * 1024, download_url: "https://raw.githubusercontent.com/org/repo/main/README.md",
     });
+    if (url.endsWith("/contents")) return Response.json([{ name: "src" }, { name: "README.md" }]);
     if (url.endsWith("/languages")) return Response.json({ TypeScript: 100 });
     return new Response(new ReadableStream({
       start(controller) { controller.enqueue(new Uint8Array(1024 * 1024 + 1).fill(65)); },

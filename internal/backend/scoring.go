@@ -3,7 +3,6 @@ package backend
 import (
 	"fmt"
 	"math"
-	"time"
 )
 
 // RawMetrics is the wire contract used by the existing Node collector and the
@@ -17,6 +16,13 @@ import (
 // Do not change this formula without changing src/lib/score.ts and its shared
 // regression fixtures in the same review.
 type RawMetrics struct {
+	PersonalOriginalProjectQualityScore *float64           `json:"personal_original_project_quality_score,omitempty"`
+	AttributedOriginalRepoShares        map[string]float64 `json:"attributed_original_repo_shares,omitempty"`
+	PresentationCoreChurnShare          *float64           `json:"presentation_core_churn_share,omitempty"`
+	PresentationChurnShare              *float64           `json:"presentation_churn_share,omitempty"`
+	PresentationRepoConcentration       *float64           `json:"presentation_repo_concentration,omitempty"`
+	PresentationPRSample                *float64           `json:"presentation_pr_sample,omitempty"`
+	PresentationCorePRCount             *float64           `json:"presentation_core_pr_count,omitempty"`
 	// Explicit profile pronouns are writer context only; Score never uses them.
 	Pronouns                           *string  `json:"pronouns,omitempty"`
 	Username                           string   `json:"username"`
@@ -37,6 +43,8 @@ type RawMetrics struct {
 	EmptyOriginalRepoCount             float64  `json:"empty_original_repo_count"`
 	TotalStars                         float64  `json:"total_stars"`
 	MaxStars                           float64  `json:"max_stars"`
+	ContentSkillStarShare              *float64 `json:"content_skill_star_share,omitempty"`
+	ContentSkillConfidence             *float64 `json:"content_skill_confidence,omitempty"`
 	WeightedTotalStars                 *float64 `json:"weighted_total_stars,omitempty"`
 	WeightedMaxStars                   *float64 `json:"weighted_max_stars,omitempty"`
 	TopRepoEngagementRatio             *float64 `json:"top_repo_engagement_ratio,omitempty"`
@@ -307,43 +315,9 @@ func docLikeSample(m RawMetrics) float64 {
 }
 
 func docLikePRVolumeDiscount(m RawMetrics, prVolume float64) float64 {
-	sample := docLikeSample(m)
-	ratio := docLikePRRatio(m, sample)
-	if sample < 20 || ratio < 0.55 {
-		return 0
-	}
-	severity := max(0, min(1, (ratio-0.55)/0.075))
-	return min(prVolume*0.55, 2.5+severity*3)
+	return prVolume * externalPRShare(m) * (1 - presentationDiscount(m)) * .8
 }
-
-func contributionQualityCap(m RawMetrics) (float64, bool) {
-	sample := docLikeSample(m)
-	ratio := docLikePRRatio(m, sample)
-	if sample < 20 || ratio < 0.55 {
-		return 0, false
-	}
-	// Weak, doc-dominated popular-repo impact: little ecosystem credit and the
-	// verified high-star sample is mostly docs/site/example work.
-	lowTrustImpact := ecosystemImpactPoints(m) <= 4 && valueOrZero(m.CoreImpactPRCount) <= 2 &&
-		valueOrZero(m.DocLikeImpactPRCount) > valueOrZero(m.CoreImpactPRCount)
-	weakTopStarProject := valueOr(m.TopStarredOriginalRepoQualityScore, 1) < 0.3 && m.TotalStars > 0
-	selfClosedExternal := valueOrZero(m.SelfClosedExternalPRCount)
-	totalExternalish := m.MergedPRCount + valueOrZero(m.MaintainerClosedUnmergedPRCount) + selfClosedExternal
-	heavySelfClosedExternal := totalExternalish >= 20 && selfClosedExternal/totalExternalish >= 0.25
-	weakOwnProjectSignal := m.MaxStars < 100 && m.TotalStars < 300 && valueOr(m.TopStarredOriginalRepoQualityScore, 1) < 0.6
-	if lowTrustImpact && (weakTopStarProject || weakOwnProjectSignal || heavySelfClosedExternal) {
-		return 12, true
-	}
-	return 0, false
-}
-
-// impactDepthFullAt is the impact_depth_raw at which depth points saturate.
-const impactDepthFullAt = 10
-
-// ecosystemImpactPoints mirrors ecosystemImpactPoints in src/lib/score.ts.
-func ecosystemImpactPoints(m RawMetrics) float64 {
-	return impactPrestigeSignal(m)*9 + min(m.ImpactDepthRaw/impactDepthFullAt, 1)*11
-}
+func contributionQualityCap(m RawMetrics) (float64, bool) { return 0, false }
 
 func impactPrestigeSignal(m RawMetrics) float64 {
 	return max(0, min(valueOr(m.ImpactPrestigeScore, LogRatio(m.MaxImpactRepoStars, 100000)), 1))
@@ -358,11 +332,35 @@ func highImpactCorePRBonus(m RawMetrics) float64 {
 	return min(2, starSignal*0.8+min(core/5, 1)*1.2)
 }
 
-func lowPrestigeBulkContributionCap(m RawMetrics) (float64, bool) {
-	if m.MergedPRCount < 80 || impactPrestigeSignal(m) >= LogRatio(10000, 100000) || m.MaxStars >= 1000 {
-		return 0, false
+const (
+	ownPRVolumeFullAt   = 200.0
+	ownPRCommunityBonus = 6.0
+)
+
+// ownPRCommunityCredit is the v13 extra 6·A·logRatio(own, 200). Snapshots
+// without ExternalMergedPRCount keep the v10 single-pool score.
+func ownPRCommunityCredit(m RawMetrics) float64 {
+	if m.ExternalMergedPRCount == nil {
+		return 0
 	}
-	return 22, true
+	community := max(0, min(valueOrZero(m.OwnPRCommunity), 1))
+	if community == 0 {
+		return 0
+	}
+	external := max(0, min(*m.ExternalMergedPRCount, m.MergedPRCount))
+	own := max(0, m.MergedPRCount-external)
+	return LogRatio(own, ownPRVolumeFullAt) * ownPRCommunityBonus * community
+}
+
+func lowPrestigeBulkContributionCap(m RawMetrics) (float64, bool) {
+	smooth := func(value float64) float64 { x := max(0, min(1, value)); return x * x * (3 - 2*x) }
+	volume := smooth((m.MergedPRCount - 40) / 80)
+	protection := smooth((m.MaxStars - 950) / 100)
+	prestige := impactPrestigeSignal(m)
+	strongPrestige := smooth((prestige - .65) / .15)
+	coreProtection := smooth((valueOrZero(m.CoreImpactPRCount) - 40) / 60)
+	prestigeCap := 20 + 3*smooth((prestige-.3)/.5) + 4*strongPrestige + 2.5*coreProtection*(1-strongPrestige)
+	return 27 - (27-prestigeCap)*volume*(1-protection), true
 }
 
 func hasSocialOnlyDormantSignal(m RawMetrics) bool {
@@ -386,127 +384,32 @@ func tierFor(final float64) (string, string) {
 	}
 }
 
-// isCanonicalGitHubTimestamp accepts only calendar-valid, whole-second UTC
-// timestamps in the GitHub wire format. It never consults the current time.
-func isCanonicalGitHubTimestamp(value *string) bool {
-	if value == nil || len(*value) != 20 {
-		return false
-	}
-	const layout = "2006-01-02T15:04:05Z"
-	parsed, err := time.Parse(layout, *value)
-	return err == nil && parsed.Year() > 0 && parsed.Format(layout) == *value
-}
-
-func newcomerClamp01(value float64) float64 {
-	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0
-	}
-	return max(0, min(value, 1))
-}
-
-func smoothRamp(value, lo, hi float64) float64 {
-	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0
-	}
-	x := newcomerClamp01((value - lo) / (hi - lo))
-	return x * x * (3 - 2*x)
-}
-
-// newcomerMaturityBonus uses completed hard scores and the existing risk
-// assessment, without changing any baseline formula or risk signal. Core PR
-// count is a non-doc-like approximation, not an audit of code quality.
-func newcomerMaturityBonus(m RawMetrics, sub SubScores, risk RiskAssessment, totalPenalty float64) float64 {
-	age := m.AccountAgeYears
-	if math.IsNaN(age) || math.IsInf(age, 0) || age < 0 || age >= 3 ||
-		!isCanonicalGitHubTimestamp(m.CreatedAt) ||
-		math.IsNaN(m.NonemptyOriginalRepoCount) || math.IsInf(m.NonemptyOriginalRepoCount, 0) || m.NonemptyOriginalRepoCount <= 0 ||
-		m.DaysSinceLastActivity == nil {
-		return 0
-	}
-	days := *m.DaysSinceLastActivity
-	if math.IsNaN(days) || math.IsInf(days, 0) || days < 0 || days > 90 ||
-		m.MergedPRContributionAggregationIncomplete || m.StarInflationSuspect ||
-		math.IsNaN(totalPenalty) || math.IsInf(totalPenalty, 0) || totalPenalty > 0 {
-		return 0
-	}
-	for _, signal := range risk.Signals {
-		if signal.Family == "contribution" {
-			return 0
-		}
-	}
-	// Ecosystem strength accepts either multi-repo depth or total landed work
-	// volume in star-qualified repos: a creator maintaining one exceptional
-	// repo is not weaker than a contributor touching many. Volume only counts
-	// work that already passed the same >=200-star external / >=1000-star own
-	// gates, so it cannot be farmed in small or self-created low-star repos.
-	impactWork := valueOrZero(m.ImpactCommitCount) + m.ImpactPRCount
-	ecosystemRatio := math.Max(m.ImpactDepthRaw/8, LogRatio(impactWork, 400))
-	evidence := min(
-		smoothRamp(valueOrZero(m.BestOriginalRepoQualityScore), 0.55, 0.85),
-		smoothRamp(sub.ContributionQuality/27, 0.55, 0.85),
-		smoothRamp(ecosystemRatio, 0.55, 0.85),
-		smoothRamp(sub.ActivityAuthenticity/17, 0.55, 0.85),
-	)
-	confidence := min(
-		newcomerClamp01(valueOrZero(m.VerifiedImpactPRCount)/5),
-		newcomerClamp01(valueOrZero(m.CoreImpactPRCount)/3),
-		newcomerClamp01(m.RecentMergedPRSample/20),
-	)
-	decay := 1 - age/3
-	return 4 * evidence * confidence * decay * decay
-}
-
-// followRatioFullAt followers give follow-ratio points full weight.
-const followRatioFullAt = 500
-
-// Contribution Quality volume split: external merged PRs (12 points, full at
-// 150 effective) and own-repo merged PRs (4 points, full at 200).
-const (
-	externalPRVolumeMax     = 12
-	externalPRVolumeFullAt  = 150
-	ownPRVolumeMax          = 4
-	ownPRCommunityBonus     = 6
-	ownPRVolumeFullAt       = 200
-	lowStarExternalPRWeight = 0.6
-)
-
-func legacyAcceptance(m RawMetrics) float64 {
-	hasClosedPRBreakdown := m.MaintainerClosedUnmergedPRCount != nil || m.SelfClosedExternalPRCount != nil || m.SelfClosedOwnRepoPRCount != nil
-	acceptanceTotal := max(m.MergedPRCount, m.TotalPRCount)
-	if hasClosedPRBreakdown {
-		acceptanceTotal = max(m.MergedPRCount, m.MergedPRCount+valueOrZero(m.MaintainerClosedUnmergedPRCount))
-	}
-	if acceptanceTotal >= 3 {
-		return m.MergedPRCount / acceptanceTotal * 6
-	}
-	return m.MergedPRCount * 1.2
-}
-
-// contributionVolumeAndAcceptance mirrors contributionVolumeAndAcceptance in
-// src/lib/score.ts.
-func contributionVolumeAndAcceptance(m RawMetrics) (float64, float64) {
-	if m.ExternalMergedPRCount == nil {
-		prVolumeRaw := LogRatio(m.MergedPRCount, 200) * 16
-		return max(0, prVolumeRaw-docLikePRVolumeDiscount(m, prVolumeRaw)), min(legacyAcceptance(m), 6)
-	}
-	external := max(0, min(*m.ExternalMergedPRCount, m.MergedPRCount))
-	own := max(0, m.MergedPRCount-external)
-	highStarShare := max(0, min(valueOr(m.ExternalHighStarPRShare, 1), 1))
-	effectiveExternal := external * (highStarShare + lowStarExternalPRWeight*(1-highStarShare))
-	externalRaw := LogRatio(effectiveExternal, externalPRVolumeFullAt) * externalPRVolumeMax
-	externalVolume := max(0, externalRaw-docLikePRVolumeDiscount(m, externalRaw))
-	community := max(0, min(valueOrZero(m.OwnPRCommunity), 1))
-	ownVolume := LogRatio(own, ownPRVolumeFullAt) * (ownPRVolumeMax + ownPRCommunityBonus*community)
-	externalDecided := external + valueOrZero(m.MaintainerClosedUnmergedPRCount)
-	acceptance := legacyAcceptance(m)
-	if externalDecided >= 3 {
-		acceptance = external / externalDecided * 6
-	}
-	return externalVolume + ownVolume, min(acceptance, 6)
-}
-
 // Score is a direct Go port of src/lib/score.ts. The API contract and scoring
 // rules stay unchanged while the collector and persistence move out of Next.
+func contentSkillDiscount(m RawMetrics) float64 {
+	share := max(0, min(1, valueOrZero(m.ContentSkillStarShare)))
+	confidence := max(0, min(1, valueOrZero(m.ContentSkillConfidence)))
+	external := max(0, valueOrZero(m.ExternalMergedPRCount))
+	engineering := max(max(0, valueOrZero(m.CoreImpactPRCount))*externalPRShare(m), external*(1-max(0, min(1, valueOrZero(m.PresentationChurnShare))))/20)
+	starMass := max(0, m.TotalStars) / (max(0, m.TotalStars) + 5000)
+	return 1 - 0.9*share*share*(3-2*share)*confidence*starMass/(1+engineering)
+}
+
+func originalProjectQuality(m RawMetrics) float64 {
+	if m.NonemptyOriginalRepoCount == 0 {
+		return 0
+	} else {
+		starQuality := 1.0
+		if m.TotalStars > 0 {
+			starQuality = max(0, min(valueOr(m.TopStarredOriginalRepoQualityScore, 1), 1))
+		}
+		starPoints := (LogRatio(valueOr(m.WeightedTotalStars, m.TotalStars), 5000)*7 + LogRatio(valueOr(m.WeightedMaxStars, m.MaxStars), 2000)*5) * starQuality * starEngagementMultiplier(m.TopRepoEngagementRatio) * contentSkillDiscount(m)
+		projectSubstance := max(0, min(valueOr(m.BestOriginalRepoQualityScore, 0), 1)) * 6
+		return roundToEven(starPoints+projectSubstance, 1)
+	}
+
+}
+
 func Score(m RawMetrics) Scoring {
 	sub := SubScores{}
 	agePoints := min(m.AccountAgeYears/6, 1) * 7
@@ -520,20 +423,23 @@ func Score(m RawMetrics) Scoring {
 	}
 	sub.AccountMaturity = roundToEven(agePoints+spanPoints, 1)
 
-	if m.NonemptyOriginalRepoCount == 0 {
-		sub.OriginalProjectQuality = 0
-	} else {
-		starQuality := 1.0
-		if m.TotalStars > 0 {
-			starQuality = max(0, min(valueOr(m.TopStarredOriginalRepoQualityScore, 1), 1))
-		}
-		starPoints := (LogRatio(valueOr(m.WeightedTotalStars, m.TotalStars), 5000)*7 + LogRatio(valueOr(m.WeightedMaxStars, m.MaxStars), 2000)*5) * starQuality * starEngagementMultiplier(m.TopRepoEngagementRatio)
-		projectSubstance := max(0, min(valueOr(m.BestOriginalRepoQualityScore, 0), 1)) * 6
-		sub.OriginalProjectQuality = roundToEven(starPoints+projectSubstance, 1)
-	}
+	sub.OriginalProjectQuality = max(originalProjectQuality(m), max(0, min(18, valueOrZero(m.PersonalOriginalProjectQualityScore))))
 
-	prVolume, acceptance := contributionVolumeAndAcceptance(m)
-	contributionRaw := prVolume + acceptance + LogRatio(m.IssuesCreated, 100)*5 + highImpactCorePRBonus(m)
+	prVolumeRaw := LogRatio(m.MergedPRCount, 200) * 16
+	prVolume := max(0, prVolumeRaw-docLikePRVolumeDiscount(m, prVolumeRaw))
+	hasClosedPRBreakdown := m.MaintainerClosedUnmergedPRCount != nil || m.SelfClosedExternalPRCount != nil || m.SelfClosedOwnRepoPRCount != nil
+	acceptanceTotal := max(m.MergedPRCount, m.TotalPRCount)
+	if hasClosedPRBreakdown {
+		acceptanceTotal = max(m.MergedPRCount, m.MergedPRCount+valueOrZero(m.MaintainerClosedUnmergedPRCount))
+	}
+	acceptance := 0.0
+	if acceptanceTotal >= 3 {
+		acceptance = m.MergedPRCount / acceptanceTotal * 6
+	} else {
+		acceptance = m.MergedPRCount * 1.2
+	}
+	acceptance = min(acceptance, 6)
+	contributionRaw := prVolume + ownPRCommunityCredit(m) + acceptance - docLikePRVolumeDiscount(m, acceptance) + LogRatio(m.IssuesCreated, 100)*5 + highImpactCorePRBonus(m)*(1-(1-presentationDiscount(m))*.8)
 	contributionCap := 27.0
 	if cap, applies := contributionQualityCap(m); applies {
 		contributionCap = min(contributionCap, cap)
@@ -543,7 +449,8 @@ func Score(m RawMetrics) Scoring {
 	}
 	sub.ContributionQuality = roundToEven(min(contributionRaw, contributionCap), 1)
 
-	sub.EcosystemImpact = roundToEven(ecosystemImpactPoints(m), 1)
+	ecosystemRaw := (impactPrestigeSignal(m)*9 + min(m.ImpactDepthRaw/8, 1)*11) * ecosystemPresentationDiscount(m) * (1 - (1-contentSkillDiscount(m))*(1-externalPRShare(m)))
+	sub.EcosystemImpact = roundToEven(ecosystemRaw, 1)
 
 	followerPoints := LogRatio(m.Followers, 2000) * 5
 	ratioPoints := 0.0
@@ -566,7 +473,7 @@ func Score(m RawMetrics) Scoring {
 			ratioPoints = 1
 		}
 	}
-	communityRaw := followerPoints + ratioPoints*LogRatio(m.Followers, followRatioFullAt)
+	communityRaw := followerPoints + ratioPoints
 	if hasSocialOnlyDormantSignal(m) {
 		communityRaw = min(communityRaw, 2.5)
 	}
@@ -584,11 +491,8 @@ func Score(m RawMetrics) Scoring {
 	}
 	sub.ActivityAuthenticity = roundToEven(contributionPoints+recencyPoints+min(m.ActivityTypeCount, 4)*1.125, 1)
 
-	riskAssessment, riskNotes, redFlags, totalPenalty := AssessRisk(m)
-	if bonus := newcomerMaturityBonus(m, sub, riskAssessment, totalPenalty); bonus > 0 {
-		sub.AccountMaturity = roundToEven(min(10, agePoints+spanPoints+bonus), 1)
-	}
 	base := roundToEven(sub.AccountMaturity+sub.OriginalProjectQuality+sub.ContributionQuality+sub.EcosystemImpact+sub.CommunityInfluence+sub.ActivityAuthenticity, 1)
+	riskAssessment, riskNotes, redFlags, totalPenalty := AssessRisk(m)
 	final := clampScore(roundToEven(base-totalPenalty, 2))
 	tier, tierLabel := tierFor(final)
 	return Scoring{SubScores: sub, BaseScore: base, RedFlags: redFlags, RiskAssessment: riskAssessment, RiskNotes: riskNotes, TotalPenalty: totalPenalty, FinalScore: final, Tier: tier, TierLabel: tierLabel}

@@ -2,16 +2,27 @@
   "loginDialog": {
     "entry": "Đăng nhập",
     "title": "Đăng nhập ghfind",
-    "description": "Lưu danh sách theo dõi và hồ sơ để tiếp tục trên thiết bị khác.",
+    "description": "Chọn tài khoản để tiếp tục.",
     "close": "Đóng",
     "google": "Tiếp tục với Google",
     "github": "Tiếp tục với GitHub",
-    "emailDivider": "Hoặc dùng email",
-    "emailLabel": "Địa chỉ email",
-    "emailPlaceholder": "Nhập email",
-    "sendCode": "Gửi mã xác minh",
-    "githubUnavailable": "Đăng nhập GitHub hiện không khả dụng ở đây.",
-    "comingSoon": "Đăng nhập bằng Google và email sẽ sớm ra mắt."
+    "apple": "Tiếp tục với Apple",
+    "redirecting": "Đang mở {provider}…",
+    "loading": "Đang kiểm tra cách đăng nhập…",
+    "retry": "Thử lại",
+    "loadFailed": "Không tải được các cách đăng nhập. Hãy kiểm tra kết nối và thử lại.",
+    "unavailable": "Tạm thời không thể đăng nhập. Bạn có thể tiếp tục duyệt và thử lại sau.",
+    "githubFeatures": "Tính năng theo dõi, hồ sơ đám mây và mã thông báo API hiện yêu cầu tài khoản GitHub.",
+    "providerAccount": "Tài khoản {provider}",
+    "switchToGitHub": "Chuyển sang đăng nhập GitHub",
+    "errors": {
+      "denied": "Đã hủy đăng nhập. Hãy chọn tài khoản để thử lại.",
+      "expired": "Yêu cầu đăng nhập đã hết hạn. Vui lòng bắt đầu lại.",
+      "failed": "Không thể hoàn tất đăng nhập. Vui lòng thử lại.",
+      "unavailable": "Cách đăng nhập này không khả dụng. Hãy chọn cách khác hoặc thử lại sau."
+    },
+    "signingOut": "Đang đăng xuất…",
+    "signOutFailed": "Không thể đăng xuất. Hãy kiểm tra kết nối và thử lại."
   },
   "meta": {
     "title": "ghfind | Chấm điểm GitHub cực gắt, tự soi bản thân & khám phá dev xịn",
@@ -363,7 +374,8 @@
     "battleLoss": "Thua",
     "battleTie": "Hòa",
     "selfCta": "Chấm điểm GitHub của chính bạn →",
-    "reportLangNotice": "Báo cáo cà khịa của AI hiện chỉ được viết bằng tiếng Anh và tiếng Trung — bạn đang đọc bản tiếng Anh."
+    "reportLangNotice": "Báo cáo cà khịa của AI hiện chỉ được viết bằng tiếng Anh và tiếng Trung — bạn đang đọc bản tiếng Anh.",
+    "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)"
   },
   "reactions": {
     "heading": "Phản ứng cộng đồng",
@@ -418,8 +430,10 @@
     "errRoastFailed": "Tạo bài cà khịa thất bại — thử lại sau hoặc dùng key của riêng bạn.",
     "errNetworkRoast": "Rớt mạng — màn cà khịa bị cắt ngang.",
     "errScanFailed": "Quét thất bại, thử lại sau nhé.",
+    "largeAccountCollecting": "Đang thu thập dữ liệu tài khoản lớn…",
     "errScanPending": "Đang thu thập toàn bộ lịch sử PR và commit công khai. Sẽ tự động tiếp tục khi hoàn tất.",
     "errNetworkScan": "Lỗi mạng — còn chẳng chạm được tới GitHub.",
+    "dataUpdating": "Đang cập nhật dữ liệu…",
     "byoReasonQuota": "Hạn mức miễn phí đã cạn 😵 Thêm API key của riêng bạn để cà khịa tiếp (OpenAI / StepFun / Groq đều dùng được).",
     "byoReasonRate": "Hôm nay bạn cà khịa hơi nhiều rồi đó 🥵 Nghỉ chút đi, hoặc thêm API key riêng để cà khịa không giới hạn.",
     "byoReasonDefault": "Server chưa cấu hình model mặc định — thêm API key của riêng bạn để bắt đầu cà khịa."
@@ -431,6 +445,9 @@
     "rate_limited": "Nhanh quá — hít thở sâu rồi thử lại sau một phút.",
     "github_rate_limited": "API của GitHub đang quá tải — chờ chút nhé.",
     "github_unavailable": "Dữ liệu GitHub tạm thời không khả dụng — thử lại sau.",
+    "github_collect_deadline": "Thu thập GitHub đã hết thời gian — thử lại sau một chút nhé.",
+    "scan_pending": "Đang thu thập dữ liệu tài khoản lớn…",
+    "scan_busy": "Hệ thống đang chấm điểm — thử lại sau một chút nhé.",
     "scan_failed": "Quét bị sập — thử lại sau nhé."
   },
   "share": {
@@ -525,7 +542,7 @@
   },
   "dimensions": {
     "account_maturity": "Độ trưởng thành tài khoản",
-    "original_project_quality": "Chất lượng dự án gốc",
+    "original_project_quality": "Dự án gốc và dẫn dắt",
     "contribution_quality": "Chất lượng đóng góp",
     "ecosystem_impact": "Tác động hệ sinh thái / bảo trì",
     "community_influence": "Ảnh hưởng cộng đồng",
@@ -799,6 +816,10 @@
         "p": "Với các tài khoản đã được chấm, chúng tôi cache điểm số, hạng và các số liệu dẫn xuất để báo cáo chia sẻ tải nhanh và bảng xếp hạng luôn mượt. Chỉ tài khoản đạt 60 điểm trở lên mới được lập chỉ mục và liệt kê công khai; trang của tài khoản điểm thấp hơn vẫn truy cập được qua liên kết trực tiếp nhưng bị chặn khỏi công cụ tìm kiếm. Chúng tôi dùng phân tích tổng hợp tôn trọng quyền riêng tư để hiểu lưu lượng và không bán dữ liệu cá nhân."
       },
       {
+        "h": "Đăng nhập Google và cookie tài khoản",
+        "p": "Nếu chọn đăng nhập Google, chúng tôi nhận mã định danh tài khoản Google (subject), tên và ảnh hồ sơ để tạo phiên ghfind. Google cũng có thể trả về địa chỉ email trong quá trình đăng nhập; chúng tôi không lưu trữ lâu dài địa chỉ này. Cookie phiên được ký và có thuộc tính HttpOnly lưu thông tin định danh cơ bản tối đa 30 ngày. Chúng tôi không giữ mã truy cập API Google hoặc mã làm mới. Đăng xuất sẽ xóa cookie phiên. Đăng nhập Google không cấp quyền GitHub và chúng tôi không tự động liên kết tài khoản theo địa chỉ email."
+      },
+      {
         "h": "Cà khịa bằng key riêng",
         "p": "Tính năng cà khịa tùy chọn có thể dùng key nhà cung cấp model của riêng bạn. Khi bạn cung cấp một key, nó nằm trong trình duyệt của bạn và được chuyển tiếp một lần qua server của chúng tôi để gọi model — không bao giờ lưu trữ, không bao giờ ghi log, và bị hủy sau khi yêu cầu hoàn tất."
       },
@@ -817,7 +838,7 @@
     "dimensionsIntro": "Mỗi chiều đóng góp vào điểm cơ sở 100. Kết hợp lại, chúng thưởng cho công việc mã nguồn mở bền bỉ, nguyên bản, được sử dụng rộng rãi thay vì các con số hoạt động thô.",
     "dimensionDetails": {
       "account_maturity": "Tài khoản đã ổn định và nhất quán theo thời gian ra sao — tuổi đời, hoạt động bền bỉ, và một đường cong uy tín chống lại việc bơm thổi qua đêm.",
-      "original_project_quality": "Chất lượng và mức đón nhận của những repository mà tài khoản thực sự sở hữu và tự viết, không tính fork hay dự án vặt vãnh.",
+      "original_project_quality": "Chất lượng và mức đón nhận của dự án tự tạo hoặc có đóng góp dẫn dắt, đồng xây dựng đáng kể, tính theo tỷ lệ quy thuộc; không tính fork.",
       "contribution_quality": "Chất lượng thực chất của đóng góp cho các dự án khác — những pull request được merge, có ý nghĩa, đối lập với spam theo template.",
       "ecosystem_impact": "Công việc của tài khoản được phụ thuộc và bảo trì đến mức nào trong hệ sinh thái rộng hơn.",
       "community_influence": "Tầm với và vị thế thật trong cộng đồng, được chuẩn hóa để số follower hay star thô không thể lấn át.",

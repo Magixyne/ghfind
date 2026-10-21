@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, BookOpen, Code2, FlaskConical, GitPullRequest, GraduationCap, Hammer, RefreshCw, Sparkles, Star, Trash2 } from "lucide-react";
 import { Turnstile, turnstileEnabled } from "@/components/Turnstile";
 import { Link } from "@/i18n/navigation";
@@ -12,6 +12,8 @@ import { MOCK_CANDIDATE_REPORT } from "@/lib/talent-match/mock";
 import { CANDIDATE_STAGES, type CandidateReport, type Cost, type GrowthKind, type JobMatch, type ProfileItem } from "@/lib/talent-match/types";
 import type { SubScoreKey } from "@/lib/types";
 import { Bar, Breakdown, Card, Chip, FitScore, SourceBadge, StageProgress, fieldClass, primaryButton, secondaryButton, type Copy } from "./parts";
+import { TalentMatchResultModal } from "./TalentMatchResultModal";
+import { trackEvent } from "@/lib/track";
 import { ReportHistory } from "./ReportHistory";
 import type { PdfResume } from "./ResumeDropzone";
 import { ResumeSourcePicker, sourceKeyOf, type SourceMode } from "./ResumeSourcePicker";
@@ -19,7 +21,7 @@ import { OpenToOpportunities } from "./OpenToOpportunities";
 
 const DIMENSION_LABELS: Record<SubScoreKey, [string, string]> = {
   account_maturity: ["账号成熟度", "Account maturity"],
-  original_project_quality: ["原创项目质量", "Original project quality"],
+  original_project_quality: ["原创与主导项目质量", "Original & Led Projects"],
   contribution_quality: ["贡献质量", "Contribution quality"],
   ecosystem_impact: ["生态影响力", "Ecosystem impact"],
   community_influence: ["社区影响力", "Community influence"],
@@ -107,6 +109,20 @@ export function CandidatePanel({
   const [history, setHistory] = useState<ReportSummary[]>([]);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const revealed = useRef(new Set<string>());
+  const revealReport = useCallback((report: CandidateReport) => {
+    setPhase({ kind: "report", report });
+    if (!report.matches.some((m) => m.company.toLowerCase() === "deepseek")) return;
+    const key = `talent-card-seen:${report.id}`;
+    let seen = revealed.current.has(report.id);
+    try { seen ||= sessionStorage.getItem(key) === "1"; sessionStorage.setItem(key, "1"); } catch { /* memory guard still works */ }
+    revealed.current.add(report.id);
+    if (!seen) {
+      setShareOpen(true);
+      trackEvent("talent_card_view", { source: "completion" });
+    }
+  }, []);
 
   const refreshHistory = useCallback(() => {
     getReports().then((result) => { if (result.ok) setHistory(result.value.history); });
@@ -148,7 +164,8 @@ export function CandidatePanel({
       const result = await getReport(phase.id);
       if (!live || !result.ok) return;
       if (result.value.status === "done" && result.value.report) {
-        setPhase({ kind: "report", report: result.value.report });
+        revealReport(result.value.report);
+        trackEvent("talent_report_complete");
         onQuotaChange();
         refreshHistory();
       } else if (result.value.status === "failed") {
@@ -158,13 +175,14 @@ export function CandidatePanel({
       }
     }, POLL_MS);
     return () => { live = false; clearInterval(tick); clearInterval(poll); };
-  }, [phase, onQuotaChange, refreshHistory]);
+  }, [phase, onQuotaChange, refreshHistory, revealReport]);
 
   const usingPdf = mode === "upload";
   const source = Array.isArray(sources) ? sources.find((s) => sourceKeyOf(s) === sourceKey) ?? null : null;
   const hasInput = usingPdf ? pdf !== null : source !== null;
 
   const openReport = async (summary: ReportSummary) => {
+    setShareOpen(false);
     setOpeningId(summary.id);
     setHistoryError(false);
     const result = await getReport(summary.id);
@@ -182,6 +200,7 @@ export function CandidatePanel({
 
   const submit = async () => {
     if (!hasInput) return;
+    setShareOpen(false);
     setSubmitting(true);
     const result = await createReport({
       source: usingPdf && pdf ? { kind: "pdf", text: pdf.text } : source?.kind === "resume" ? { kind: "resume", id: source.id } : { kind: "profile" },
@@ -197,7 +216,7 @@ export function CandidatePanel({
     if (result.value.status === "done") {
       // Identical input: the finished report is reused and no quota is spent.
       const done = await getReport(result.value.id);
-      if (done.ok && done.value.report) setPhase({ kind: "report", report: done.value.report });
+      if (done.ok && done.value.report) revealReport(done.value.report);
       return;
     }
     setPhase({ kind: "running", id: result.value.id, startedAt: Date.now() });
@@ -257,12 +276,14 @@ export function CandidatePanel({
   if (phase.kind === "report") {
     return (
       <div className="space-y-5">
+        {!phase.sample && <TalentMatchResultModal key={phase.report.id} report={phase.report} copy={copy} open={shareOpen} onClose={() => setShareOpen(false)} />}
         <CandidateReportView
           report={phase.report}
           copy={copy}
           sample={phase.sample === true}
-          onReset={() => setPhase({ kind: "form" })}
+          onReset={() => { setShareOpen(false); setPhase({ kind: "form" }); }}
           onDelete={phase.sample ? undefined : deleteProfile}
+          onShare={!phase.sample && phase.report.matches.some((m) => m.company.toLowerCase() === "deepseek") ? () => { setShareOpen(true); trackEvent("talent_card_view", { source: "report" }); } : undefined}
         />
         {!phase.sample && historyCard}
       </div>
@@ -365,7 +386,7 @@ function formatStars(stars: number): string {
 const costLabel = (cost: Cost, c: Copy["c"]) => ({ low: c("低成本", "Low effort"), medium: c("中等成本", "Medium effort"), high: c("高成本", "High effort") })[cost];
 const reachLabel = (reach: JobMatch["reach"], c: Copy["c"]) => ({ high: c("可达性高", "Highly reachable"), medium: c("可达性中", "Reachable"), low: c("可达性低", "Stretch") })[reach];
 
-function CandidateReportView({ report, copy, sample, onReset, onDelete }: { report: CandidateReport; copy: Copy; sample: boolean; onReset: () => void; onDelete?: () => void }) {
+function CandidateReportView({ report, copy, sample, onReset, onDelete, onShare }: { report: CandidateReport; copy: Copy; sample: boolean; onReset: () => void; onDelete?: () => void; onShare?: () => void }) {
   const { c, tx } = copy;
   const { profile } = report;
   const matches = [...report.matches].sort((a, b) => b.fit - a.fit);
@@ -385,6 +406,7 @@ function CandidateReportView({ report, copy, sample, onReset, onDelete }: { repo
             <p className="mt-1 text-sm text-zinc-300">{tx(profile.headline)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {onShare && <button type="button" className={primaryButton} onClick={onShare}>{c("分享岗位名片", "Share role card")}</button>}
             <button type="button" className={secondaryButton} onClick={onReset}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />{sample ? c("返回", "Back") : c("修改资料", "Edit inputs")}</button>
             {onDelete && <button type="button" className={secondaryButton} onClick={onDelete}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />{c("删除画像", "Delete profile")}</button>}
           </div>
@@ -459,7 +481,8 @@ function CandidateReportView({ report, copy, sample, onReset, onDelete }: { repo
         </ul>
       </Card>
 
-      <Card title={c("推荐岗位", "Matching roles")} aside={<Link href="/jobs" prefetch={false} className="text-xs text-zinc-400 hover:text-zinc-200">{c("全部岗位", "All roles")} →</Link>}>
+      <Card title={report.matchVersion >= 2 ? c("DeepSeek 匹配岗位", "DeepSeek role matches") : c("推荐岗位", "Matching roles")} aside={<Link href="/jobs" prefetch={false} className="text-xs text-zinc-400 hover:text-zinc-200">{c("全部岗位", "All roles")} →</Link>}>
+        {matches.length === 0 && <p className="text-sm text-zinc-400">{c("暂无可分析的 DeepSeek 岗位，稍后再来看看。", "No DeepSeek roles are available for analysis. Check back later.")}</p>}
         <ul className="space-y-4">
           {matches.map((m) => (
             <li key={m.jobId} className="rounded-xl border border-white/10 p-4">
@@ -481,7 +504,7 @@ function CandidateReportView({ report, copy, sample, onReset, onDelete }: { repo
         </ul>
       </Card>
 
-      <Card title={c("成长路线", "Growth plan")}>
+      <Card title={report.matchVersion >= 2 ? c("最佳岗位的成长路线", "Growth plan for your top role") : c("成长路线", "Growth plan")}>
         <ol className="space-y-4">
           {report.growth.map((g) => {
             const Icon = GROWTH_ICONS[g.kind];

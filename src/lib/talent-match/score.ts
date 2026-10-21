@@ -8,7 +8,9 @@ import { skillGroup } from "./taxonomy";
  * never enters the score. Changing any weight or rule below must bump
  * {@link MATCH_VERSION} so stored reports stay labelled with their rules.
  */
-export const MATCH_VERSION = 2;
+// v2 narrows the candidate pool to DeepSeek and focuses advice on the top role.
+// v3 adds the showcard job-matching fixes from #480.
+export const MATCH_VERSION = 3;
 
 /** Résumé-only (claimed) evidence counts for less than GitHub-verified. */
 export const SOURCE_WEIGHT = { verified: 1, claimed: 0.7 } as const;

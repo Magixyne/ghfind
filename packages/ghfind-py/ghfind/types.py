@@ -77,7 +77,7 @@ class RiskCoverage(TypedDict):
 
 
 class RiskAssessment(TypedDict):
-    version: Literal["v10"]
+    version: Literal["v9", "v10"]
     risk_score: float
     level: RiskLevel
     confidence: float

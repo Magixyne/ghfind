@@ -2,16 +2,27 @@
   "loginDialog": {
     "entry": "ログイン",
     "title": "ghfind にログイン",
-    "description": "フォローと履歴書を保存し、別の端末でも続けられます。",
+    "description": "アカウントを選択して続けてください。",
     "close": "閉じる",
     "google": "Google でログイン",
     "github": "GitHub でログイン",
-    "emailDivider": "またはメールを使用",
-    "emailLabel": "メールアドレス",
-    "emailPlaceholder": "メールアドレスを入力",
-    "sendCode": "認証コードを送信",
-    "githubUnavailable": "この環境では GitHub ログインを利用できません。",
-    "comingSoon": "Google とメールでのログインは近日公開予定です。"
+    "apple": "Apple で続ける",
+    "redirecting": "{provider} を開いています…",
+    "loading": "ログイン方法を確認中…",
+    "retry": "再試行",
+    "loadFailed": "ログイン方法を読み込めませんでした。接続を確認して再試行してください。",
+    "unavailable": "現在ログインできません。閲覧を続け、後でもう一度お試しください。",
+    "githubFeatures": "フォロー、クラウド履歴書、API トークンには現在 GitHub アカウントが必要です。",
+    "providerAccount": "{provider} アカウント",
+    "switchToGitHub": "GitHub ログインに切り替える",
+    "errors": {
+      "denied": "ログインがキャンセルされました。アカウントを選択して再試行してください。",
+      "expired": "ログインリクエストの有効期限が切れました。もう一度お試しください。",
+      "failed": "ログインを完了できませんでした。もう一度お試しください。",
+      "unavailable": "このログイン方法は利用できません。別の方法を選ぶか、後でお試しください。"
+    },
+    "signingOut": "ログアウト中…",
+    "signOutFailed": "ログアウトできませんでした。接続を確認して再試行してください。"
   },
   "meta": {
     "title": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
@@ -363,7 +374,8 @@
     "battleLoss": "負",
     "battleTie": "分",
     "selfCta": "自分のGitHubも採点する →",
-    "reportLangNotice": "AIローストレポートは現在英語と中国語のみ対応です。表示中は英語版です。"
+    "reportLangNotice": "AIローストレポートは現在英語と中国語のみ対応です。表示中は英語版です。",
+    "coCreatorShare": "主導・共同開発（割合 {share}%）"
   },
   "reactions": {
     "heading": "コミュニティの反応",
@@ -418,8 +430,10 @@
     "errRoastFailed": "ローストの生成に失敗。あとで再試行するか、自分のキーをどうぞ。",
     "errNetworkRoast": "接続が切れて、毒舌が途中で止まりました。",
     "errScanFailed": "スキャンに失敗しました。あとで再試行を。",
+    "largeAccountCollecting": "大規模アカウントのデータを収集中…",
     "errScanPending": "公開 PR と commit の全履歴を収集中です。準備でき次第、自動的に続行します。",
     "errNetworkScan": "ネットワークエラー。GitHubにすら届きませんでした。",
+    "dataUpdating": "データを更新しています…",
     "byoReasonQuota": "無料枠が尽きました 😵 自分のAPIキーを入れればロースト続行できます（OpenAI / StepFun / Groq いずれも可）。",
     "byoReasonRate": "今日はロースト三昧ですね 🥵 一息つくか、自分のAPIキーで無制限にどうぞ。",
     "byoReasonDefault": "サーバーにデフォルトモデルが未設定です。自分のAPIキーを入れればロースト開始できます。"
@@ -431,6 +445,9 @@
     "rate_limited": "速すぎです。深呼吸して1分後にもう一度。",
     "github_rate_limited": "GitHubのAPIが今パンク中です。少し待ってください。",
     "github_unavailable": "GitHubのデータが一時的に取得できません。あとで再試行を。",
+    "github_collect_deadline": "GitHubの収集が時間切れです。少し待って再試行を。",
+    "scan_pending": "大規模アカウントのデータを収集中…",
+    "scan_busy": "採点処理が混み合っています。少し待って再試行を。",
     "scan_failed": "スキャンがクラッシュしました。あとで再試行を。"
   },
   "share": {
@@ -525,7 +542,7 @@
   },
   "dimensions": {
     "account_maturity": "アカウント成熟度",
-    "original_project_quality": "オリジナルプロジェクトの質",
+    "original_project_quality": "オリジナル・主導プロジェクト",
     "contribution_quality": "コントリビューションの質",
     "ecosystem_impact": "エコシステム / メンテナンス影響力",
     "community_influence": "コミュニティ影響力",
@@ -799,6 +816,10 @@
         "p": "採点されたアカウントについては、算出したスコア・ティア・派生メトリクスをキャッシュし、共有されたレポートの高速表示とランキングの快適さを保ちます。インデックスされ公開掲載されるのは60点以上のアカウントのみ。それより低いスコアのページは直リンクで到達できますが、検索エンジンには載せません。トラフィック把握にはプライバシーに配慮した集計分析を使い、個人データは販売しません。"
       },
       {
+        "h": "Google ログインとアカウント Cookie",
+        "p": "Google ログインを選ぶと、ghfind のセッションを作成するために Google アカウント識別子（subject）、名前、プロフィール画像を受け取ります。ログイン時にメールアドレスが返される場合もありますが、永続保存しません。署名付き HttpOnly セッション Cookie に基本的な本人情報を最長 30 日間保存します。Google API のアクセストークンや更新トークンは保持しません。ログアウトするとセッション Cookie が削除されます。Google ログインで GitHub の権限が付与されることはなく、メールアドレスによるアカウントの自動連携も行いません。"
+      },
+      {
         "h": "自前キーによるロースト",
         "p": "オプションのロースト機能では、あなた自身のモデルプロバイダーのキーを使えます。提供されたキーはあなたのブラウザ内に留まり、モデル呼び出しのために当社サーバーを一度だけ経由します——保存もログも一切せず、リクエスト完了後に破棄されます。"
       },
@@ -817,7 +838,7 @@
     "dimensionsIntro": "各ディメンションが100点の基礎点に寄与します。全体として、生のアクティビティ数ではなく、継続的でオリジナルで広く使われるオープンソースの仕事に報いる設計です。",
     "dimensionDetails": {
       "account_maturity": "アカウントが時間をかけてどれだけ確立され一貫しているか——年数、継続的なアクティビティ、一夜漬けの膨張に耐える信頼度カーブ。",
-      "original_project_quality": "フォークや取るに足らないプロジェクトではなく、アカウントが実際に所有し作り上げたリポジトリの質と評価。",
+      "original_project_quality": "オリジナル・主導プロジェクト",
       "contribution_quality": "他プロジェクトへのコントリビューションの中身——テンプレスパムではなく、マージされた意味のあるPR。",
       "ecosystem_impact": "アカウントの仕事がより広いエコシステムでどれだけ依存され、メンテナンスされているか。",
       "community_influence": "コミュニティでの本物のリーチと存在感。フォロワー数やスター数の生の値が支配しないよう正規化済み。",

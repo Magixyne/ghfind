@@ -8,7 +8,16 @@
  * and a cache hit avoids both GitHub API calls and an LLM call.
  */
 
-import { protectedScan, ScanBusyError, scanTtl } from "./scan-protection";
+import {
+  SCAN_BACKGROUND_LEASE_MS,
+  SCAN_CONTINUE_WAIT_MS,
+  SCAN_PRODUCER_CAPACITY_KEY,
+  protectedScan,
+  ScanBusyError,
+  scanTtl,
+  SCAN_STALE_TTL_SECONDS,
+  SCAN_REFRESH_COOLDOWN_SECONDS,
+} from "./scan-protection";
 import { selectCacheStore, type CacheStore } from "./cache-store";
 import { selectAtomicStore, type AtomicStore } from "./atomic-store";
 import { parsePayload, scanSlot, scanSlots, slotCoordinator } from "./scan-slots";
@@ -147,16 +156,22 @@ function cacheStore(): CacheStore | null {
 }
 
 export const scanKey = (username: string) =>
-  `scan:${PUBLIC_SCAN_COLLECTION_VERSION}:${username.toLowerCase()}`;
+  `scan:${SCORE_CACHE_VERSION}:${PUBLIC_SCAN_COLLECTION_VERSION}:${username.toLowerCase()}`;
+export const scanStaleKey = (username: string) => `${scanKey(username)}:stale`;
+const scanRefreshKey = (username: string) =>
+  `scan-refresh:${SCORE_CACHE_VERSION}:${PUBLIC_SCAN_COLLECTION_VERSION}:${username.toLowerCase()}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function parseCachedScan(cached: ScanResult | null): ScanResult | null {
+  return cached ? { ...cached, scoring: score(cached.metrics) } : null;
+}
 
 export async function getCachedScan(username: string): Promise<ScanResult | null> {
   if (bypassGeneratedCaches()) return null;
   const slots = scanSlots();
   if (slots) {
     try {
-      const cached = parsePayload<ScanResult>(await scanSlot(slots, scanKey(username)).payload());
-      return cached ? { ...cached, scoring: score(cached.metrics) } : null;
+      return parseCachedScan(parsePayload<ScanResult>(await scanSlot(slots, scanKey(username)).payload()));
     } catch {
       return null;
     }
@@ -164,10 +179,42 @@ export async function getCachedScan(username: string): Promise<ScanResult | null
   const r = getRedis();
   if (!r) return null;
   try {
-    const cached = (await r.get<ScanResult>(scanKey(username))) ?? null;
-    return cached ? { ...cached, scoring: score(cached.metrics) } : null;
+    return parseCachedScan((await r.get<ScanResult>(scanKey(username))) ?? null);
   } catch {
     return null;
+  }
+}
+
+/** Expired scan:v5 snapshot kept as a 7-day emergency read. Fresh success only. */
+export async function getStaleCachedScan(username: string): Promise<ScanResult | null> {
+  if (bypassGeneratedCaches()) return null;
+  const slots = scanSlots();
+  if (slots) {
+    try {
+      return parseCachedScan(
+        parsePayload<ScanResult>(await scanSlot(slots, scanKey(username)).stalePayload()),
+      );
+    } catch {
+      return null;
+    }
+  }
+  const r = getRedis();
+  if (!r) return null;
+  try {
+    return parseCachedScan((await r.get<ScanResult>(scanStaleKey(username))) ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/** One background GitHub refresh per handle per cooldown. Fail closed: skip. */
+export async function tryAcquireScanRefresh(username: string): Promise<boolean> {
+  const r = atomicStore();
+  if (!r) return false;
+  try {
+    return await r.setIfAbsent(scanRefreshKey(username), "1", SCAN_REFRESH_COOLDOWN_SECONDS);
+  } catch {
+    return false;
   }
 }
 
@@ -196,7 +243,10 @@ export async function clearCachedScan(username: string): Promise<void> {
   }
   const r = getRedis();
   if (!r) return;
-  await r.del(scanKey(username)).catch(() => {});
+  await Promise.all([
+    r.del(scanKey(username)).catch(() => {}),
+    r.del(scanStaleKey(username)).catch(() => {}),
+  ]);
 }
 
 const scoreDetailRevisionKey = (username: string) =>
@@ -298,9 +348,11 @@ return redis.call('GET', KEYS[1])`;
 export async function coalesceScan(
   username: string,
   producer: () => Promise<ScanResult>,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; background?: boolean; continueOnDeadline?: boolean } = {},
 ): Promise<ScanResult> {
   if (bypassGeneratedCaches() && !isProductionDeployment()) return producer();
+  const backgroundWait = options.background ? async () => {} : undefined;
+  const backgroundAttempts = options.background ? 1 : undefined;
   const slots = scanSlots();
   if (slots) {
     const slot = scanSlot(slots, scanKey(username));
@@ -309,8 +361,9 @@ export async function coalesceScan(
       try { baseline = (await slot.revision()) ?? ""; }
       catch { throw new ScanBusyError(); }
     }
+    const continueOnDeadline = options.continueOnDeadline === true && !options.background;
     return protectedScan({
-      coordinator: slotCoordinator(slot, "scan:active-producers:v1", true),
+      coordinator: slotCoordinator(slot, SCAN_PRODUCER_CAPACITY_KEY, true),
       key: scanKey(username),
       read: options.force ? async () => {
         try {
@@ -319,6 +372,19 @@ export async function coalesceScan(
         } catch { throw new ScanBusyError(); }
       } : () => getCachedScan(username),
       produce: producer,
+      staleTtl: SCAN_STALE_TTL_SECONDS,
+      wait: backgroundWait,
+      attempts: backgroundAttempts,
+      leaseMs: continueOnDeadline ? SCAN_BACKGROUND_LEASE_MS : undefined,
+      continueWaitMs: continueOnDeadline ? SCAN_CONTINUE_WAIT_MS : undefined,
+      continueProduce: continueOnDeadline
+        ? async (owner) => {
+            const marked = await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS);
+            if (marked === 1) return "deferred";
+            if (marked === -1) return "inline";
+            throw new ScanBusyError();
+          }
+        : undefined,
     });
   }
   const r = getRedis();
@@ -343,7 +409,21 @@ export async function coalesceScan(
       } catch { throw new ScanBusyError(); }
     } : () => getCachedScan(username),
     produce: producer,
+    staleTtl: SCAN_STALE_TTL_SECONDS,
+    wait: backgroundWait,
+    attempts: backgroundAttempts,
   });
+}
+
+/** True while a ScanSlot owner is still collecting this handle. */
+export async function isScanPending(username: string): Promise<boolean> {
+  const slots = scanSlots();
+  if (!slots) return false;
+  try {
+    return (await scanSlot(slots, scanKey(username)).pending()) != null;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -437,6 +517,21 @@ export async function checkScanNetworkRateLimit(ip: string): Promise<RateLimitRe
     return unavailableRateLimitResult(
       "scan_network",
       error instanceof Error ? error.name : "redis_request_failed",
+    );
+  }
+}
+
+/** Bound Google token exchanges while leaving room for a shared office network. */
+export async function checkOAuthCallbackRateLimit(ip: string): Promise<RateLimitResult> {
+  const oauthLimiter = rateLimiter("rl:oauth-google", 30, "60 s");
+  if (!oauthLimiter) return unavailableRateLimitResult("oauth_google", "missing_redis_config");
+  try {
+    const { success, limit, remaining, reset } = await oauthLimiter.limit(ip);
+    return { success, limit, remaining, reset };
+  } catch (error) {
+    return unavailableRateLimitResult(
+      "oauth_google",
+      error instanceof Error ? error.name : "limiter_request_failed",
     );
   }
 }

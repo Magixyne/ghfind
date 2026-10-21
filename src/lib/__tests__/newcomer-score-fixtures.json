@@ -1,10 +1,10 @@
 {
   "metrics": {
-    "username": "newcomer-fixture",
-    "profile_url": null,
-    "avatar_url": null,
-    "name": "Newcomer",
-    "bio": "Maintainer and contributor",
+    "username": "fixture-account-048",
+    "profile_url": "https://example.com/fixture-account-048",
+    "avatar_url": "https://example.com/fixture-account-048",
+    "name": null,
+    "bio": null,
     "company": null,
     "account_age_years": 0.5,
     "created_at": "2026-04-09T00:00:00Z",
@@ -609,8 +609,8 @@
           "activity_authenticity": 16.3
         },
         "base_score": 61.8,
-        "final_score": 61.8,
-        "total_penalty": 0.0,
+        "final_score": 51.8,
+        "total_penalty": 10.0,
         "bonus": 0.0
       }
     },
@@ -669,8 +669,8 @@
           "activity_authenticity": 16.3
         },
         "base_score": 70.0,
-        "final_score": 70.0,
-        "total_penalty": 0.0,
+        "final_score": 60.0,
+        "total_penalty": 10.0,
         "bonus": 2.777777777777778
       }
     },
@@ -710,8 +710,8 @@
           "activity_authenticity": 16.3
         },
         "base_score": 67.2,
-        "final_score": 67.2,
-        "total_penalty": 0.0,
+        "final_score": 62.2,
+        "total_penalty": 5.0,
         "bonus": 0.0
       }
     },
@@ -753,8 +753,8 @@
           "activity_authenticity": 16.3
         },
         "base_score": 67.2,
-        "final_score": 67.2,
-        "total_penalty": 0.0,
+        "final_score": 58.2,
+        "total_penalty": 9.0,
         "bonus": 0.0
       }
     },
@@ -773,8 +773,8 @@
           "activity_authenticity": 16.3
         },
         "base_score": 67.2,
-        "final_score": 63.56,
-        "total_penalty": 3.64,
+        "final_score": 59.2,
+        "total_penalty": 8.0,
         "bonus": 0.0
       }
     },
@@ -912,8 +912,8 @@
           "activity_authenticity": 16.3
         },
         "base_score": 60.6,
-        "final_score": 56.96,
-        "total_penalty": 3.64,
+        "final_score": 52.6,
+        "total_penalty": 8.0,
         "bonus": 0.0
       }
     },
@@ -934,7 +934,7 @@
         },
         "base_score": 68.8,
         "final_score": 68.8,
-        "total_penalty": 0,
+        "total_penalty": 0.0,
         "bonus": 0.4
       }
     },
@@ -955,7 +955,7 @@
         },
         "base_score": 68.4,
         "final_score": 68.4,
-        "total_penalty": 0,
+        "total_penalty": 0.0,
         "bonus": 0.1
       }
     },
@@ -976,7 +976,7 @@
         },
         "base_score": 69.2,
         "final_score": 69.2,
-        "total_penalty": 0,
+        "total_penalty": 0.0,
         "bonus": 0.8
       }
     }

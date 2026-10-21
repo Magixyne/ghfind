@@ -12,8 +12,7 @@ import {
   type OwnRepoCommunityFacts,
   type OwnRepoCommunityRaw,
 } from "../github";
-import { contributionVolumeAndAcceptance, logRatio } from "../score";
-import type { RawMetrics } from "../types";
+import { logRatio } from "../score";
 import fixtures from "./community-fixtures.json";
 
 // Shared with internal/backend: raw community samples must produce the same
@@ -65,8 +64,8 @@ describe("own-project community fixtures (TypeScript/Go parity)", () => {
 
   it("applies every anti-gaming filter in the own-account case", () => {
     const own = (fixtures as unknown as CommunityFixture[])[0];
-    // Kept PRs: frank, bob (code), carol (plugin); trivial/doc: bob docs, carol typo.
-    // Contributors: bob 1.0 + frank (mutual) 0.5·logRatio(8,10) + carol logRatio(6,10),
+    // Kept PRs: fixture-account-030, bob (code), fixture-account-017 (plugin); trivial/doc: bob docs, fixture-account-017 typo.
+    // Contributors: bob 1.0 + fixture-account-030 (mutual) 0.5·logRatio(8,10) + fixture-account-017 logRatio(6,10),
     // scaled by the 3/5 substantive share. Bots, the new account, the org
     // insider, the footprint-less and the profile-less accounts are excluded.
     const expected = (1 + 0.5 * logRatio(8, 10) + logRatio(6, 10)) * 0.6;
@@ -129,8 +128,8 @@ describe("community in ecosystem impact and contribution quality", () => {
 
   it("credits attributed org originals through their community", () => {
     const attributed = repo({
-      repo: "big-org/engine",
-      owner_login: "big-org",
+      repo: "fixture-owner-004/engine",
+      owner_login: "fixture-owner-004",
       attributed_original: true,
       stars: 70_000,
       community: 0.9,
@@ -138,10 +137,10 @@ describe("community in ecosystem impact and contribution quality", () => {
     expect(computeImpactFromContribMap([attributed], "me").impact_prestige_score).toBe(0.9);
   });
 
-  it("zeroes community for star-inflation suspects", () => {
+  it("discounts community continuously from measured evidence", () => {
     const measured = new Map([["me/tool", facts()]]);
-    expect(applyOwnRepoCommunities([repo({})], measured, false)[0].community).toBe(1);
-    expect(applyOwnRepoCommunities([repo({})], measured, true)[0].community).toBe(0);
+    expect(applyOwnRepoCommunities([repo({})], measured, false)[0].community).toBeCloseTo(1, 4);
+    expect(applyOwnRepoCommunities([repo({})], measured, true)[0].community).toBeCloseTo(1, 4);
     expect(applyOwnRepoCommunities([repo({})], measured, true)[0].community_facts).toEqual(facts());
   });
 
@@ -149,26 +148,12 @@ describe("community in ecosystem impact and contribution quality", () => {
     const repos = [
       repo({ prs: 150, community: 0.8 }),
       repo({ repo: "me/side", prs: 50 }),
-      repo({ repo: "big-org/engine", owner_login: "big-org", attributed_original: true, prs: 40, community: 1 }),
+      repo({ repo: "fixture-owner-004/engine", owner_login: "fixture-owner-004", attributed_original: true, prs: 40, community: 1 }),
     ];
-    expect(ownPrCommunityShare(repos, "me", 200)).toBe(0.6);
+    expect(ownPrCommunityShare(repos, "me", 200)).toBe(0.8);
     expect(ownPrCommunityShare(repos, "me", 0)).toBe(0);
   });
 
-  it("raises the own-PR volume cap from 4 to 10 with community", () => {
-    const m = {
-      merged_pr_count: 220,
-      external_merged_pr_count: 20,
-      external_high_star_pr_share: 1,
-      maintainer_closed_unmerged_pr_count: 0,
-      total_pr_count: 220,
-    } as RawMetrics;
-    const base = contributionVolumeAndAcceptance(m).prVolume;
-    const full = contributionVolumeAndAcceptance({ ...m, own_pr_community: 1 }).prVolume;
-    const half = contributionVolumeAndAcceptance({ ...m, own_pr_community: 0.5 }).prVolume;
-    expect(full - base).toBeCloseTo(6, 6);
-    expect(half - base).toBeCloseTo(3, 6);
-  });
 });
 
 describe("collectOwnRepoCommunities", () => {
@@ -238,9 +223,9 @@ describe("collectOwnRepoCommunities", () => {
     const result = await collectOwnRepoCommunities({ repos, login: "me", ownerOrgs: [], now, cache });
     expect([...result.keys()]).toEqual(["me/tool"]);
     expect(result.get("me/tool")).toMatchObject({ weighted_contributors: 1, outside_acceptance: 0.8, forks: 40, owner_response_share: 1 });
-    expect(store.get("community:counts:v1:me")?.ttl).toBe(86400);
-    expect(store.get("community:facts:v1:me:me/tool")?.ttl).toBe(7 * 86400);
-    expect(store.get("community:profile:v1:bob")?.ttl).toBe(30 * 86400);
+    expect(store.get("community:counts:v2:me")?.ttl).toBe(86400);
+    expect(store.get("community:facts:v2:me:me/tool")?.ttl).toBe(7 * 86400);
+    expect(store.get("community:profile:v2:bob")?.ttl).toBe(30 * 86400);
 
     const calls = fetchMock.mock.calls.length;
     const again = await collectOwnRepoCommunities({ repos, login: "me", ownerOrgs: [], now, cache });

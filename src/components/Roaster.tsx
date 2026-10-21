@@ -25,6 +25,7 @@ import { ShareCardExportHost } from "./ShareCardExportHost";
 import { createShareCardBlob } from "./shareCardExport";
 import { TierAvatarFrame } from "./TierAvatarFrame";
 import { Turnstile, turnstileEnabled } from "./Turnstile";
+import { isStaleScanPayload, StaleScanHint } from "./StaleScanHint";
 import { Omnibox } from "./Omnibox";
 import { DimensionStarChart } from "./DimensionStarChart";
 import { SITE_URL } from "@/lib/site";
@@ -62,6 +63,7 @@ export function Roaster({
   const [username, setUsername] = useState("");
   const [token, setToken] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [scanPending, setScanPending] = useState(false);
   const [roasting, setRoasting] = useState(false);
   // Live progress label streamed from the server during the (slow, reasoning-model)
   // judge → roast wait, so the card shows "正在校准评分… (8s)" instead of a frozen spinner.
@@ -69,6 +71,7 @@ export function Roaster({
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [report, setReport] = useState("");
   const [error, setError] = useState("");
+  const [staleScan, setStaleScan] = useState(false);
   const [byoOpen, setByoOpen] = useState(false);
   const [byoReason, setByoReason] = useState<string | undefined>();
   const [percentile, setPercentile] = useState<{
@@ -186,6 +189,8 @@ export function Roaster({
         return;
       }
       setError("");
+      setStaleScan(false);
+      setScanPending(false);
       setScan(null);
       setReport("");
       setPercentile(null);
@@ -198,6 +203,8 @@ export function Roaster({
       // home scanner from other entry points if they get instrumented later.
       trackEvent("scan_start", { source: analyticsSource });
       const presentScan = (result: ScanResult) => {
+        setScanPending(false);
+        setStaleScan(isStaleScanPayload(result));
         const byoKey = loadByoKey();
         const forceProfileHandoff =
           process.env.NODE_ENV !== "production" && searchParams.get("profile") === "1";
@@ -238,11 +245,13 @@ export function Roaster({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: uname, turnstileToken: token, campaign }),
         });
+        if (res.status === 202) setScanPending(true);
         const data = await readScanResponse(res);
         if (!res.ok) {
           const code = data && typeof data === "object" && "error" in data ? String(data.error) : "";
           setError(tScan.has(code) ? tScan(code) : t("errScanFailed"));
           setScanning(false);
+          setScanPending(false);
           return;
         }
         if (
@@ -260,6 +269,7 @@ export function Roaster({
       } catch {
         setError(t("errNetworkScan"));
         setScanning(false);
+        setScanPending(false);
       }
     },
     [
@@ -388,6 +398,7 @@ export function Roaster({
         />
         <Turnstile onToken={setToken} />
         {error && <p className="text-sm text-rose-400">{error}</p>}
+        {staleScan && !scan && <StaleScanHint show />}
       </div>
 
       <div className="mt-3 flex flex-col items-center gap-3">
@@ -427,8 +438,8 @@ export function Roaster({
 
       {/* Scanning skeleton */}
       {scanning && (
-        <div className="mt-10 animate-pulse text-center text-zinc-500">
-          {t("scanning", { username })}
+        <div className="mt-10 animate-pulse text-center text-zinc-500" role="status">
+          {scanPending ? t("largeAccountCollecting") : t("scanning", { username })}
         </div>
       )}
 
@@ -457,6 +468,7 @@ export function Roaster({
               {display.score.toFixed(2)}
               <span className="text-2xl text-zinc-600">/100</span>
             </div>
+            {staleScan && <StaleScanHint show />}
             <div className={`mt-1 text-2xl font-bold ${style.text}`}>
               {style.emoji} {tTier(`${TIER_KEY[display.tier]}.name`)}
             </div>

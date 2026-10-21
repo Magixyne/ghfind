@@ -37,6 +37,14 @@ func TestGitHubCollectorBuildsGoNativeScanResult(t *testing.T) {
 			_, _ = w.Write([]byte(`{"Go":2000}`))
 			return
 		}
+		if request.URL.Path == "/repos/popular/project" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if strings.HasSuffix(request.URL.Path, "/contents") {
+			_, _ = w.Write([]byte(`[{"name":"src"},{"name":"README.md"}]`))
+			return
+		}
 		if request.URL.Path != "/graphql" {
 			t.Errorf("unexpected request %s", request.URL)
 			w.WriteHeader(http.StatusNotFound)
@@ -64,7 +72,7 @@ func TestGitHubCollectorBuildsGoNativeScanResult(t *testing.T) {
 			data = `{"repository":{"stargazerCount":40,"hasIssuesEnabled":true,"isMirror":false,"watchers":{"totalCount":2},"issues":{"totalCount":3},"pullRequests":{"totalCount":4}}}`
 		case strings.Contains(body.Query, "issues(states: OPEN)"):
 			data = `{"r0":{"issues":{"totalCount":3}}}`
-		case strings.Contains(body.Query, "files(first: 50)"):
+		case strings.Contains(body.Query, "files(first: 100)"):
 			data = `{"user":{"pullRequests":{"nodes":[{"title":"fix worker","additions":20,"deletions":3,"changedFiles":2,"repository":{"nameWithOwner":"upstream/framework","stargazerCount":1000,"isPrivate":false},"files":{"nodes":[{"path":"internal/worker.go"}]}}]}}}`
 		case strings.Contains(body.Query, "pullRequests(first: $count, orderBy"):
 			data = `{"user":{"pullRequests":{"nodes":[{"title":"fix worker","repository":{"nameWithOwner":"upstream/framework"}}]}}}`

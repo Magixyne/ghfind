@@ -879,3 +879,28 @@ describe("oversized snapshot slimming", () => {
     ).toBe(true);
   });
 });
+
+
+describe("language evidence attribution", () => {
+  it.each(["Alanxtl", "another-contributor"])("keeps engineering evidence without making %s a language target", username => {
+    const input = {
+      ...scan,
+      metrics: { ...scan.metrics, username, bio: "Apache Dubbo Committer; Oceanbase Powercontext; vllm semantic-router" },
+      recent_prs: [{ title: "docs: fix typo and grammar in shared README", repo: "apache/dubbo-go", repo_stars: 4961 }],
+    } as unknown as ScanResult;
+    for (const lang of ["zh", "en"] as const) {
+      const messages = buildRoastMessages(input, lang);
+      const payload = JSON.parse(messages[1].content.split("```json\n")[1].split("\n```")[0]);
+      expect(messages[0].content).toContain("context_notes.language_evidence");
+      const rule = payload.context_notes.language_evidence;
+      for (const text of lang === "en"
+        ? ["not evidence of engineering ability", "tags, the top roast, report, or recommendations", "not proof that its author made the original mistake", "brand spellings", "verifiable missing installation", "instead of inventing English mistakes"]
+        : ["不是开发能力", "标签、顶部短评、报告正文或建议", "不能反推错误由作者制造", "品牌写法", "可验证的内容", "不得为了凑毒舌编造英文错误"]) {
+        expect(rule).toContain(text);
+      }
+      expect(payload.metrics.bio).toBe(input.metrics.bio);
+      expect(payload.recent_prs[0].title).toBe(input.recent_prs[0].title);
+      expect(payload.scoring.final_score).toBe(input.scoring.final_score);
+    }
+  });
+});

@@ -10,16 +10,15 @@ Parity notes (why this reproduces the TS output bit-for-bit):
   every TS ``round(...)`` call.
 - TS ``Math.round(...)`` is round-half-UP, NOT banker's. We replicate it with
   ``_math_round`` = ``floor(x + 0.5)`` wherever the TS uses ``Math.round``.
-- Newcomer maturity uses ``_round_half_even`` to match TS/Go's epsilon around
-  binary half boundaries; the existing baseline rounding stays unchanged.
 - ``??`` (nullish) defaults only on null/undefined; ``_nz`` mirrors that (defaults
   only on ``None``), so an explicit 0/False is preserved.
 """
 
 from __future__ import annotations
 
+from ._presentation import presentation_discount
+
 import math
-from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional
 
 from ._risk import assess_risk
@@ -44,18 +43,6 @@ def _math_round(x: float) -> int:
     return math.floor(x + 0.5)
 
 
-def _round_half_even(value: float, digits: int = 0) -> float:
-    """Match TS roundHalfEven and Go roundToEven, including their tie tolerance."""
-    factor = 10 ** digits
-    scaled = value * factor
-    floor = math.floor(scaled)
-    if abs(scaled - floor - 0.5) < 1e-9:
-        rounded = floor if floor % 2 == 0 else floor + 1
-    else:
-        rounded = math.floor(scaled + 0.5)
-    return rounded / factor
-
-
 def log_ratio(value: float, full_at: float) -> float:
     """0..1 scaled with a log curve: returns 1.0 when value >= full_at."""
     if value <= 0:
@@ -66,6 +53,19 @@ def log_ratio(value: float, full_at: float) -> float:
 def clamp_score(value: float) -> float:
     """Clamp a score to [0, 100] and round to 2 decimals (banker's)."""
     return round(max(0, min(value, 100)), 2)
+
+
+def star_engagement_multiplier(ratio: Any) -> float:
+    """Match TS starEngagementMultiplier: unmeasured (None) skips the discount."""
+    if ratio is None:
+        return 1
+    if ratio >= 0.04:
+        return 1
+    if ratio >= 0.02:
+        return 0.85
+    if ratio >= 0.01:
+        return 0.7
+    return 0.5
 
 
 def spam_bot_score(m: Mapping[str, Any]) -> float:
@@ -127,39 +127,12 @@ def _doc_like_ratio(m: Mapping[str, Any]) -> tuple:
 
 
 def doc_like_pr_volume_discount(m: Mapping[str, Any], pr_volume: float) -> float:
-    sample, ratio = _doc_like_ratio(m)
-    if sample < 20 or ratio < 0.55:
-        return 0
-    severity = max(0.0, min(1.0, (ratio - 0.55) / 0.075))
-    return min(pr_volume * 0.55, 2.5 + severity * 3.0)
+    from ._presentation import presentation_discount
+    share = min(1, max(0, m.get("external_merged_pr_count") or 0) / max(1, m["merged_pr_count"]))
+    return pr_volume * share * (1-presentation_discount(m)) * .8
 
 
 def contribution_quality_cap(m: Mapping[str, Any]) -> Optional[float]:
-    sample, ratio = _doc_like_ratio(m)
-    if sample < 20 or ratio < 0.55:
-        return None
-    low_trust_impact = (
-        m.get("impact_quality_cap") is not None
-        and m["impact_quality_cap"] <= 4
-        and _nz(m.get("core_impact_pr_count"), 0) <= 2
-    )
-    weak_top_star_project = (
-        _nz(m.get("top_starred_original_repo_quality_score"), 1) < 0.3 and m["total_stars"] > 0
-    )
-    self_closed_external = _nz(m.get("self_closed_external_pr_count"), 0)
-    total_externalish = (
-        m["merged_pr_count"] + _nz(m.get("maintainer_closed_unmerged_pr_count"), 0) + self_closed_external
-    )
-    heavy_self_closed_external = (
-        total_externalish >= 20 and self_closed_external / total_externalish >= 0.25
-    )
-    weak_own_project_signal = (
-        m["max_stars"] < 100
-        and m["total_stars"] < 300
-        and _nz(m.get("top_starred_original_repo_quality_score"), 1) < 0.6
-    )
-    if low_trust_impact and (weak_top_star_project or weak_own_project_signal or heavy_self_closed_external):
-        return 12
     return None
 
 
@@ -170,6 +143,22 @@ def high_impact_core_pr_bonus(m: Mapping[str, Any]) -> float:
         return 0
     core_signal = min(core / 5, 1)
     return min(2, star_signal * 0.8 + core_signal * 1.2)
+
+
+OWN_PR_VOLUME_FULL_AT = 200
+OWN_PR_COMMUNITY_BONUS = 6
+
+
+def own_pr_community_credit(m: Mapping[str, Any]) -> float:
+    """v13 extra: 6·A·logRatio(own, 200). Missing external count keeps v10."""
+    if m.get("external_merged_pr_count") is None:
+        return 0.0
+    community = max(0.0, min(_nz(m.get("own_pr_community"), 0), 1.0))
+    if community == 0:
+        return 0.0
+    external = max(0.0, min(m["external_merged_pr_count"], m["merged_pr_count"]))
+    own = max(0.0, m["merged_pr_count"] - external)
+    return log_ratio(own, OWN_PR_VOLUME_FULL_AT) * OWN_PR_COMMUNITY_BONUS * community
 
 
 def impact_prestige_signal(m: Mapping[str, Any]) -> float:
@@ -183,13 +172,16 @@ def impact_prestige_signal(m: Mapping[str, Any]) -> float:
 
 
 def low_prestige_bulk_contribution_cap(m: Mapping[str, Any]) -> Optional[float]:
-    if m["merged_pr_count"] < 80:
-        return None
-    if impact_prestige_signal(m) >= log_ratio(10_000, 100_000):
-        return None
-    if m["max_stars"] >= 1000:
-        return None
-    return 22
+    def smooth(value):
+        x = max(0, min(1, value))
+        return x*x*(3-2*x)
+    volume = smooth((m["merged_pr_count"]-40)/80)
+    protection = smooth((m["max_stars"]-950)/100)
+    prestige=impact_prestige_signal(m)
+    strong_prestige=smooth((prestige-.65)/.15)
+    core_protection=smooth(((m.get("core_impact_pr_count") or 0)-40)/60)
+    prestige_cap=20+3*smooth((prestige-.3)/.5)+4*strong_prestige+2.5*core_protection*(1-strong_prestige)
+    return 27-(27-prestige_cap)*volume*(1-protection)
 
 
 def author_self_closed_external_penalty(m: Mapping[str, Any]) -> float:
@@ -236,71 +228,34 @@ def next_tier(final: float) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _newcomer_confidence(value: Any) -> float:
-    if not isinstance(value, (int, float)) or not math.isfinite(value):
+def content_skill_discount(m):
+    share = max(0, min(1, _nz(m.get("content_skill_star_share"), 0)))
+    confidence = max(0, min(1, _nz(m.get("content_skill_confidence"), 0)))
+    external = max(0, _nz(m.get("external_merged_pr_count"), 0))
+    external_share = min(1,external/max(1,m.get("merged_pr_count",0)))
+    engineering = max(max(0,_nz(m.get("core_impact_pr_count"),0))*external_share, external*(1-max(0,min(1,_nz(m.get("presentation_churn_share"),0))))/20)
+    stars = max(0,m["total_stars"])
+    star_mass = stars/(stars+5000)
+    return 1-0.9*share*share*(3-2*share)*confidence*star_mass/(1+engineering)
+
+
+def original_project_quality(m):
+    if m["nonempty_original_repo_count"] == 0:
         return 0.0
-    return max(0.0, min(value, 1.0))
-
-
-def _newcomer_strength(value: Any) -> float:
-    if not isinstance(value, (int, float)) or not math.isfinite(value):
-        return 0.0
-    x = _newcomer_confidence((value - 0.55) / 0.3)
-    return x * x * (3 - 2 * x)
-
-
-def _canonical_github_timestamp(value: Any) -> bool:
-    if not isinstance(value, str) or len(value) != 20:
-        return False
-    try:
-        parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
-        return parsed.isoformat(timespec="seconds") + "Z" == value
-    except ValueError:
-        return False
-
-
-def _super_newcomer_bonus(
-    m: Mapping[str, Any], sub: Mapping[str, float], risk: Mapping[str, Any], penalty: float
-) -> float:
-    """Up to four maturity points, using the same snapshot-only rule as TS/Go.
-
-    Core PR count is a non-doc-like proxy, not an audit of code quality.
-    Missing optional evidence earns no bonus; stars/followers cannot replace it.
-    """
-    age = m.get("account_age_years")
-    days = m.get("days_since_last_activity")
-    repos = m.get("nonempty_original_repo_count")
-    if (
-        not isinstance(age, (int, float)) or not math.isfinite(age) or age < 0 or age >= 3
-        or not _canonical_github_timestamp(m.get("created_at"))
-        or not isinstance(repos, (int, float)) or not math.isfinite(repos) or repos <= 0
-        or not isinstance(days, (int, float)) or not math.isfinite(days) or days < 0 or days > 90
-        or m.get("merged_pr_contribution_aggregation_incomplete", False)
-        or m.get("star_inflation_suspect", False)
-        or not math.isfinite(penalty) or penalty > 0
-        or any(s["family"] == "contribution" for s in risk["signals"])
-    ):
-        return 0.0
-    # Ecosystem strength accepts either multi-repo depth or total landed work
-    # volume in star-qualified repos: a creator maintaining one exceptional
-    # repo is not weaker than a contributor touching many. Volume only counts
-    # work that already passed the same >=200-star external / >=1000-star own
-    # gates, so it cannot be farmed in small or self-created low-star repos.
-    impact_work = _nz(m.get("impact_commit_count"), 0) + m["impact_pr_count"]
-    ecosystem_ratio = max(m["impact_depth_raw"] / 8, log_ratio(impact_work, 400))
-    strength = min(
-        _newcomer_strength(_nz(m.get("best_original_repo_quality_score"), 0)),
-        _newcomer_strength(sub["contribution_quality"] / SUBSCORE_MAX["contribution_quality"]),
-        _newcomer_strength(ecosystem_ratio),
-        _newcomer_strength(sub["activity_authenticity"] / SUBSCORE_MAX["activity_authenticity"]),
-    )
-    confidence = min(
-        _newcomer_confidence(_nz(m.get("verified_impact_pr_count"), 0) / 5),
-        _newcomer_confidence(_nz(m.get("core_impact_pr_count"), 0) / 3),
-        _newcomer_confidence(m["recent_merged_pr_sample"] / 20),
-    )
-    decay = 1 - age / 3
-    return 4 * strength * confidence * decay * decay
+    else:
+        star_quality = (
+            max(0, min(_nz(m.get("top_starred_original_repo_quality_score"), 1), 1))
+            if m["total_stars"] > 0
+            else 1
+        )
+        star_pts = (
+            (log_ratio(_nz(m.get("weighted_total_stars"), m["total_stars"]), 5000) * 7 + log_ratio(_nz(m.get("weighted_max_stars"), m["max_stars"]), 2000) * 5)
+            * star_quality
+            * star_engagement_multiplier(m.get("top_repo_engagement_ratio"))
+            * content_skill_discount(m)
+        )
+        project_substance = max(0, min(_nz(m.get("best_original_repo_quality_score"), 0), 1)) * 6
+        return round(star_pts + project_substance, 1)
 
 
 def score(m: Mapping[str, Any]) -> Dict[str, Any]:
@@ -320,17 +275,7 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     sub["account_maturity"] = round(age_pts + span_pts, 1)
 
     # 2. Original Project Quality (18)
-    if m["nonempty_original_repo_count"] == 0:
-        sub["original_project_quality"] = 0.0
-    else:
-        star_quality = (
-            max(0, min(_nz(m.get("top_starred_original_repo_quality_score"), 1), 1))
-            if m["total_stars"] > 0
-            else 1
-        )
-        star_pts = (log_ratio(m["total_stars"], 5000) * 7 + log_ratio(m["max_stars"], 2000) * 5) * star_quality
-        project_substance = max(0, min(_nz(m.get("best_original_repo_quality_score"), 0), 1)) * 6
-        sub["original_project_quality"] = round(star_pts + project_substance, 1)
+    sub["original_project_quality"] = max(original_project_quality(m), max(0,min(18,m.get("personal_original_project_quality_score",0))))
 
     # 3. Contribution Quality (27)
     pr_volume_raw = log_ratio(m["merged_pr_count"], 200) * 16
@@ -355,9 +300,10 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     issue_pts = log_ratio(m["issues_created"], 100) * 5
     contribution_quality_raw = (
         pr_volume
-        + acceptance
+        + own_pr_community_credit(m)
+        + acceptance - doc_like_pr_volume_discount(m, acceptance)
         + issue_pts
-        + high_impact_core_pr_bonus(m)
+        + high_impact_core_pr_bonus(m) * (1-(1-presentation_discount(m))*.8)
         - author_self_closed_external_penalty(m)
     )
     contribution_cap = min(
@@ -370,9 +316,11 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     # 4. Ecosystem & Maintainer Impact (20)
     prestige = impact_prestige_signal(m) * 9
     depth = min(m["impact_depth_raw"] / 8.0, 1.0) * 11
-    ecosystem_raw = prestige + depth
+    from ._presentation import ecosystem_presentation_discount
+    external_share = min(1,max(0,_nz(m.get("external_merged_pr_count"),0))/max(1,m["merged_pr_count"]))
+    ecosystem_raw = (prestige + depth) * ecosystem_presentation_discount(m) * (1-(1-content_skill_discount(m))*(1-external_share))
     sub["ecosystem_impact"] = round(
-        ecosystem_raw if m.get("impact_quality_cap") is None else min(ecosystem_raw, m["impact_quality_cap"]),
+        ecosystem_raw,
         1,
     )
 
@@ -406,11 +354,9 @@ def score(m: Mapping[str, Any]) -> Dict[str, Any]:
     diversity_pts = min(m["activity_type_count"], 4) * 1.125
     sub["activity_authenticity"] = round(contrib_pts + recency_pts + diversity_pts, 1)
 
-    risk_assessment, risk_notes, flags, penalty = assess_risk(m)
-    bonus = _super_newcomer_bonus(m, sub, risk_assessment, penalty)
-    if bonus > 0:
-        sub["account_maturity"] = _round_half_even(min(SUBSCORE_MAX["account_maturity"], age_pts + span_pts + bonus), 1)
     base = round(sum(sub.values()), 1)
+
+    risk_assessment, risk_notes, flags, penalty = assess_risk(m)
     final = clamp_score(round(base - penalty, 2))
     t = tier_for(final)
 

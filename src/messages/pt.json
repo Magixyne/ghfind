@@ -2,16 +2,27 @@
   "loginDialog": {
     "entry": "Entrar",
     "title": "Entrar no ghfind",
-    "description": "Guarde seus perfis seguidos e currículos para continuar em outros dispositivos.",
+    "description": "Escolha uma conta para continuar.",
     "close": "Fechar",
     "google": "Continuar com Google",
     "github": "Continuar com GitHub",
-    "emailDivider": "Ou usar e-mail",
-    "emailLabel": "Endereço de e-mail",
-    "emailPlaceholder": "Digite seu e-mail",
-    "sendCode": "Enviar código de verificação",
-    "githubUnavailable": "O login com GitHub não está disponível aqui.",
-    "comingSoon": "O login com Google e e-mail estará disponível em breve."
+    "apple": "Continuar com Apple",
+    "redirecting": "Abrindo {provider}…",
+    "loading": "Verificando opções de acesso…",
+    "retry": "Tentar novamente",
+    "loadFailed": "Não foi possível carregar as opções de acesso. Verifique sua conexão e tente novamente.",
+    "unavailable": "O login está temporariamente indisponível. Continue navegando e tente mais tarde.",
+    "githubFeatures": "Contas seguidas, currículos na nuvem e tokens de API exigem uma conta do GitHub no momento.",
+    "providerAccount": "Conta {provider}",
+    "switchToGitHub": "Mudar para login com GitHub",
+    "errors": {
+      "denied": "O login foi cancelado. Escolha uma conta para tentar novamente.",
+      "expired": "Esta solicitação de login expirou. Comece novamente.",
+      "failed": "Não foi possível concluir o login. Tente novamente.",
+      "unavailable": "Este método de login está indisponível. Escolha outra opção ou tente mais tarde."
+    },
+    "signingOut": "Saindo…",
+    "signOutFailed": "Não foi possível sair. Verifique sua conexão e tente novamente."
   },
   "meta": {
     "title": "ghfind | Nota brutal do seu GitHub, autoavaliação e descoberta de devs top",
@@ -363,7 +374,8 @@
     "battleLoss": "Derrota",
     "battleTie": "Empate",
     "selfCta": "Avaliar meu próprio GitHub →",
-    "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês."
+    "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês.",
+    "coCreatorShare": "Liderado / cocriado ({share}%)"
   },
   "reactions": {
     "heading": "Reações da comunidade",
@@ -418,8 +430,10 @@
     "errRoastFailed": "A geração da zoada falhou — tente mais tarde ou use sua própria key.",
     "errNetworkRoast": "A conexão caiu — a zoada foi cortada no meio.",
     "errScanFailed": "Falha no scan, tente de novo mais tarde.",
+    "largeAccountCollecting": "Coletando dados de uma conta grande…",
     "errScanPending": "Coletando todo o histórico público de PRs e commits. Continuará automaticamente quando estiver pronto.",
     "errNetworkScan": "Erro de rede — não deu nem pra alcançar o GitHub.",
+    "dataUpdating": "Atualizando os dados…",
     "byoReasonQuota": "A cota grátis acabou 😵 Adicione sua própria API key pra continuar zoando (OpenAI / StepFun / Groq funcionam).",
     "byoReasonRate": "Você zoou demais hoje 🥵 Respira, ou adicione sua própria API key pra zoadas ilimitadas.",
     "byoReasonDefault": "Nenhum modelo padrão está configurado no servidor — adicione sua própria API key pra começar a zoar."
@@ -431,6 +445,9 @@
     "rate_limited": "Rápido demais — respira e tente de novo em um minuto.",
     "github_rate_limited": "A API do GitHub está no limite agora — espera um pouquinho.",
     "github_unavailable": "Os dados do GitHub estão temporariamente indisponíveis — tente mais tarde.",
+    "github_collect_deadline": "A coleta do GitHub estourou o tempo — tente de novo daqui a pouco.",
+    "scan_pending": "Coletando dados de uma conta grande…",
+    "scan_busy": "A geração de score está ocupada — tente de novo daqui a pouco.",
     "scan_failed": "O scan quebrou — tente de novo mais tarde."
   },
   "share": {
@@ -525,7 +542,7 @@
   },
   "dimensions": {
     "account_maturity": "Maturidade da conta",
-    "original_project_quality": "Qualidade de projetos originais",
+    "original_project_quality": "Projetos originais e liderados",
     "contribution_quality": "Qualidade das contribuições",
     "ecosystem_impact": "Impacto no ecossistema / manutenção",
     "community_influence": "Influência na comunidade",
@@ -799,6 +816,10 @@
         "p": "Para contas pontuadas, guardamos em cache a nota calculada, o nível e as métricas derivadas, para que relatórios compartilhados carreguem rápido e o ranking continue veloz. Só contas com nota 60 ou mais são indexadas e listadas publicamente; páginas com nota menor são acessíveis por link direto, mas ficam fora dos mecanismos de busca. Usamos analytics agregados e respeitosos com a privacidade para entender o tráfego, e não vendemos dados pessoais."
       },
       {
+        "h": "Login com Google e cookies da conta",
+        "p": "Ao escolher entrar com Google, recebemos o identificador da sua conta Google (subject), nome e imagem de perfil para criar sua sessão no ghfind. O Google também pode retornar seu e-mail durante o login; não o armazenamos de forma persistente. Um cookie de sessão assinado e HttpOnly armazena sua identidade básica por até 30 dias. Não guardamos tokens de acesso às APIs do Google nem tokens de atualização. Sair da conta apaga o cookie de sessão. O login com Google não concede permissões do GitHub e não vinculamos contas automaticamente pelo e-mail."
+      },
+      {
         "h": "Zoadas com sua própria key",
         "p": "O recurso opcional de zoada pode usar a key do seu próprio provedor de modelo. Quando você fornece uma, ela fica no seu navegador e passa uma única vez pelo nosso servidor para chamar o modelo — nunca é armazenada, nunca é logada, e é descartada quando a requisição termina."
       },
@@ -817,7 +838,7 @@
     "dimensionsIntro": "Cada dimensão contribui para a nota base de 100 pontos. Juntas, elas recompensam trabalho open source sustentado, original e amplamente usado em vez de contagens brutas de atividade.",
     "dimensionDetails": {
       "account_maturity": "O quanto a conta é estabelecida e consistente ao longo do tempo — idade, atividade sustentada e uma curva de credibilidade que resiste a inflação da noite pro dia.",
-      "original_project_quality": "A qualidade e a recepção dos repositórios que a conta realmente possui e criou, não forks nem projetos triviais.",
+      "original_project_quality": "Qualidade e recepção de projetos autorais, liderados ou cocriados de forma substancial, ponderadas pela participação atribuída; exclui forks.",
       "contribution_quality": "A substância das contribuições a outros projetos — pull requests mesclados e significativos versus spam de template.",
       "ecosystem_impact": "O quanto o trabalho da conta é usado como dependência e mantido no ecossistema mais amplo.",
       "community_influence": "Alcance e reputação genuínos na comunidade, normalizados pra que contagens brutas de seguidores ou stars não dominem.",

@@ -33,6 +33,8 @@ export interface RepoReadme {
 }
 
 export interface TopRepo {
+  root_paths?: string[];
+  content_skill_share?: number;
   name: string;
   owner_login?: string;
   name_with_owner?: string;
@@ -65,6 +67,8 @@ export interface TopRepo {
    * maintenance signals. */
   attributed_original?: boolean;
   attribution_evidence?: string[];
+  attribution_share?: number;
+  co_creator_facts?: import("./co-creator").CoCreatorFacts;
 }
 
 export interface RecentPr {
@@ -75,6 +79,8 @@ export interface RecentPr {
   changed_files: number;
   trivial: boolean;
   files?: string[];
+  file_changes?: { path: string; additions: number; deletions: number }[];
+  presentation_share?: number;
 }
 
 /**
@@ -170,6 +176,8 @@ export interface RawMetrics {
   /** Stars discounted per repo for staleness (no push in 12–36 months) and
    * dataset/content kind; Original Project Quality uses these when present.
    * Optional so older snapshots fall back to the raw totals. */
+  content_skill_star_share?: number;
+  content_skill_confidence?: number;
   weighted_total_stars?: number;
   weighted_max_stars?: number;
   /** (watchers + issues ever + PRs ever) / stars for the top-starred original
@@ -177,9 +185,11 @@ export interface RawMetrics {
    * (scored as "no penalty"). Viral-but-hollow repos run <1%, genuinely used
    * projects ≥5%. */
   top_repo_engagement_ratio?: number;
+  personal_original_project_quality_score?: number;
   attributed_original_repo_count?: number;
   attributed_original_repo_stars?: number;
   attributed_original_repos?: string[];
+  attributed_original_repo_shares?: Record<string, number>;
   best_original_repo_quality_score?: number;
   best_original_repo_quality_repo?: string | null;
   top_starred_original_repo_quality_score?: number;
@@ -192,7 +202,8 @@ export interface RawMetrics {
   /** Share of the sampled external merged PRs that target ≥200★ repos. */
   external_high_star_pr_share?: number;
   /** 0..1 community-weighted share of own-repo merged PRs that landed in own
-   * repos with an outside community; lifts the own-PR volume cap from 4 to 10. */
+   * repos with an outside community. v13 adds `6·A·logRatio(own, 200)` on top
+   * of v10's combined PR pool (209ff9f5's lift from 4 to 10). */
   own_pr_community?: number;
   /** Closed PRs that a repository-owned merge bot explicitly marked as landed.
    * This is intentionally separate from GitHub-native `merged_pr_count`. */
@@ -209,6 +220,11 @@ export interface RawMetrics {
   recent_doc_like_pr_ratio?: number;
   recent_external_pr_sample?: number;
   recent_external_doc_like_pr_count?: number;
+  presentation_churn_share?: number;
+  presentation_core_churn_share?: number;
+  presentation_repo_concentration?: number;
+  presentation_pr_sample?: number;
+  presentation_core_pr_count?: number;
   recent_external_doc_like_pr_ratio?: number;
   external_trivial_pr_count: number;
   max_impact_repo_stars: number;
@@ -301,7 +317,7 @@ export interface RiskCoverage {
 }
 
 export interface RiskAssessment {
-  version: "v10";
+  version: "v9" | "v10";
   risk_score: number;
   level: RiskLevel;
   confidence: number;

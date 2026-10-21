@@ -1,3 +1,4 @@
+import { projectShare } from "./co-creator";
 import { ScanBusyError } from "./scan-protection";
 import {
   AccountNotFoundError,
@@ -13,7 +14,10 @@ import {
   isProfileReadmeRepo,
   topStarredOriginalRepoQuality,
   weightedOriginalStars,
+  contentSkillSignals,
   collect,
+  COLLECT_DEADLINE_MS,
+  GitHubCollectDeadlineError,
   type ContribRepoAgg,
 } from "@/lib/github";
 import { collectorCache } from "@/lib/redis";
@@ -195,8 +199,14 @@ export function buildPublicSignatureWork(
  * Wrap calls in `coalesceScan()` (single-flight + cache) so a burst of identical
  * requests only crawls GitHub once.
  */
-export async function buildScanResult(username: string): Promise<ScanResult> {
-  const collected = await collect(username, { cache: collectorCache });
+export async function buildScanResult(
+  username: string,
+  options: { deadlineMs?: number } = {},
+): Promise<ScanResult> {
+  const collected = await collect(username, {
+    cache: collectorCache,
+    deadlineMs: options.deadlineMs ?? COLLECT_DEADLINE_MS,
+  });
   const scan = {
     ...collected,
     scoring: score(collected.metrics),
@@ -283,9 +293,10 @@ export function applyPublicOriginalRepoInventory(
     original_repo_count: all.length,
     nonempty_original_repo_count: all.filter((repo) => repo.size > 0).length,
     empty_original_repo_count: ownedRepos.filter((repo) => repo.size <= 0).length,
-    total_stars: starRepos.reduce((sum, repo) => sum + Math.max(0, repo.stars), 0),
-    max_stars: starRepos.reduce((max, repo) => Math.max(max, repo.stars), 0),
+    total_stars: starRepos.reduce((sum, repo) => sum + Math.max(0, repo.stars)*projectShare(repo), 0),
+    max_stars: starRepos.reduce((max, repo) => Math.max(max, repo.stars*projectShare(repo)), 0),
     ...weightedOriginalStars(starRepos, new Date()),
+    ...contentSkillSignals(starRepos),
     best_original_repo_quality_score: best.score,
     best_original_repo_quality_repo: best.repo,
     top_starred_original_repo_quality_score: topStarred.score,
@@ -294,7 +305,7 @@ export function applyPublicOriginalRepoInventory(
   return {
     ...scan,
     metrics,
-    top_repos: all.sort((a, b) => b.stars - a.stars || b.size - a.size).slice(0, 10),
+    top_repos: all.sort((a, b) => b.stars * projectShare(b) - a.stars * projectShare(a) || b.size - a.size).slice(0, 10),
     scoring: score(metrics),
   };
 }
@@ -318,6 +329,9 @@ export function scanErrorResponse(e: unknown): {
   if (e instanceof GitHubRateLimitError) {
     return { error: "github_rate_limited", status: 503 };
   }
+  if (e instanceof GitHubCollectDeadlineError) {
+    return { error: "github_collect_deadline", status: 503, retry_after: 15 };
+  }
   if (e instanceof GitHubDataUnavailableError) {
     return { error: "github_unavailable", status: 503, retry_after: 60 };
   }
@@ -338,6 +352,7 @@ export function logFreshScanFailure(error: unknown, context: {
     : error instanceof GitHubInternalQueryError ? "github_internal"
     : error instanceof GitHubResourceLimitError ? "github_resource_limit"
     : error instanceof GitHubQueryTimeoutError ? "github_query_timeout"
+    : error instanceof GitHubCollectDeadlineError ? "github_collect_deadline"
     : error instanceof GitHubRateLimitError ? "github_rate_limited"
     : error instanceof GitHubAuthRequiredError ? "github_token_required"
     : error instanceof AccountNotFoundError ? "account_not_found"

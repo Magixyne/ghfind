@@ -109,26 +109,18 @@ func TestCommunityImpactGateAndCredit(t *testing.T) {
 func TestCommunityStarInflationAndOwnPRShare(t *testing.T) {
 	measured := map[string]OwnRepoCommunityFacts{"me/tool": fullCommunityFacts()}
 	repos := []ContribRepoAgg{communityRepo("me/tool", "me", 500, 150, nil)}
-	if got := ApplyOwnRepoCommunities(repos, measured, false); valueOrZero(got[0].Community) != 1 {
+	if got := ApplyOwnRepoCommunities(repos, measured, false); valueOrZero(got[0].Community) < .9999 {
 		t.Fatalf("community = %#v", got[0].Community)
 	}
-	if got := ApplyOwnRepoCommunities(repos, measured, true); got[0].Community == nil || *got[0].Community != 0 || got[0].CommunityFacts == nil {
-		t.Fatalf("star-inflation suspect kept community: %#v", got[0])
+	if got := ApplyOwnRepoCommunities(repos, measured, true); got[0].Community == nil || *got[0].Community < .9999 || got[0].CommunityFacts == nil {
+		t.Fatalf("continuous discount lost measured community: %#v", got[0])
 	}
 	high, full := 0.8, 1.0
 	attributed := communityRepo("big-org/engine", "big-org", 70000, 40, &full)
 	attributed.AttributedOriginal = true
 	share := OwnPRCommunityShare([]ContribRepoAgg{communityRepo("me/tool", "me", 500, 150, &high), communityRepo("me/side", "me", 300, 50, nil), attributed}, "me", 200)
-	if share != 0.6 {
+	if share != 0.8 {
 		t.Fatalf("own PR community share = %v", share)
-	}
-	external, one := 20.0, 1.0
-	m := RawMetrics{MergedPRCount: 220, TotalPRCount: 220, ExternalMergedPRCount: &external, ExternalHighStarPRShare: &one, MaintainerClosedUnmergedPRCount: floatPointer(0)}
-	base, _ := contributionVolumeAndAcceptance(m)
-	m.OwnPRCommunity = &one
-	lifted, _ := contributionVolumeAndAcceptance(m)
-	if math.Abs(lifted-base-6) > 1e-9 {
-		t.Fatalf("own PR cap lift = %v", lifted-base)
 	}
 }
 
@@ -203,7 +195,7 @@ func TestCollectOwnRepoCommunitiesCachesAndRespectsBudget(t *testing.T) {
 	if len(facts) != 1 || !ok || got.WeightedContributors != 1 || got.OutsideAcceptance != 0.8 || got.Forks != 40 || got.OwnerResponseShare != 1 {
 		t.Fatalf("facts = %#v", facts)
 	}
-	if cache.ttls["community:counts:v1:me"] != 24*time.Hour || cache.ttls["community:facts:v1:me:me/tool"] != 7*24*time.Hour || cache.ttls["community:profile:v1:bob"] != 30*24*time.Hour {
+	if cache.ttls["community:counts:v2:me"] != 24*time.Hour || cache.ttls["community:facts:v2:me:me/tool"] != 7*24*time.Hour || cache.ttls["community:profile:v2:bob"] != 30*24*time.Hour {
 		t.Fatalf("cache TTLs = %#v", cache.ttls)
 	}
 	before := calls

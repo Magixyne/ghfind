@@ -2,16 +2,27 @@
   "loginDialog": {
     "entry": "로그인",
     "title": "ghfind 로그인",
-    "description": "팔로우와 이력서를 저장하고 다른 기기에서도 이어서 사용하세요.",
+    "description": "계정을 선택하여 계속하세요.",
     "close": "닫기",
     "google": "Google로 로그인",
     "github": "GitHub로 로그인",
-    "emailDivider": "또는 이메일 사용",
-    "emailLabel": "이메일 주소",
-    "emailPlaceholder": "이메일 주소 입력",
-    "sendCode": "인증 코드 보내기",
-    "githubUnavailable": "이 환경에서는 GitHub 로그인을 사용할 수 없습니다.",
-    "comingSoon": "Google 및 이메일 로그인은 곧 제공됩니다."
+    "apple": "Apple로 계속하기",
+    "redirecting": "{provider} 여는 중…",
+    "loading": "로그인 방법 확인 중…",
+    "retry": "다시 시도",
+    "loadFailed": "로그인 방법을 불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.",
+    "unavailable": "현재 로그인할 수 없습니다. 계속 둘러보시고 나중에 다시 시도하세요.",
+    "githubFeatures": "팔로우, 클라우드 이력서, API 토큰에는 현재 GitHub 계정이 필요합니다.",
+    "providerAccount": "{provider} 계정",
+    "switchToGitHub": "GitHub 로그인으로 전환",
+    "errors": {
+      "denied": "로그인이 취소되었습니다. 계정을 선택하여 다시 시도하세요.",
+      "expired": "로그인 요청이 만료되었습니다. 다시 로그인해 주세요.",
+      "failed": "로그인을 완료하지 못했습니다. 다시 시도하세요.",
+      "unavailable": "이 로그인 방법은 사용할 수 없습니다. 다른 방법을 선택하거나 나중에 다시 시도하세요."
+    },
+    "signingOut": "로그아웃 중…",
+    "signOutFailed": "로그아웃하지 못했습니다. 연결을 확인하고 다시 시도하세요."
   },
   "meta": {
     "title": "ghfind | 독설 GitHub 평가 · 셀프 테스트 & 최고의 개발자 발견",
@@ -363,7 +374,8 @@
     "battleLoss": "패",
     "battleTie": "무",
     "selfCta": "내 GitHub도 평가받기 →",
-    "reportLangNotice": "AI 독설 리포트는 현재 영어와 중국어만 지원해요 — 지금 보고 계신 건 영어판입니다."
+    "reportLangNotice": "AI 독설 리포트는 현재 영어와 중국어만 지원해요 — 지금 보고 계신 건 영어판입니다.",
+    "coCreatorShare": "주도·공동 개발 (기여 지분 {share}%)"
   },
   "reactions": {
     "heading": "커뮤니티 반응",
@@ -418,8 +430,10 @@
     "errRoastFailed": "독설 생성 실패 — 잠시 후 다시 하거나 본인 키를 쓰세요.",
     "errNetworkRoast": "연결이 끊겨서 독설이 중간에 끊겼어요.",
     "errScanFailed": "스캔에 실패했어요. 잠시 후 다시 시도하세요.",
+    "largeAccountCollecting": "대형 계정 데이터 수집 중…",
     "errScanPending": "공개 PR 및 커밋 전체 기록을 수집하고 있습니다. 준비되면 자동으로 계속합니다.",
     "errNetworkScan": "네트워크 오류 — GitHub에 닿지도 못했어요.",
+    "dataUpdating": "데이터를 업데이트하는 중…",
     "byoReasonQuota": "무료 할당량이 다 떨어졌어요 😵 본인 API 키를 넣으면 계속 로스트할 수 있어요 (OpenAI / StepFun / Groq 다 됩니다).",
     "byoReasonRate": "오늘 로스트 좀 많이 하셨네요 🥵 잠깐 쉬거나, 본인 API 키를 넣으면 무제한입니다.",
     "byoReasonDefault": "서버에 기본 모델이 설정되어 있지 않아요 — 본인 API 키를 넣으면 바로 시작합니다."
@@ -431,6 +445,9 @@
     "rate_limited": "손이 너무 빨라요 — 숨 한번 쉬고 1분 뒤에 다시 오세요.",
     "github_rate_limited": "GitHub API가 지금 꽉 찼어요 — 잠시만 기다려 주세요.",
     "github_unavailable": "GitHub 데이터를 잠시 사용할 수 없어요 — 나중에 다시 시도하세요.",
+    "github_collect_deadline": "GitHub 수집이 시간 초과됐어요 — 잠시 후 다시 시도하세요.",
+    "scan_pending": "대형 계정 데이터 수집 중…",
+    "scan_busy": "채점 중인 요청이 많아요 — 잠시 후 다시 시도하세요.",
     "scan_failed": "스캔이 터졌어요 — 잠시 후 다시 시도하세요."
   },
   "share": {
@@ -525,7 +542,7 @@
   },
   "dimensions": {
     "account_maturity": "계정 성숙도",
-    "original_project_quality": "오리지널 프로젝트 퀄리티",
+    "original_project_quality": "창작 및 주도 프로젝트",
     "contribution_quality": "기여 퀄리티",
     "ecosystem_impact": "생태계 / 유지보수 영향력",
     "community_influence": "커뮤니티 영향력",
@@ -799,6 +816,10 @@
         "p": "채점된 계정에 대해서는 계산된 점수, 티어, 파생 지표를 캐시해 공유된 리포트가 빠르게 로드되고 랭킹이 매끄럽게 유지되도록 합니다. 60점 이상 계정만 색인되어 공개 등재되며, 그보다 낮은 점수의 페이지는 직접 링크로는 접근할 수 있지만 검색 엔진에는 노출되지 않습니다. 트래픽 파악에는 프라이버시를 존중하는 집계형 분석을 사용하고, 개인 데이터를 판매하지 않습니다."
       },
       {
+        "h": "Google 로그인과 계정 쿠키",
+        "p": "Google 로그인을 선택하면 ghfind 세션을 생성하기 위해 Google 계정 식별자(subject), 이름, 프로필 이미지를 받습니다. 로그인 과정에서 이메일 주소가 전달될 수도 있지만 영구 저장하지 않습니다. 서명된 HttpOnly 세션 쿠키는 기본 신원 정보를 최대 30일 동안 저장합니다. Google API 액세스 토큰이나 갱신 토큰은 보관하지 않습니다. 로그아웃하면 세션 쿠키가 삭제됩니다. Google 로그인은 GitHub 권한을 부여하지 않으며 이메일 주소로 계정을 자동 연결하지 않습니다."
+      },
+      {
         "h": "자체 키 독설",
         "p": "선택형 독설 기능은 본인의 모델 제공사 키를 사용할 수 있습니다. 키를 제공하면 그 키는 당신의 브라우저에만 남고, 모델 호출을 위해 우리 서버를 딱 한 번 거칩니다 — 절대 저장되지 않고, 절대 로그에 남지 않으며, 요청이 끝나면 폐기됩니다."
       },
@@ -817,7 +838,7 @@
     "dimensionsIntro": "각 지표는 100점 기본 점수에 기여합니다. 이들이 합쳐져 원시 활동량이 아니라 꾸준하고 독창적이며 널리 쓰이는 오픈소스 작업에 보상합니다.",
     "dimensionDetails": {
       "account_maturity": "계정이 시간에 걸쳐 얼마나 자리 잡고 일관적인가 — 나이, 지속적 활동, 하룻밤 부풀리기에 버티는 신뢰도 곡선.",
-      "original_project_quality": "포크나 사소한 프로젝트가 아니라, 계정이 실제로 소유하고 만든 저장소의 퀄리티와 평판.",
+      "original_project_quality": "창작 및 주도 프로젝트",
       "contribution_quality": "다른 프로젝트에 대한 기여의 실속 — 템플릿 도배가 아닌, 머지된 의미 있는 PR.",
       "ecosystem_impact": "계정의 작업이 더 넓은 생태계에서 얼마나 의존되고 유지보수되는가.",
       "community_influence": "커뮤니티에서의 진짜 도달력과 위상. 원시 팔로워나 스타 수가 지배하지 못하도록 정규화됨.",
