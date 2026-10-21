@@ -37,27 +37,27 @@ test("stale, future, malformed, unreachable and unauthorized heartbeats notify o
     const sends=[];const result=await watchdog(env,scenario(health,sends),now);
     assert.equal(result.healthy,false);assert.equal(result.notified,true);assert.equal(result.failed,0);
     assert.deepEqual(sends.map(s=>s.to[0]),["one@example.org","two@example.org"]);
-    assert.equal(result.reason,"heartbeat");
+    assert.equal(result.reason,"heartbeat");assert.equal(sends[0].subject,"[ghfind][P1][监控] 监控任务心跳中断");
   }
 });
 
 test("explicit delivery failure is actionable without declaring a billing overspend",async()=>{
   const sends=[];const result=await watchdog(env,scenario({...good,deliveryHealthy:false},sends),now);
   assert.equal(result.reason,"delivery");assert.equal(result.notified,true);
-  assert.match(sends[0].subject,/告警邮件发送异常/);assert.match(sends[0].text,/此通知不代表已发生费用超支/);
+  assert.equal(sends[0].subject,"[ghfind][P3][监控] 告警邮件发送异常");assert.match(sends[0].text,/此通知不代表已发生费用超支/);
   assert.doesNotMatch(sends[0].text,/Collection failed|Token 权限、数据延迟/);
 });
 
-test("persistent incidents notify at first detection and 12 hours, with no hourly repeats",async()=>{
+test("persistent incidents notify at first detection and six hours, with no hourly repeats",async()=>{
   let state;const sends=[];
-  for(let hour=0;hour<=12;hour++){
+  for(let hour=0;hour<=6;hour++){
     const result=await watchdog(env,scenario({lastAttempt:0},sends),now+hour*3600_000,{state,persist:s=>{state=structuredClone(s);}});
-    assert.equal(result.notified,hour===0||hour===12);
+    assert.equal(result.notified,hour===0||hour===6);
   }
-  assert.equal(sends.length,4);assert.match(sends[2].text,/持续 720 分钟/);
+  assert.equal(sends.length,4);assert.match(sends[2].text,/持续 360 分钟/);
 });
 
-test("one failed recipient retries while accepted recipients keep their 12-hour cooldown",async()=>{
+test("one failed recipient retries while accepted recipients keep their six-hour cooldown",async()=>{
   let state;const snapshots=[];const sends=[];
   const persist=s=>{state=structuredClone(s);snapshots.push(state);};
   const first=await watchdog(env,scenario({lastAttempt:0},sends,"two@example.org"),now,{persist});
@@ -169,17 +169,24 @@ test("explicit operator recipients are the only mail audience even when customer
   }
 });
 
-test("CLI still fails an unhealthy monitor when operator email is disabled", async()=>{
+test("CLI records an unhealthy monitor as notice without hourly failure mail", async()=>{
   const dir=await mkdtemp(join(tmpdir(),"cost-watchdog-cli-"));
   const server=createServer((_request,response)=>{response.writeHead(200,{"content-type":"application/json"});response.end(JSON.stringify({lastAttempt:0}));});
   await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
   try{
     const {port}=server.address();
-    await assert.rejects(promisify(execFile)(process.execPath,[new URL("./cost-monitor-watchdog.mjs",import.meta.url).pathname],{env:{...process.env,COST_MONITOR_URL:`http://127.0.0.1:${port}`,MONITOR_ADMIN_TOKEN:"local-only",MONITOR_OPS_RECIPIENTS:"",CF_MONITOR_API_TOKEN:"",CF_ACCOUNT_ID:"",ALERT_RECIPIENTS:'["customer@example.org"]',WATCHDOG_STATE_FILE:join(dir,"state.json")},timeout:10_000}),error=>{
-      assert.equal(error.code,1);
-      assert.deepEqual(JSON.parse(error.stdout),{healthy:false,notified:false,failed:0,reason:"heartbeat",notificationMode:"actions-only"});
-      return true;
-    });
+    const result=await promisify(execFile)(process.execPath,[new URL("./cost-monitor-watchdog.mjs",import.meta.url).pathname],{env:{...process.env,COST_MONITOR_URL:`http://127.0.0.1:${port}`,MONITOR_ADMIN_TOKEN:"local-only",MONITOR_OPS_RECIPIENTS:"",CF_MONITOR_API_TOKEN:"",CF_ACCOUNT_ID:"",ALERT_RECIPIENTS:'["customer@example.org"]',WATCHDOG_STATE_FILE:join(dir,"state.json")},timeout:10_000});
+    assert.match(result.stdout,/::notice::Monitor heartbeat/);
+    assert.deepEqual(JSON.parse(result.stdout.split("\n")[0]),{healthy:false,notified:false,failed:0,reason:"heartbeat",notificationMode:"actions-only"});
     assert.equal((await readWatchdogState(join(dir,"state.json"))).incident.reason,"heartbeat");
   }finally{await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
+});
+
+test("P3 delivery reminders retain the quieter twelve-hour cadence",async()=>{
+ let state;const sends=[];const persist=s=>{state=structuredClone(s);};
+ await watchdog(env,scenario({...good,deliveryHealthy:false},sends),now,{state,persist});
+ await watchdog(env,scenario({...good,lastAttempt:now+REPEAT_MS,deliveryHealthy:false},sends),now+REPEAT_MS,{state,persist});
+ assert.equal(sends.length,2);
+ await watchdog(env,scenario({...good,lastAttempt:now+2*REPEAT_MS,deliveryHealthy:false},sends),now+2*REPEAT_MS,{state,persist});
+ assert.equal(sends.length,4);
 });
