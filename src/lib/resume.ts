@@ -64,6 +64,14 @@ export function moveItem<T>(items: T[], index: number, delta: number): T[] {
   [next[index], next[target]] = [next[target], next[index]];
   return next;
 }
+export type BasicsField = keyof Resume["basics"];
+export type EntryField = "title" | "subtitle" | "period" | "details";
+/** Keys linking preview text (data-edit) to its editor field (data-edit-target). */
+export const editKey = {
+  basics: (field: BasicsField) => `basics:${field}`,
+  section: (sectionId: string) => `section:${sectionId}`,
+  entry: (entryId: string, field: EntryField) => `entry:${entryId}:${field}`,
+};
 export function emptyEntry() { return { id: crypto.randomUUID(), title: "", subtitle: "", period: "", details: "" }; }
 export function newSection(type: SectionType, zh: boolean): ResumeSection {
   return { id: crypto.randomUUID(), type, title: sectionNames[zh ? "zh" : "en"][type], entries: [emptyEntry()] };
