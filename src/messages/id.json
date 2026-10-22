@@ -1788,6 +1788,12 @@
     "openFull": "Buka laporan lengkap",
     "keyboard": "← lewati · → simpan · ↑ sorot · Backspace urungkan",
     "hint": "Simpan menandai proyek. Lewati adalah sinyal lemah, bukan blokir.",
-    "audience": "Untuk"
+    "audience": "Untuk",
+    "partitions": "Interest topics",
+    "partitionAll": "All",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "Microservices",
+    "partitionSandbox": "Sandbox"
   }
 }

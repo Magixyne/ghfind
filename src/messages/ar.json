@@ -1788,6 +1788,12 @@
     "openFull": "فتح التقرير الكامل",
     "keyboard": "← تخطي · → حفظ · ↑ تمييز · Backspace تراجع",
     "hint": "الحفظ يعلّم المشروع. التخطي إشارة ضعيفة وليس حظرًا.",
-    "audience": "لـ"
+    "audience": "لـ",
+    "partitions": "Interest topics",
+    "partitionAll": "All",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "Microservices",
+    "partitionSandbox": "Sandbox"
   }
 }

@@ -1788,6 +1788,12 @@
     "openFull": "Abrir relatório completo",
     "keyboard": "← pular · → salvar · ↑ destacar · Backspace desfazer",
     "hint": "Salvar marca o projeto. Pular é um sinal fraco, não um bloqueio.",
-    "audience": "Para"
+    "audience": "Para",
+    "partitions": "Interest topics",
+    "partitionAll": "All",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "Microservices",
+    "partitionSandbox": "Sandbox"
   }
 }

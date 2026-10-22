@@ -1788,6 +1788,12 @@
     "openFull": "Mở báo cáo đầy đủ",
     "keyboard": "← bỏ qua · → lưu · ↑ nhấn mạnh · Backspace hoàn tác",
     "hint": "Lưu là đánh dấu. Bỏ qua là tín hiệu yếu, không phải chặn.",
-    "audience": "Cho"
+    "audience": "Cho",
+    "partitions": "Interest topics",
+    "partitionAll": "All",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "Microservices",
+    "partitionSandbox": "Sandbox"
   }
 }
