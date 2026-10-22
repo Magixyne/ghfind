@@ -54,7 +54,7 @@ function stripTemplate(text: string, name: string): string {
     `^${escaped}\\s*(?:这是一个|这是一款|这是一种|是一个|是一款|是一种|是面向|是|is an |is a |is the |is )`,
     "i",
   );
-  let cut = text.replace(named, "").replace(TEMPLATE_LEAD, "");
+  const cut = text.replace(named, "").replace(TEMPLATE_LEAD, "");
   const sentence = (cut.split(/(?<=[。！？.!?])\s*/)[0] ?? cut).replace(/^[，,、:\s]+/, "").trim();
   const comma = sentence.search(/[，,]/);
   if (comma > 0 && isWeakLead(sentence.slice(0, comma))) {
