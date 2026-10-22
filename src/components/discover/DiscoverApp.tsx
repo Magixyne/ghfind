@@ -94,7 +94,7 @@ export function DiscoverApp({
 
   return (
     <TooltipProvider>
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-8 sm:px-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 py-6 sm:px-4 sm:py-8 lg:px-6">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
