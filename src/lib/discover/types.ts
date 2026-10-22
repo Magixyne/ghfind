@@ -1,5 +1,6 @@
 export type DiscoverSource = "feed" | "public";
 export type DiscoverMode = "grid" | "swipe";
+export type DiscoverPartition = "all" | "agent" | "skill" | "microservice" | "sandbox";
 export type DiscoverAction = "like" | "skip" | "superlike";
 export type DiscoverBanner = "signed_out" | "feed_unavailable" | null;
 

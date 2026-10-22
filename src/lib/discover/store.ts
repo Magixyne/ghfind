@@ -3,7 +3,8 @@ import { fetchFeedPage, fetchPublicPage, DiscoverClientError, commitFeedWrites }
 import { dedupeCards } from "./map";
 import { mapSwipeAction, mapUndo } from "./events";
 import type { ProjectBoard } from "@/lib/project-analysis-db";
-import type { DiscoverAction, DiscoverBanner, DiscoverCard, DiscoverHistoryEntry, DiscoverMode, DiscoverSource } from "./types";
+import { filterCardsByPartition } from "./partition";
+import type { DiscoverAction, DiscoverBanner, DiscoverCard, DiscoverHistoryEntry, DiscoverMode, DiscoverPartition, DiscoverSource } from "./types";
 
 const PUBLIC_BOARDS: ProjectBoard[] = ["treasure", "classic", "all"];
 
@@ -21,6 +22,7 @@ export type DiscoverStore = {
   locale: string;
   githubLogin: string | null;
   publicBoard: ProjectBoard;
+  partition: DiscoverPartition;
   hydrate: (input: {
     locale: string;
     githubLogin: string | null;
@@ -31,6 +33,7 @@ export type DiscoverStore = {
     nextOffset?: number | null;
   }) => Promise<void>;
   setMode: (mode: DiscoverMode) => void;
+  setPartition: (partition: DiscoverPartition) => void;
   loadMore: () => Promise<void>;
   act: (action: DiscoverAction, visibleMs?: number) => Promise<boolean>;
   undo: () => Promise<void>;
@@ -69,6 +72,7 @@ export const useDiscoverStore = create<DiscoverStore>((set, get) => ({
   locale: "zh",
   githubLogin: null,
   publicBoard: "treasure",
+  partition: "all",
   async hydrate({ locale, githubLogin, initial, mode, board, nextOffset }) {
     const boardName = board ?? "treasure";
     const offset = nextOffset === undefined ? initial.length : nextOffset;
@@ -110,6 +114,9 @@ export const useDiscoverStore = create<DiscoverStore>((set, get) => ({
   },
   setMode(mode) {
     set({ mode });
+  },
+  setPartition(partition) {
+    set({ partition, index: 0 });
   },
   async loadMore() {
     const state = get();
@@ -175,7 +182,8 @@ export const useDiscoverStore = create<DiscoverStore>((set, get) => ({
   },
   async act(action, visibleMs = 0) {
     const state = get();
-    const card = state.items[state.index];
+    const visible = filterCardsByPartition(state.items, state.partition);
+    const card = visible[state.index] ?? visible[0];
     if (!card) return false;
     const writes = mapSwipeAction(card, action, crypto.randomUUID(), visibleMs);
     if (writes.length > 0) {

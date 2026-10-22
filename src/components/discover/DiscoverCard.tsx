@@ -35,7 +35,7 @@ export function DiscoverCardView({
             <span className="ms-1 text-[11px] font-medium text-muted-foreground">{labels.productScore}</span>
           </span>
         </div>
-        <p title={card.summary} className="line-clamp-2 text-sm leading-5 text-foreground/90">
+        <p title={card.hook} className="line-clamp-2 text-sm leading-5 text-foreground/90">
           {card.hook}
         </p>
         {card.audience ? (
