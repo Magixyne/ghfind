@@ -39,13 +39,14 @@ export function DiscoverGrid({
   }, [items.length, loading, onLoadMore]);
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="discover-grid grid gap-4 sm:gap-5">
       {items.map((card) => (
         <DiscoverCardView key={card.repoKey} card={card} labels={labels} />
       ))}
       {loading && Array.from({ length: 4 }).map((_, i) => (
-        <div key={`sk-${i}`} className="overflow-hidden rounded-2xl border border-white/10">
-          <div className="space-y-3 p-5">
+        <div key={`sk-${i}`} className="overflow-hidden rounded-xl border border-white/10">
+          <div className="space-y-2.5 p-4">
+            <Skeleton className="h-4 w-1/3" />
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-5/6" />

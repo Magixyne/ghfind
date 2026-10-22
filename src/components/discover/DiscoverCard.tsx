@@ -14,48 +14,50 @@ export function DiscoverCardView({
 }) {
   const report = reportHref(card);
   return (
-    <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card">
+    <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
       {card.coverUrl ? (
         <img src={card.coverUrl} alt="" className="aspect-[5/4] w-full object-cover" />
       ) : null}
-      <div className="flex min-w-0 flex-1 flex-col gap-3 p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-4">
+        <div className="flex items-start justify-between gap-2.5">
           <a
             href={card.canonicalUrl}
             target="_blank"
             rel="noopener noreferrer"
             title={card.repoKey}
-            className="min-w-0 text-base font-semibold leading-6 text-foreground hover:underline"
+            className="min-w-0 hover:underline"
           >
-            <span className="block truncate text-sm font-medium text-muted-foreground">{card.ownerLogin}</span>
-            <span className="line-clamp-2">{card.name}</span>
+            <span className="block truncate text-xs font-medium text-muted-foreground">{card.ownerLogin}</span>
+            <span className="mt-0.5 block line-clamp-1 text-base font-semibold leading-snug text-foreground">{card.name}</span>
           </a>
-          <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-sm font-semibold tabular-nums text-foreground">
+          <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-sm font-semibold tabular-nums text-foreground">
             {card.productScore}
             <span className="ms-1 text-[11px] font-medium text-muted-foreground">{labels.productScore}</span>
           </span>
         </div>
-        <p title={card.summary} className="line-clamp-3 text-sm leading-6 text-foreground/90">
+        <p title={card.hook} className="line-clamp-2 text-sm leading-5 text-foreground/90">
           {card.hook}
         </p>
-        {card.audience && (
+        {card.audience ? (
           <p className="line-clamp-1 text-xs text-muted-foreground">{labels.audience}: {card.audience}</p>
-        )}
-        {card.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {card.tags.slice(0, 4).map((tag) => (
-              <Badge key={tag.id} title={tag.label} className="max-w-full truncate text-xs">
-                {tag.label}
-              </Badge>
-            ))}
-            {card.tags.length > 4 && <Badge>+{card.tags.length - 4}</Badge>}
-          </div>
-        )}
-        {report && (
-          <Link href={report} className="mt-auto text-sm font-semibold text-orange-300 hover:underline">
-            {labels.viewCard} →
-          </Link>
-        )}
+        ) : null}
+        <div className="mt-auto flex flex-col gap-2 pt-0.5">
+          {card.tags.length > 0 ? (
+            <div className="flex min-h-6 flex-wrap content-start gap-1">
+              {card.tags.slice(0, 4).map((tag) => (
+                <Badge key={tag.id} title={tag.label} className="max-w-[9.5rem] truncate text-xs">
+                  {tag.label}
+                </Badge>
+              ))}
+              {card.tags.length > 4 ? <Badge>+{card.tags.length - 4}</Badge> : null}
+            </div>
+          ) : null}
+          {report ? (
+            <Link href={report} className="text-sm font-semibold text-orange-300 hover:underline">
+              {labels.viewCard} →
+            </Link>
+          ) : null}
+        </div>
       </div>
     </article>
   );

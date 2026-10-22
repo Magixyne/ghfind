@@ -1795,6 +1795,12 @@
     "openFull": "查看完整评估",
     "keyboard": "← 跳过 · → 收藏 · ↑ 高亮 · Backspace 撤销",
     "hint": "收藏会保存项目。跳过是弱信号，不是拉黑。",
-    "audience": "给"
+    "audience": "给",
+    "partitions": "兴趣分区",
+    "partitionAll": "全部",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "微服务",
+    "partitionSandbox": "沙盒"
   }
 }

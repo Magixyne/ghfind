@@ -1788,6 +1788,12 @@
     "openFull": "評価レポートを開く",
     "keyboard": "← スキップ · → 保存 · ↑ ハイライト · Backspace 取り消し",
     "hint": "保存はブックマークです。スキップは弱い信号で、ブロックではありません。",
-    "audience": "対象"
+    "audience": "対象",
+    "partitions": "興味トピック",
+    "partitionAll": "すべて",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "マイクロサービス",
+    "partitionSandbox": "サンドボックス"
   }
 }

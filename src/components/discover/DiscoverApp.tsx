@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Compass, LayoutGrid, SlidersHorizontal } from "lucide-react";
 import { fetchMe } from "@/lib/me-client";
 import { useDiscoverStore } from "@/lib/discover/store";
-import type { DiscoverAction, DiscoverCard, DiscoverMode } from "@/lib/discover/types";
+import {
+  DISCOVER_PARTITIONS,
+  filterCardsByPartition,
+} from "@/lib/discover/partition";
+import type { DiscoverAction, DiscoverMode, DiscoverPartition } from "@/lib/discover/types";
 import type { ProjectBoard } from "@/lib/project-analysis-db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +20,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DiscoverGrid } from "./DiscoverGrid";
 import { DiscoverSwipe } from "./DiscoverSwipe";
 
+const PARTITION_I18N: Record<DiscoverPartition, "partitionAll" | "partitionAgent" | "partitionSkill" | "partitionMicroservice" | "partitionSandbox"> = {
+  all: "partitionAll",
+  agent: "partitionAgent",
+  skill: "partitionSkill",
+  microservice: "partitionMicroservice",
+  sandbox: "partitionSandbox",
+};
+
 export function DiscoverApp({
   locale,
   initialCards,
@@ -23,7 +35,7 @@ export function DiscoverApp({
   initialOffset,
 }: {
   locale: string;
-  initialCards: DiscoverCard[];
+  initialCards: import("@/lib/discover/types").DiscoverCard[];
   initialBoard?: ProjectBoard;
   initialOffset?: number | null;
 }) {
@@ -34,11 +46,13 @@ export function DiscoverApp({
   const [previewOpen, setPreviewOpen] = useState(false);
   const mode = useDiscoverStore((state) => state.mode);
   const items = useDiscoverStore((state) => state.items);
+  const partition = useDiscoverStore((state) => state.partition);
   const banner = useDiscoverStore((state) => state.banner);
   const loading = useDiscoverStore((state) => state.loading);
-  const card = useDiscoverStore((state) => state.items[state.index]);
+  const exhausted = useDiscoverStore((state) => state.exhausted);
   const canUndo = useDiscoverStore((state) => state.history.length > 0);
   const setModeStore = useDiscoverStore((state) => state.setMode);
+  const setPartitionStore = useDiscoverStore((state) => state.setPartition);
   const loadMore = useDiscoverStore((state) => state.loadMore);
   const act = useDiscoverStore((state) => state.act);
   const undo = useDiscoverStore((state) => state.undo);
@@ -64,6 +78,31 @@ export function DiscoverApp({
     return () => { alive = false; };
   }, [initialBoard, initialKey, initialOffset, locale]);
 
+  const visibleItems = useMemo(
+    () => filterCardsByPartition(items, partition),
+    [items, partition],
+  );
+  const card = visibleItems[0];
+  const autoLoadAttempts = useRef(0);
+
+  useEffect(() => {
+    autoLoadAttempts.current = 0;
+  }, [partition]);
+
+  // Keep loading while a partition has few matches and more pages exist.
+  useEffect(() => {
+    if (partition === "all") return;
+    if (loading || exhausted) return;
+    if (visibleItems.length >= 8) return;
+    if (autoLoadAttempts.current >= 6) return;
+    autoLoadAttempts.current += 1;
+    void loadMore();
+  }, [partition, loading, exhausted, visibleItems.length, items.length, loadMore]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [partition]);
+
   const setMode = useCallback((next: DiscoverMode) => {
     setModeStore(next);
     const url = new URL(window.location.href);
@@ -71,6 +110,10 @@ export function DiscoverApp({
     else url.searchParams.delete("mode");
     window.history.replaceState(null, "", url.pathname + url.search);
   }, [setModeStore]);
+
+  const setPartition = useCallback((next: DiscoverPartition) => {
+    setPartitionStore(next);
+  }, [setPartitionStore]);
 
   const onAct = useCallback((action: DiscoverAction, visibleMs?: number) => act(action, visibleMs), [act]);
   const onUndo = useCallback(() => { void undo(); }, [undo]);
@@ -94,8 +137,8 @@ export function DiscoverApp({
 
   return (
     <TooltipProvider>
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-8 sm:px-6">
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 py-6 sm:px-4 sm:py-8 lg:px-6">
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Compass className="size-4" aria-hidden />
@@ -120,6 +163,33 @@ export function DiscoverApp({
             </Sheet>
           </div>
         </header>
+
+        <div
+          role="tablist"
+          aria-label={t("partitions")}
+          className="mb-5 flex flex-wrap gap-2"
+        >
+          {DISCOVER_PARTITIONS.map((id) => {
+            const selected = partition === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setPartition(id)}
+                className={
+                  selected
+                    ? "rounded-full border border-foreground/25 bg-foreground px-3 py-1 text-xs font-semibold text-background"
+                    : "rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground hover:border-foreground/20 hover:text-foreground"
+                }
+              >
+                {t(PARTITION_I18N[id])}
+              </button>
+            );
+          })}
+        </div>
+
         {banner === "signed_out" && (
           <p className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground">{t("signedOutBanner")}</p>
         )}
@@ -127,7 +197,7 @@ export function DiscoverApp({
           <p className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-muted-foreground">{t("feedUnavailable")}</p>
         )}
         {mode === "grid" ? (
-          <DiscoverGrid items={items} loading={loading} onLoadMore={loadMore} labels={labels} />
+          <DiscoverGrid items={visibleItems} loading={loading} onLoadMore={loadMore} labels={labels} />
         ) : (
           <DiscoverSwipe
             card={card}
@@ -139,7 +209,7 @@ export function DiscoverApp({
             onPreviewOpenChange={setPreviewOpen}
           />
         )}
-        {items.length === 0 && !loading && (
+        {visibleItems.length === 0 && !loading && (
           <p className="py-12 text-center text-sm text-muted-foreground">{t("empty")}</p>
         )}
       </main>

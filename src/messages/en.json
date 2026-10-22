@@ -1788,6 +1788,12 @@
     "openFull": "Open full report",
     "keyboard": "← skip · → save · ↑ highlight · Backspace undo",
     "hint": "Save bookmarks a project. Skip is a weak signal, not a block.",
-    "audience": "For"
+    "audience": "For",
+    "partitions": "Interest topics",
+    "partitionAll": "All",
+    "partitionAgent": "Agent",
+    "partitionSkill": "Skill",
+    "partitionMicroservice": "Microservices",
+    "partitionSandbox": "Sandbox"
   }
 }

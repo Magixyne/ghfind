@@ -45,7 +45,7 @@ describe("DiscoverCardView", () => {
     expect(markup).toContain("fixture-owner/");
     expect(markup).toContain("fixture-repo");
     expect(markup).toContain("用 shell 命令过滤选区。");
-    expect(markup).toContain("line-clamp-3");
+    expect(markup).toContain("line-clamp-2");
     expect(markup).not.toContain("aspect-[16/10]");
     expect(markup).toContain('href="https://github.com/fixture-owner/fixture-repo"');
     expect(markup).toContain('href="/projects/analyses/analysis-fixture"');
