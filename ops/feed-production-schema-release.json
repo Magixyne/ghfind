@@ -72,6 +72,10 @@
     {
       "name": "0025_talent_match.sql",
       "sha256": "959bce48f9cb647ae2933b0ad03bede9d5471778bd4d3e796cf834671746cc2c"
+    },
+    {
+      "name": "0029_vibe42_replaces_mosoo.sql",
+      "sha256": "bc966c2be47b4818c8a0799232a3663a1407ec067c5fe6b2e17919374179facd"
     }
   ],
   "feed": [
