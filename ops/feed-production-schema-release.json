@@ -76,6 +76,10 @@
     {
       "name": "0029_vibe42_replaces_mosoo.sql",
       "sha256": "bc966c2be47b4818c8a0799232a3663a1407ec067c5fe6b2e17919374179facd"
+    },
+    {
+      "name": "0030_vibe42_aff_url.sql",
+      "sha256": "008fa6dac568bd9be9788920ac2c27f25bdc8d470035a3b8b13728c43ea4c1eb"
     }
   ],
   "feed": [
