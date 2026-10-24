@@ -881,6 +881,12 @@ html .omnibox-field input { height: 42px; background: transparent; font-size: 14
 :is(.collection-grid, .hiring-grid) { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; margin-top: 20px; }
 @container (min-width: 480px) { :is(.collection-grid, .hiring-grid) { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @container (min-width: 720px) { :is(.collection-grid, .hiring-grid) { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+
+/* Discover: content-width columns (sidebar-aware). Stay 1-col until each card can be ~300px. */
+.discover-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
 .collection-card { position: relative; min-width: 0; display: flex; flex-direction: column; padding: 16px; border: 1px solid var(--border); border-radius: 12px; transition: border-color 180ms; }
 .collection-card:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
 .collection-card-link { position: absolute; inset: 0; z-index: 1; border-radius: 12px; }
@@ -946,6 +952,8 @@ html[data-theme] .content-card .card-blurb { background: transparent; border: 0;
 html .leaderboard-row { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding-block: 18px; }
 html[data-theme] .leaderboard-row:hover { background: var(--surface); }
 .assessment-card { padding: 22px; }
+.assessment-card.assessment-card-compact { padding: 16px; }
+html[data-theme="light"] .assessment-card-compact { --muted-foreground: #666663; }
 .assessment-card .assessment-score { font-size: 30px; font-weight: 500; color: var(--foreground); }
 .assessment-card .assessment-meta { border-top: 1px solid var(--border-soft); padding-top: 14px; }
 .assessment-meta > span { padding: 0; background: transparent; border-radius: 0; color: var(--muted-foreground); }

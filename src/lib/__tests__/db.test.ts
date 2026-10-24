@@ -238,6 +238,25 @@ async function writeLegacyReadFallback(username: string): Promise<void> {
   );
 }
 
+describe("retired account identity", () => {
+  it("recovers only visible retired identities without exposing or changing their score", async () => {
+    const username = "retired-identity-fixture";
+    await writeScore({ ...entry, username });
+    expect(await db.getRetiredAccountIdentity(username)).toBeNull();
+    const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
+    await client.execute({ sql: "UPDATE scores SET score_version = 'v11' WHERE username = ?", args: [username] });
+    const before = await client.execute({ sql: "SELECT * FROM scores WHERE username = ?", args: [username] });
+    expect(await db.getAccountDetail(username)).toBeNull();
+    expect(await db.getRetiredAccountIdentity(username.toUpperCase())).toEqual({ username, displayName: entry.display_name });
+    const after = await client.execute({ sql: "SELECT * FROM scores WHERE username = ?", args: [username] });
+    expect(after.rows).toEqual(before.rows);
+    await client.execute({ sql: "UPDATE scores SET hidden = 1 WHERE username = ?", args: [username] });
+    expect(await db.getRetiredAccountIdentity(username)).toBeNull();
+    expect(await db.getRetiredAccountIdentity("unknown-identity-fixture")).toBeNull();
+    expect(await db.getRetiredAccountIdentity("../invalid")).toBeNull();
+  });
+});
+
 describe("getArchivedRoast", () => {
   it("replays archived reports by username and language", async () => {
     const scoreWrite = await writeScore(entry);
@@ -311,6 +330,40 @@ describe("getArchivedRoast", () => {
     });
     await client.execute({ sql: `UPDATE scores SET score_source_snapshot_hash = NULL WHERE username = ?`, args: [username] });
     await expect(db.getAccountDetail(username)).resolves.toBeNull();
+  });
+
+  it("falls back to a captured public-version artifact when the scores row is from a retired release", async () => {
+    const username = "retired-score-v12";
+    await writeScore({ ...entry, username, final_score: 94.5 });
+    const client = createClient({ url: process.env.TURSO_DATABASE_URL! });
+    const hash = (seed: string) => createHash("sha256").update(seed).digest("hex");
+    const capture = (scoreVersion: string, collectionVersion: string, finalScore: number, snapshotHash: string | null) => ({
+      sql: `INSERT INTO score_release_fallbacks
+              (username, score_version, collection_version, display_name, avatar_url,
+               profile_url, final_score, tier, tags, roast_line, roast, roast_en,
+               roast_version, roast_en_version, bot_score, sub_scores, risk_assessment,
+               risk_notes, snapshot, snapshot_hash, source_status, scanned_at, captured_at)
+            SELECT s.username, ?, ?, s.display_name, s.avatar_url, s.profile_url, ?, s.tier,
+                   s.tags, s.roast_line, NULL, NULL, NULL, NULL, s.bot_score, s.sub_scores,
+                   s.risk_assessment, s.risk_notes, '{}', ?, '{}', s.scanned_at, s.scanned_at
+            FROM scores s WHERE s.username = ?`,
+      args: [scoreVersion, collectionVersion, finalScore, snapshotHash, username],
+    });
+    await client.batch([
+      { sql: `UPDATE scores SET score_version = 'v12', score_source_collection_version = 'v5' WHERE username = ?`, args: [username] },
+      capture("v11", "v5", 93, hash("v11")),
+      capture("v10", "v4", 92, hash("v10-v4")),
+      capture("v13", "v5", 91, null),
+      capture("v10", "v5", 90.5, hash("v10-v5")),
+    ], "write");
+
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({
+      username,
+      final_score: 90.5,
+      score_version: "v10",
+      score_source_collection_version: "v5",
+      legacy_read_fallback: true,
+    });
   });
 
   it("serves a leftover public v13 scores row as current, not emergency fallback", async () => {

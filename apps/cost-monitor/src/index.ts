@@ -1,14 +1,21 @@
 import { DurableObject } from "cloudflare:workers";
 import { acknowledge, compact, DEFAULT_RULES, emptyState, evaluate, HISTORY_TTL_MS, MAX_METRICS, MAX_STATE_BYTES, MAX_WINDOWS, MAX_WINDOW_BYTES, recipients, STATE_TTL_MS, WINDOW_MS, type Frame, type Rules, type State } from "./engine";
-import { DIGEST_MS, discardInternalMail, selectMail } from "./mail-policy";
-import { renderMail } from "./mail";
+import { dailySlot, DIGEST_MS, discardInternalMail, selectMail } from "./mail-policy";
+import { renderDailyDigest, renderMail } from "./mail";
 import { billingDue, internalDiagnostics, observeCollection } from "./collection-health";
 import { billable, collect } from "./metrics";
 import { businessPoints, probe, summarize, type BusinessCount } from "./business";
+import { collectTraffic, type TrafficReport } from "./traffic-metrics";
+import { renderTrafficReport } from "./traffic-report";
+import { trafficDue, trafficComplete } from "./traffic-schedule";
 interface MonitorEnv extends Env {
+  CF_ZONE_ID?: string;
+  TRAFFIC_REPORT_RECIPIENTS?: string;
+  TRAFFIC_HOST?: string;
   CF_MONITOR_API_TOKEN: string;
   MONITOR_ADMIN_TOKEN: string;
   ALERT_RECIPIENTS: string;
+  PROBE_GITHUB_LOGIN?: string;
   E2E_ENABLED?: string;
   E2E_CAPTURE_MAIL?: string;
 }
@@ -93,18 +100,21 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
     // Retire persisted/partially delivered operator diagnostics before checking
     // recipient configuration, budgets or retrying any delivery.
     discardInternalMail(state);
-    if(!state.outbox.length){state.lastDeliveryError=null;this.save(state,now);return;}
+    state.nextDaily??=dailySlot(now)+86400_000;
+    const dailyDue=now>=state.nextDaily;
+    if(!state.outbox.length&&!dailyDue){state.lastDeliveryError=null;this.save(state,now);return;}
     const targets=recipients(this.env.ALERT_RECIPIENTS);
     if(!state.nextDigest){state.nextDigest=(Math.floor(now/DIGEST_MS)+1)*DIGEST_MS;state.digestRecipients=[];this.save(state,now);}
     if(immediateExercise && this.env.E2E_ENABLED==="1")state.nextDigest=now;
-    const digestDue=now>=state.nextDigest;
+    const digestDue=now>=state.nextDigest||dailyDue;
     let attempted=false,failed=false;
     // One aggregated message per recipient per tick, not one email per metric/user.
     for(const to of targets){
+      const sendDaily=dailyDue&&!state.dailyRecipients?.includes(to);
       const pending=selectMail(state.outbox.filter(n=>!n.delivered.includes(to)),now,
-        state.digestRecipients?.includes(to)?now+DIGEST_MS:state.nextDigest);
-      if(!pending.length)continue;
-      const message=renderMail(pending,{accountId:this.env.CF_ACCOUNT_ID,now,exercise:this.env.E2E_ENABLED==="1",digest:digestDue});
+        sendDaily?now:state.digestRecipients?.includes(to)?now+DIGEST_MS:state.nextDigest);
+      if(!pending.length&&!sendDaily)continue;
+      const message=sendDaily?renderDailyDigest(state,now,{accountId:this.env.CF_ACCOUNT_ID,exercise:this.env.E2E_ENABLED==="1"}):renderMail(pending,{accountId:this.env.CF_ACCOUNT_ID,now,exercise:this.env.E2E_ENABLED==="1",digest:digestDue});
       const hour=Math.floor(now/3600_000),day=Math.floor(now/86400_000);
       const budget=state.mailBudget;
       if(budget.hour!==hour){budget.hour=hour;budget.hourly=0;}
@@ -114,6 +124,7 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
       try{
         const candidate=structuredClone(state);
         this.recordAcceptance(candidate,ids,to,now,digestDue,"x".repeat(256));
+        if(sendDaily)candidate.dailyRecipients=[...(candidate.dailyRecipients??[]),to];
         this.encodeState(candidate,now,DELIVERY_STATE_BYTES);
       }catch{
         state.lastDeliveryError="Email receipt capacity reached; notifications retained";
@@ -125,12 +136,13 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
         if(failSecond && to===targets[1])throw new Error("E2E simulated transient send failure");
         let id="captured";
         if(this.env.E2E_ENABLED!=="1" || this.env.E2E_CAPTURE_MAIL!=="1") {
-          const result=await this.env.EMAIL.send({from:{email:this.env.ALERT_FROM,name:"ghfind 运行与费用"},to,...message});
+          const result=await this.env.EMAIL.send({from:{email:this.env.ALERT_FROM,name:"ghfind 告警"},to,...message});
           id=result.messageId;
         }
         this.recordAcceptance(state,ids,to,now,digestDue,id);
+        if(sendDaily)state.dailyRecipients=[...(state.dailyRecipients??[]),to];
         // Delivery acceptance receipt only; final delivery is checked in Email Service logs.
-        console.log(JSON.stringify({event:"cost_monitor_mail_accepted",messageId:id,notices:pending.length}));
+        console.log(JSON.stringify({event:"cost_monitor_mail_accepted",messageId:id,notices:pending.length,...(this.env.E2E_ENABLED==="1"?{subject:message.subject}:{})}));
         this.save(state,now); // Partial recipient success survives later failure/restart.
       } catch {
         for(const n of pending)n.attempts++;
@@ -143,8 +155,43 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
     if(digestDue && targets.every(to=>state.digestRecipients?.includes(to))){
       state.nextDigest=(Math.floor(now/DIGEST_MS)+1)*DIGEST_MS;state.digestRecipients=[];
     }
+    if(dailyDue&&targets.every(to=>state.dailyRecipients?.includes(to))){state.nextDaily=dailySlot(now)+86400_000;state.dailyRecipients=[];}
     for(const notice of [...state.outbox])if(targets.every(to=>notice.delivered.includes(to)))acknowledge(state,notice,now);
-    if(!state.outbox.length || (attempted && !failed && !state.outbox.some(n=>n.attempts>0 && targets.some(to=>!n.delivered.includes(to)))))state.lastDeliveryError=null;
+    if(!failed && (!state.outbox.length || (attempted && !state.outbox.some(n=>n.attempts>0 && targets.some(to=>!n.delivered.includes(to))))))state.lastDeliveryError=null;
+    this.save(state,now);
+  }
+  private trafficData() {
+    return collectTraffic({account:this.env.CF_ACCOUNT_ID,token:this.env.CF_MONITOR_API_TOKEN,zone:this.env.CF_ZONE_ID,host:this.env.TRAFFIC_HOST,db:this.env.TRAFFIC_DB});
+  }
+  async trafficPreview():Promise<string> {return renderTrafficReport(await this.trafficData()).html;}
+  private async deliverTraffic(state:State,now:number,exerciseReport?:TrafficReport,failSecond=false):Promise<void> {
+    if(!trafficDue(state,now)){this.save(state,now);return;}
+    const targets=recipients(this.env.TRAFFIC_REPORT_RECIPIENTS||this.env.ALERT_RECIPIENTS);
+    this.save(state,now);
+    if(!targets.length){state.lastTrafficError="Traffic recipients missing";this.save(state,now);return;}
+    if(targets.every(to=>state.trafficRecipients?.includes(to))){trafficComplete(state,now);this.save(state,now);return;}
+    try {
+      const message=renderTrafficReport(exerciseReport&&this.env.E2E_ENABLED==="1"?exerciseReport:await this.trafficData());
+      for(const to of targets){
+        if(state.trafficRecipients?.includes(to))continue;
+        // Independent of alert quotas; still account for each provider attempt.
+        const candidate=structuredClone(state);
+        candidate.trafficRecipients=[...(candidate.trafficRecipients??[]),to];
+        candidate.mailReceipts.push({at:now,messageId:"x".repeat(256)});
+        this.encodeState(candidate,now,DELIVERY_STATE_BYTES);
+        const hour=Math.floor(now/3600_000),day=Math.floor(now/86400_000);
+        if(state.mailBudget.hour!==hour){state.mailBudget.hour=hour;state.mailBudget.hourly=0;}
+        if(state.mailBudget.day!==day){state.mailBudget.day=day;state.mailBudget.daily=0;}
+        state.mailBudget.hourly++;state.mailBudget.daily++;this.save(state,now);
+        if(failSecond&&this.env.E2E_ENABLED==="1"&&to===targets[1])throw new Error("E2E traffic send failure");
+        const result=this.env.E2E_ENABLED==="1"&&this.env.E2E_CAPTURE_MAIL==="1"?{messageId:"traffic-captured"}:await this.env.EMAIL.send({from:{email:this.env.ALERT_FROM,name:"ghfind 流量日报"},to,...message,subject:this.env.E2E_ENABLED==="1"?message.subject.replace("[ghfind]","[ghfind][模拟]"):message.subject});
+        state.trafficRecipients=[...(state.trafficRecipients??[]),to];
+        state.mailReceipts.push({at:now,messageId:result.messageId.slice(0,256)});
+        this.save(state,now);
+        console.log(JSON.stringify({event:"traffic_report_accepted",messageId:result.messageId}));
+      }
+      trafficComplete(state,now);
+    }catch{state.lastTrafficError="Traffic report collection or delivery failed; retry pending recipients";}
     this.save(state,now);
   }
   async tick(): Promise<{status:string; points?:number; errors?:string[]}> {
@@ -160,7 +207,7 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
         frame=await collect(config,now);
         await this.recordBusiness([]);
         const business=this.ctx.storage.sql.exec<BusinessCount & Record<string,SqlStorageValue>>("SELECT * FROM business_windows WHERE at=?",frame.at).toArray();
-        frame.points.push(...businessPoints(business),...await probe(now));
+        frame.points.push(...businessPoints(business),...await probe(now,fetch,this.env.PROBE_GITHUB_LOGIN));
         if(billingDue(state,now)){
           state.lastBillingAttempt=now;
           try{frame.points.push(...await billable(config,now));billingCollected=true;state.lastBillingError=null;}catch{state.lastBillingError="Billing: reconciliation unavailable";}
@@ -178,6 +225,7 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
       this.save(state,now);
       await this.ctx.storage.setAlarm(now+HISTORY_TTL_MS);
       await this.deliver(state,now);
+      await this.deliverTraffic(state,now);
       state.lastCompletedAt=now;this.save(state,now);
       console.log(JSON.stringify({event:"cost_monitor_tick",window:frame.at,points:frame.points.length,errors:frame.errors,pending:state.outbox.length}));
       return {status:frame.errors.length?"degraded":"ok",points:frame.points.length,errors:frame.errors};
@@ -191,7 +239,7 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
     const collectionHealthy=state.lastSuccess>0 && now-state.lastSuccess<30*60_000 && !state.lastError;
     const deliveryHealthy=!state.lastDeliveryError;
     const collection=state.collection?{since:state.collection.since,lastFailureWindow:state.collection.lastFailureWindow,lastSuccessWindow:state.collection.lastSuccessWindow,failures:state.collection.failures,good:state.collection.good,lastCompleteAt:state.collection.lastCompleteAt,reason:state.collection.reason}:null;
-    return {version:2,lastAttempt:state.lastAttempt,lastCompletedAt:completed,lastSuccess:state.lastSuccess,lastFrame:state.lastFrame,lastBilling:state.lastBilling,lastBillingAttempt:state.lastBillingAttempt??0,lastBillingError:state.lastBillingError??null,lastError:state.lastError,lastDeliveryError:state.lastDeliveryError??null,collection,internalDiagnostics:internalDiagnostics(state,now),metrics:Object.keys(state.metrics).length,pending:state.outbox.length,deliveries:state.recentDelivery,mailReceipts:state.mailReceipts,mailBudget:state.mailBudget,...counts,bounds:{historyTtlHours:24,stateTtlDays:7,maxWindows:MAX_WINDOWS,maxWindowBytes:MAX_WINDOW_BYTES,maxStateBytes:MAX_STATE_BYTES},heartbeatHealthy,collectionHealthy,deliveryHealthy,healthy:heartbeatHealthy&&collectionHealthy&&deliveryHealthy};
+    return {version:2,nextTrafficReport:state.nextTrafficReport,lastTrafficReportAt:state.lastTrafficReportAt,lastTrafficError:state.lastTrafficError??null,probeAccountConfigured:/^[a-zA-Z0-9-]{1,39}$/.test(this.env.PROBE_GITHUB_LOGIN??""),probeAccountStatus:/^[a-zA-Z0-9-]{1,39}$/.test(this.env.PROBE_GITHUB_LOGIN??"")?"enabled":"skipped: PROBE_GITHUB_LOGIN missing or invalid",nextDaily:state.nextDaily,lastAttempt:state.lastAttempt,lastCompletedAt:completed,lastSuccess:state.lastSuccess,lastFrame:state.lastFrame,lastBilling:state.lastBilling,lastBillingAttempt:state.lastBillingAttempt??0,lastBillingError:state.lastBillingError??null,lastError:state.lastError,lastDeliveryError:state.lastDeliveryError??null,collection,internalDiagnostics:internalDiagnostics(state,now),metrics:Object.keys(state.metrics).length,pending:state.outbox.length,deliveries:state.recentDelivery,mailReceipts:state.mailReceipts,mailBudget:state.mailBudget,...counts,bounds:{historyTtlHours:24,stateTtlDays:7,maxWindows:MAX_WINDOWS,maxWindowBytes:MAX_WINDOW_BYTES,maxStateBytes:MAX_STATE_BYTES},heartbeatHealthy,collectionHealthy,deliveryHealthy,healthy:heartbeatHealthy&&collectionHealthy&&deliveryHealthy};
   }
   async alarm():Promise<void> {
     const now=Date.now();this.prune(now);
@@ -204,9 +252,52 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
     try {
       if(phase==="reset"){this.ctx.storage.sql.exec("DELETE FROM monitor_state");this.ctx.storage.sql.exec("DELETE FROM windows");this.ctx.storage.sql.exec("DELETE FROM business_windows");return {status:"reset"};}
       const state=this.load();const base=Math.floor(Date.now()/86400_000)*86400_000;
-      const make=(i:number,efficiency:number):Frame=>({at:base+i*WINDOW_MS,healthy:["D1","Workers","R2","KV","DO","Queues"],errors:[],points:[{key:"Workers:e2e:errors",product:"Workers",resource:"E2E synthetic Worker",label:"模拟 Worker 请求失败",amount:efficiency*100,operations:100,unit:"errors",usd:0,efficiency,efficiencyWarning:0.01,efficiencyCritical:0.05,minAmount:3,relative:false}]});
+      state.nextDaily=base+2*86400_000;
+      const make=(i:number,efficiency:number):Frame=>({at:base+i*WINDOW_MS,healthy:["D1","Workers","R2","KV","DO","Queues"],errors:[],points:[{key:"Service:scan:errors",product:"Service",resource:"E2E synthetic Worker",label:"模拟 Worker 请求失败",amount:efficiency*100,operations:100,unit:"errors",usd:0,efficiency,efficiencyWarning:0.01,efficiencyCritical:0.05,minAmount:3,relative:false}]});
+      if(phase==="traffic"){
+        const s=emptyState(),report:TrafficReport={generatedAt:base,end:base,visitorSource:"模拟浏览器访问",metrics:[{key:"visitors",label:"访客",values:[1,3,7].map(n=>({current:20*n,previous:10*n}))}],days:[],paths:[],countries:[],referrers:[],notes:["模拟数据"]};
+        await this.deliverTraffic(s,base+3*3600_000,report);const before=s.mailReceipts.length;
+        s.mailBudget={hour:Math.floor((base+4*3600_000)/3600_000),day:Math.floor(base/86400_000),hourly:8,daily:120};
+        await this.deliverTraffic(s,base+4*3600_000,report,true);const partial=s.mailReceipts.length,failed=!!s.lastTrafficError;
+        const persisted=this.load(base+4*3600_000);
+        await this.deliverTraffic(persisted,base+4*3600_000+300000,report);const retry=persisted.mailReceipts.length,attempts=persisted.mailBudget.daily;
+        await this.deliverTraffic(persisted,base+5*3600_000,report);const duplicate=persisted.mailReceipts.length;
+        await this.deliverTraffic(persisted,base+3*86400_000+5*3600_000,report);const missed=persisted.mailReceipts.length;
+        await this.deliverTraffic(persisted,base+3*86400_000+6*3600_000,report);
+        return {before,partial,failed,retry,attempts,duplicate,missed,after:persisted.mailReceipts.length,next:persisted.nextTrafficReport};
+      }
+      if(phase==="billing"){
+        const s=emptyState();s.nextDaily=base+2*86400_000;
+        s.outbox.push({id:"billing-exercise",key:"account:burn",kind:"open",severity:1,startedAt:Date.now()-900000,text:"模拟计费预警",evidence:{resource:"Cloudflare 账户",metric:"估算消耗",value:"$0.60/h",threshold:"$0.50/h",window:"模拟窗口",action:"核对用量与账单"},delivered:[],attempts:0,expiresAt:Date.now()+STATE_TTL_MS});
+        const subject=renderMail(s.outbox,{accountId:this.env.CF_ACCOUNT_ID,now:Date.now(),exercise:true}).subject;
+        await this.deliver(s,Date.now());
+        return {subject,accepted:s.mailReceipts.length,pending:s.outbox.length};
+      }
+      if(phase==="daily"){
+        const s=emptyState();s.nextDaily=base+3600_000;
+        await this.deliver(s,base+3600_000,true);
+        const partial=s.mailReceipts.length;
+        const failureReported=!!s.lastDeliveryError;
+        let restored=this.load(base+3600_000);
+        await this.deliver(restored,base+65*60_000);
+        const retry=restored.mailReceipts.length;
+        await this.deliver(restored,base+70*60_000);
+        const duplicate=restored.mailReceipts.length;
+        restored=this.load(base+70*60_000);
+        const subject=renderDailyDigest(restored,base+3600_000,{exercise:true}).subject;
+        return {partial,retry,duplicate,failureReported,pending:restored.outbox.length,nextDaily:restored.nextDaily,subject};
+      }
+      if(phase==="daily-mixed"){
+        const s=emptyState();s.nextDaily=base+3600_000;s.nextDigest=base+90*60_000;
+        s.outbox.push({id:"daily-slow",key:"Service:roast:slow",kind:"open",severity:1,text:"模拟慢响应",delivered:[],attempts:0,expiresAt:base+STATE_TTL_MS});
+        const subject=renderDailyDigest(s,base+3600_000,{exercise:true}).subject;
+        await this.deliver(s,base+3600_000);
+        const accepted=s.mailReceipts.length;
+        await this.deliver(s,base+95*60_000);
+        return {subject,accepted,afterHourly:s.mailReceipts.length,pending:s.outbox.length};
+      }
       if(phase==="hourly"){
-        const s=emptyState(),notice=(key:string,severity:number)=>({id:key,key,kind:"open" as const,severity,text:"hourly E2E",delivered:[],attempts:0,expiresAt:Date.now()+STATE_TTL_MS});
+        const s=emptyState();s.nextDaily=base+2*86400_000;const notice=(key:string,severity:number)=>({id:key,key,kind:"open" as const,severity,text:"hourly E2E",delivered:[],attempts:0,expiresAt:Date.now()+STATE_TTL_MS});
         s.outbox.push(notice("Service:roast:slow",1));
         await this.deliver(s,base);await this.deliver(s,base+30*60_000);
         const before=s.mailReceipts.length;
@@ -231,8 +322,8 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
         return {status:"business",rows,severity,remaining:this.ctx.storage.sql.exec<{n:number}>("SELECT COUNT(*) AS n FROM business_windows").one().n};
       }
       if(phase==="atomic"){
-        const s=emptyState();evaluate(s,make(1,0.002),base+WINDOW_MS);
-        const template=s.metrics["Workers:e2e:errors"];
+        const s=emptyState();s.nextDaily=base+2*86400_000;evaluate(s,make(1,0.002),base+WINDOW_MS);
+        const template=s.metrics["Service:scan:errors"];
         for(let i=0;Object.keys(s.metrics).length<MAX_METRICS;i++)s.metrics[`D1:fixed:${i}`]={...template,severity:2};
         for(const metric of Object.values(s.metrics))metric.severity=2;
         const frame=make(2,0.2);frame.points.push({...frame.points[0],key:"Workers:new:errors"});
@@ -267,7 +358,7 @@ export class CostMonitor extends DurableObject<MonitorEnv> {
         return {cardinality,storageSize,deliveryCapacity:{noSend:bounded.mailReceipts.length===0,noAttempt:bounded.mailBudget.daily===0,pendingRetained:bounded.outbox.length===pending,reported:bounded.lastDeliveryError?.includes("receipt capacity")===true}};
       }
       if(phase==="collection"){
-        let s=emptyState();
+        let s=emptyState();s.nextDaily=base+2*86400_000;
         s.lastSuccess=base-WINDOW_MS;s.lastError="D1: rate limited";
         const failure=async(minutes:number)=>{
           const at=base+minutes*60_000;
@@ -333,8 +424,9 @@ export default {
     if(!await authorized(request,env.MONITOR_ADMIN_TOKEN))return json({error:"Unauthorized"},401);
     const path=new URL(request.url).pathname,stub=env.MONITOR.getByName("account");
     if(path==="/health"&&request.method==="GET")return json(await stub.health());
+    if(path==="/traffic-report/preview"&&request.method==="POST")return new Response(await stub.trafficPreview(),{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src \'none\'; style-src \'unsafe-inline\'"}});
     if(path==="/run"&&request.method==="POST")return json(await stub.tick());
-    if(env.E2E_ENABLED==="1"&&request.method==="POST"&&/^\/test\/(reset|hourly|business|collection|atomic|baseline|breach|partial|duplicate|reminder|recovery|retention|rate-limit)$/.test(path))return json(await stub.exercise(path.split("/").at(-1)!));
+    if(env.E2E_ENABLED==="1"&&request.method==="POST"&&/^\/test\/(reset|traffic|billing|daily|daily-mixed|hourly|business|collection|atomic|baseline|breach|partial|duplicate|reminder|recovery|retention|rate-limit)$/.test(path))return json(await stub.exercise(path.split("/").at(-1)!));
     return json({error:"Not found"},404);
   },
 } satisfies ExportedHandler<MonitorEnv>;

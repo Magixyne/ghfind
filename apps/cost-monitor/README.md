@@ -35,20 +35,24 @@ included in mail. Recipient addresses remain private configuration.
 
 ## Notification timing
 
-| Event | First notification | Unchanged reminder |
+| Priority | Signal | Delivery / reminder |
 | --- | --- | --- |
-| Severe key-feature failure, account consumption or reported daily cost | Next evaluation, bypassing digest wait | 6 hours for fast telemetry; 24 hours for reported daily cost |
-| Other runtime failure, slow feature or account-cost warning | Next hourly digest after confirmation | 6 hours; 24 hours for reported daily cost |
-| Collection gap or resource-efficiency diagnostic | No customer email; authenticated health/logs | None |
-| Monitor stopped or email sending failed | Hourly Actions check; optional separate ops recipients | 12 hours per ops recipient |
+| P0 · 计费 | Account burn or reported daily cost, warning or critical | Immediate; 2h burn / 24h bill |
+| P1 · feature / availability / monitor | Critical service errors; two consecutive failed probes; watchdog heartbeat interruption | Immediate; 6h |
+| P2 · feature / Worker | Slow responses, warning errors, Worker errors, one failed probe | Hourly; 24h reminder per key |
+| P3 · 监控 / 部署 | Delivery trouble; latest main deployment failure | Operations channel |
+| Information | Recovered incidents | Daily footer only |
 
-Escalation can notify sooner. Ordinary incidents that recover before their digest
-are withdrawn. Recovery needs two valid normal observations; missing source data
-is not recovery. Key-feature checks also require actual traffic or a new probe;
-a successfully collected Worker with no invocation errors can recover. Key-feature
-and collection recovery are silent. Other
-previously delivered incidents can appear as recovered in the next digest. Stale
-open/reminder messages are removed on confirmed recovery, including partial sends.
+Subjects include priority, category, observed value and threshold. Billing leads
+mixed incidents. Recovery never counts toward the active-item count. Each message
+starts with problem, UTC+8 start time and duration, and impact. Legacy notices are
+parsed into compact fields rather than copied verbatim.
+
+At 09:00 UTC+8 every day, a daily report is sent even with no incidents. It includes
+active issues, recoveries from the past 24 hours, observed consumption and coverage,
+the latest reported bill, and heartbeat. Persisted per-recipient receipts retry a
+missed daily send without duplicating successful recipients or the hourly digest.
+Missing observations remain unknown; they never establish recovery.
 
 A collection gap is one persisted diagnostic incident even if its reason changes;
 two distinct complete windows close it. Upgrades discard old collection/efficiency
@@ -88,9 +92,10 @@ Fast estimates use published overage unit prices **before included allowances**,
 not the amount actually charged. They cover D1 rows, Workers requests/CPU, R2
 operations/storage, KV operations, DO SQL rows and Queue operations. External LLM
 fees, DO compute, KV/D1 storage and products without adapters are outside this
-fast total. R2 storage uses the last hour's peak and a 30-day conversion. A known
-storage gauge missing from the current snapshot makes account cost coverage
-incomplete: old charges are neither copied forward as current data nor assumed
+fast total. R2 storage uses the latest hourly snapshot (max) per bucket and storage class within the last
+three hours, queried with its own 1000-row bound (a truncated result is still an error), and
+a 30-day conversion. A known storage gauge with no snapshot in that whole
+lookback makes account cost coverage incomplete: old charges are neither copied forward as current data nor assumed
 zero. Deleted buckets can remain conservatively unknown until a new snapshot or
 the remembered gauge's original seven-day TTL expires. Observed Service failures,
 slow calls and application Worker errors continue to notify while account cost
@@ -188,7 +193,7 @@ independent delivery.
 ## Private configuration and rollout
 
 Use Wrangler secret input or a private bulk file for `CF_MONITOR_API_TOKEN`,
-`MONITOR_ADMIN_TOKEN` and `ALERT_RECIPIENTS`. The recipient JSON list supports empty
+`MONITOR_ADMIN_TOKEN`, `PROBE_GITHUB_LOGIN` and `ALERT_RECIPIENTS`. The recipient JSON list supports empty
 placeholders, for example `["owner@example.org", ""]`, with up to twenty addresses.
 Never commit real recipients, credentials or private incident evidence.
 
@@ -197,7 +202,7 @@ and Email Sending Edit for the external watchdog. Native Worker mail uses the
 `EMAIL` binding and an already-onboarded sender domain.
 
 GitHub uses `CF_MONITOR_API_TOKEN`, `COST_MONITOR_ADMIN_TOKEN` and
-`COST_MONITOR_RECIPIENTS` secrets plus the `COST_MONITOR_URL` variable. Optional
+`COST_MONITOR_RECIPIENTS` and `COST_MONITOR_PROBE_GITHUB_LOGIN` secrets plus the `COST_MONITOR_URL` variable. Optional
 `COST_MONITOR_OPS_RECIPIENTS` is an independent JSON address list for the watchdog;
 absent, blank or `[]` disables only its email path, not health checks. The workflow
 provides `WATCHDOG_STATE_FILE`. Production requires successful main CI and source
@@ -225,3 +230,80 @@ Design references: [Alertmanager grouping and inhibition](https://prometheus.io/
 [D1 metric definitions](https://developers.cloudflare.com/d1/observability/metrics-analytics/).
 The windowing technique informs this policy; USD thresholds do not implement
 Google's SLO error-budget formula.
+
+The probe account is private environment configuration. If absent or invalid, the
+homepage probe continues, account-card probes are skipped, and authenticated health
+reports the skipped configuration. Never put a real account login in fixtures.
+
+Superseded deployments exit successfully before mutations. The remote CI verifier
+returns a `superseded` result; only the production authorization caller opts into
+successful skip handling. Other callers fail closed. The watchdog records unhealthy
+state with an Actions notice, avoiding an additional hourly workflow-failure email.
+
+For an explicitly authorized live rehearsal, dispatch the cost-monitor workflow
+with `exercise=true`. It verifies production health, deploys the isolated E2E Worker,
+and sends simulated all-clear and P0-warning messages using the private recipients.
+No production state is reset.
+
+### Daily traffic report
+
+The same five-minute cron sends a separate traffic report at 04:00 UTC (12:00
+UTC+8). `nextTrafficReport` and accepted recipients survive retries; missed days
+collapse into one report. Traffic sends bypass alert classification and limits,
+but count towards mail attempt statistics. `TRAFFIC_REPORT_RECIPIENTS` optionally
+overrides `ALERT_RECIPIENTS`. `/health` exposes the next send and traffic error.
+
+Set repository variable `COST_MONITOR_ZONE_ID`; deployment copies it to private
+Worker configuration `CF_ZONE_ID`. Analytics needs Zone Analytics:Read for this
+zone and Account Analytics:Read for RUM. `TRAFFIC_HOST` defaults to `ghfind.com`.
+RUM visits are browser visits, not distinct people. When no current RUM window is complete and nonempty, visitor windows fall back
+to zone unique IPs. A missing previous period only suppresses that comparison. Missing data
+is shown as unavailable, never zero. Zone referrer is unavailable on the current
+plan; referrer rankings use RUM page loads.
+
+All sources use the latest complete UTC-day cutoff (08:00 UTC+8), including the
+previous comparison periods. Retention and query duration are discovered per dataset: only complete daily
+buckets within retention qualify for 24h, 3d and 7d comparisons. Missing or
+partially retained days suppress comparisons with a reason, rather than inflate
+percentages. Each email spells out current/previous ranges and the prominent
+24h window; a manual send before 08:00 correctly ends on the previous local day. Unique IPs are queried as whole-window aggregates,
+not summed from daily values. The production D1 binding only executes EXPLAIN
+and bounded counts using the existing covering state/time index. Scan counts
+are completed/partial runs by update time, not new scores or first-time accounts.
+Other business counts lack suitable time indexes and are explicitly unavailable.
+
+Authenticated `POST /traffic-report/preview` renders live HTML without sending.
+Production verification encrypts this HTML with AES-256-GCM and an RSA-OAEP
+wrapped key using repository variable `TRAFFIC_PREVIEW_PUBLIC_KEY`. Only
+ciphertext is uploaded as the seven-day-retention `traffic-report-preview`
+Actions artifact; the owner keeps the private key locally. The local workerd suite tests the
+noon boundary, receipt persistence, partial failures and missed-day catchup using
+captured synthetic mail. Real provider acceptance followed by a crash before
+receipt persistence remains an at-least-once delivery edge case.
+
+The separate all-request chart uses zone Adaptive edge requests, then zone daily
+totals, then explicitly labeled Workers invocations as a fallback. It retains
+the RUM chart and never adds Workers calls to edge totals (service bindings can
+count one incoming request multiple times). API/MCP/webhook paths take priority;
+Mozilla UA requests excluding API/static paths approximate browser pages. The
+remaining segment includes non-browser, static and unclassified requests. UA is
+spoofable; this is not a human/bot classification. Accept filtering is unavailable
+on the current plan. Missing or inconsistent sampled segments render a total-only
+gray bar, never fabricated zeros. Workers include router/web/api/legacy services.
+
+Two capability queries and five bounded data queries collect all windows, daily
+buckets and rankings. Budget/rate-limit failures retry once, then display the
+reason; permission errors do not retry. No extra cron or persistent counters are
+introduced. Email includes plain text, table-based charts, Auto-Submitted and
+Content-Language headers. SPF/DKIM/DMARC and provider acceptance cannot guarantee
+Outlook inbox placement. Do not invent a Reply-To mailbox or unsubscribe endpoint
+for this owner-only operational report.
+
+Traffic email always requests the light palette, including explicit nested cell
+colors and Outlook data-ogsc/data-ogsb overrides. Client-side forced inversion
+can still vary; verify the actual received message as well as browser previews.
+Subjects use the UTC+8 data-window dates and available visitor/edge-request/API
+totals. Changes stay in the body. Missing edge/API totals are omitted; Workers
+fallback invocations never masquerade as edge requests in a subject. Manually
+sent real reports use `[手动]`; the isolated synthetic E2E environment keeps its
+`[模拟]` safety marker. Deployment previews reject older theme/title templates.
