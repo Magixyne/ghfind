@@ -80,35 +80,55 @@ export function seedStreamItems(lang: "zh" | "en", now: number): StreamItem[] {
 }
 
 /**
- * Demo X timeline for local dev only (fictional accounts, never shown in
- * production). One account links to the demo developer above so the
- * profile ↔ X linking is visible.
+ * Demo X timeline for non-production deployments until the operator agent
+ * pushes real posts. Every account and post is fictional (no real person is
+ * quoted); the UI labels the set as demo data. One account links to the demo
+ * developer above so the profile ↔ X linking is visible locally.
  */
 export function seedXTimeline(now: number): XTimeline {
   const hours = (value: number) => new Date(now - value * 3_600_000).toISOString();
-  const account = (handle: string, name: string, category: XAccount["category"], github: string | null, ghfind: XAccount["ghfind"] = null): XAccount => ({
+  const account = (handle: string, name: string, category: XAccount["category"], github: string | null = null, ghfind: XAccount["ghfind"] = null): XAccount => ({
     handle, name, category, github, talentId: null, verified: true, avatarUrl: null, note: null, ghfind, source: github ? "score" : "editorial",
   });
-  const post = (id: string, handle: string, text: string, at: number, topics: string[], metrics: [number, number, number, number], extra: Partial<XPost> = {}): XPost => ({
-    id, handle, text, createdAt: hours(at), url: `https://x.com/${handle}/status/${id}`, kind: "post",
-    metrics: { likes: metrics[0], reposts: metrics[1], replies: metrics[2], views: metrics[3] },
-    media: null, quote: null, topics, technical: 0.9, lang: "en", ...extra,
-  });
+  let sequence = 0;
+  const post = (handle: string, text: string, at: number, topics: string[], metrics: [number, number, number, number], extra: Partial<XPost> = {}): XPost => {
+    sequence += 1;
+    const id = `19000000000000${String(sequence).padStart(5, "0")}`;
+    return {
+      id, handle, text, createdAt: hours(at), url: `https://x.com/${handle}/status/${id}`, kind: "post",
+      metrics: { likes: metrics[0], reposts: metrics[1], replies: metrics[2], views: metrics[3] },
+      media: null, quote: null, topics, technical: 0.9, lang: /[\u4e00-\u9fff]/.test(text) ? "zh" : "en", ...extra,
+    };
+  };
   return {
     updatedAt: now,
     accounts: [
-      account("demo_researcher", "Demo Researcher", "researcher", null),
-      account("demo_builder", "Demo Builder", "builder", null),
-      account("demo_media", "Demo Tech Weekly", "media", null),
+      account("demo_researcher", "Demo Researcher", "researcher"),
+      account("demo_lab_cn", "示例 AI 实验室", "researcher"),
+      account("demo_builder", "Demo Builder", "builder"),
+      account("demo_founder_cn", "示例创始人", "builder"),
+      account("demo_media", "Demo Tech Weekly", "media"),
+      account("demo_media_cn", "示例科技观察", "media"),
       account("demo_maintainer", "Demo Maintainer", "developer", "demo-maintainer", { score: 91, tier: "god" }),
+      account("demo_infra_dev", "Demo Infra Dev", "developer", "demo-infra-dev", { score: 86, tier: "elite" }),
     ],
     posts: [
-      post("1900000000000000001", "demo_researcher", "We trained a 1B model with half the tokens by filtering for code that compiles and passes its own tests. Data quality beats data quantity again — ablations and the filter script in the paper.", 3, ["LLM", "data quality"], [2400, 380, 120, 210000]),
-      post("1900000000000000002", "demo_maintainer", "Shipped incremental parsing in our Rust compiler front-end today. Re-check of a 40k-line crate after a one-line edit went from 2.1s to 90ms. Write-up on how we kept the red-green tree cache coherent:", 6, ["Rust", "compilers"], [860, 140, 45, 64000], {
+      post("demo_researcher", "We trained a 1B model with half the tokens by filtering for code that compiles and passes its own tests. Data quality beats data quantity again — ablations and the filter script in the paper.", 2, ["LLM", "data quality"], [2400, 380, 120, 210000]),
+      post("demo_lab_cn", "我们把长上下文评测从 128k 拉到 1M token 后发现：大多数模型的「找针」分数很好看，但在多跳推理上掉得很厉害。评测集和复现脚本已开源，欢迎拍砖。", 4, ["长上下文", "评测"], [1800, 420, 160, 150000]),
+      post("demo_maintainer", "Shipped incremental parsing in our Rust compiler front-end today. Re-check of a 40k-line crate after a one-line edit went from 2.1s to 90ms. Write-up on how we kept the red-green tree cache coherent:", 6, ["Rust", "compilers"], [860, 140, 45, 64000], {
         quote: { author: "demo-maintainer", text: "Incremental parsing in practice: red-green trees, cache invalidation and what broke.", url: "https://example.com/incremental-parsing" },
       }),
-      post("1900000000000000003", "demo_builder", "Hard-won lesson from running agents in production: give them a sandbox that boots in <100ms and they stop trying to be clever with the host. Our failure rate dropped 60% after we moved every tool call into a disposable VM.", 9, ["agents", "infra"], [1500, 210, 98, 120000]),
-      post("1900000000000000004", "demo_media", "New issue: how three open-source inference engines handle KV-cache eviction under load, with benchmarks on the same hardware.", 20, ["inference", "benchmarks"], [420, 90, 12, 38000]),
+      post("demo_builder", "Hard-won lesson from running agents in production: give them a sandbox that boots in <100ms and they stop trying to be clever with the host. Our failure rate dropped 60% after we moved every tool call into a disposable VM.", 8, ["agents", "infra"], [1500, 210, 98, 120000]),
+      post("demo_founder_cn", "做开发者工具三年的一个体会：用户不会因为你的功能多而留下，只会因为「第一次 5 分钟就跑通」而留下。我们把安装步骤从 7 步砍到 1 条命令后，次周留存翻了一倍。", 10, ["开发者工具", "增长"], [960, 230, 88, 72000]),
+      post("demo_infra_dev", "Postmortem from last week's outage is up. Root cause: a retry storm between two services that both had \"safe\" exponential backoff, just with the same jitter seed. Fix was one line; finding it took 9 hours.", 12, ["SRE", "distributed systems"], [740, 160, 52, 58000]),
+      post("demo_media", "New issue: how three open-source inference engines handle KV-cache eviction under load, with benchmarks on the same hardware and the configs to reproduce.", 14, ["inference", "benchmarks"], [420, 90, 12, 38000]),
+      post("demo_media_cn", "本周开源观察：一个只有 3 位维护者的向量数据库项目，Star 两周涨了 1.2 万。我们拆了它的代码和 issue 区，聊聊它为什么能火、以及接下来最可能踩的坑。", 16, ["开源", "数据库"], [530, 140, 40, 46000]),
+      post("demo_researcher", "Reminder that a 2-point benchmark gain is often inside run-to-run noise. We re-ran 5 popular evals with 10 seeds each — the std dev is bigger than most reported improvements. Please report variance.", 20, ["evaluation", "ML research"], [3100, 640, 210, 260000]),
+      post("demo_maintainer", "PSA for library authors: semver-major for a type-only change is fine. Your users' CI breaking on a minor bump is not.", 26, ["open source", "Rust"], [1200, 260, 130, 90000]),
+      post("demo_lab_cn", "小模型也能做好工具调用：我们用 3B 模型 + 结构化解码，在内部函数调用基准上追平了 70B 基线，延迟降到 1/8。训练数据构造方法写在技术报告第 4 节。", 30, ["小模型", "工具调用"], [1350, 300, 76, 110000]),
+      post("demo_builder", "Unpopular opinion: most teams don't need a vector DB on day one. Postgres + pgvector carried us to 40M embeddings before we felt any pain. Measure first.", 36, ["databases", "RAG"], [2100, 350, 290, 180000]),
+      post("demo_infra_dev", "Wrote a tiny eBPF tool that attributes every TCP retransmit to the Kubernetes pod that caused it. Took our \"network is slow\" tickets from days to minutes. Open-sourcing it this week.", 44, ["eBPF", "Kubernetes"], [880, 190, 34, 61000]),
+      post("demo_founder_cn", "招聘上的一个反直觉：我们最好的几位工程师，简历都很普通，但 GitHub 上都有一个维护了两年以上、没什么人用、却写得很认真的项目。", 52, ["招聘", "工程文化"], [1650, 410, 190, 130000]),
     ],
   };
 }

@@ -14,6 +14,7 @@ import type { StreamExtra, StreamItem, StreamKind, StreamPulse, StreamVoice } fr
 import { linkXAccounts, xStreamItems, xVoices } from "@/lib/pages/feed-x";
 import { seedXTimeline } from "@/lib/stream/seed";
 import { readXTimeline } from "@/lib/x-timeline.server";
+import { isProductionDeployment } from "@/lib/deploy-env";
 import { listTalentsPage } from "@/lib/talent-db";
 import { TIER_KEY } from "@/lib/tier";
 
@@ -63,7 +64,7 @@ function finish(draft: Draft): StreamItem {
   return { heat: 0, counter: null, badge: null, comments: null, extra: null, ...draft };
 }
 
-export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[]; pulse: StreamPulse; voices: StreamVoice[]; generatedAt: number; demo: boolean }> {
+export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[]; pulse: StreamPulse; voices: StreamVoice[]; generatedAt: number; demo: boolean; demoX: boolean }> {
   const now = Date.now();
   const lang = locale === "zh" ? "zh" : "en";
 
@@ -286,11 +287,11 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
     }));
   }
 
-  // Curated X posts. Outside production an empty timeline falls back to demo
-  // voices so the prototype shows the mix; production never invents posts.
-  const timeline = storedX && storedX.posts.length > 0
-    ? storedX
-    : process.env.NODE_ENV !== "production" ? seedXTimeline(now) : null;
+  // Curated X posts. Until the agent pushes real posts, every non-production
+  // deployment (local, dev) shows fictional demo voices, flagged in the UI;
+  // production never invents posts.
+  const demoX = !(storedX && storedX.posts.length > 0) && !isProductionDeployment();
+  const timeline = demoX ? seedXTimeline(now) : storedX;
   if (timeline) items.push(...xStreamItems(timeline, lang));
   const voices = timeline ? xVoices(timeline) : [];
 
@@ -329,7 +330,7 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
   if (process.env.NODE_ENV !== "production") {
     const loaded = new Set(localized.map((entry) => entry.kind));
     const fill = seedStreamItems(lang, now).filter((entry) => !loaded.has(entry.kind));
-    return { items: link([...localized, ...fill]), pulse, voices, generatedAt: now, demo: fill.length > 0 || timeline !== storedX };
+    return { items: link([...localized, ...fill]), pulse, voices, generatedAt: now, demo: fill.length > 0, demoX };
   }
-  return { items: link(localized), pulse, voices, generatedAt: now, demo: false };
+  return { items: link(localized), pulse, voices, generatedAt: now, demo: false, demoX };
 }
