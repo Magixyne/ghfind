@@ -40,7 +40,7 @@
     "developers": "開発者",
     "projectBoards": "プロジェクトボード",
     "projects": "プロジェクト",
-    "collections": "編集部おすすめ",
+    "collections": "深掘りリサーチ",
     "languages": "言語",
     "organizations": "組織",
     "versus": "開発者対戦",
@@ -59,7 +59,7 @@
       "versus": "2 人の開発者を真っ向勝負で比較",
       "leaderboard": "スコア順に優れた開発者を見る",
       "projectBoards": "分野別に注目のオープンソースを探す",
-      "collections": "編集部が選んだプロジェクトと開発者",
+      "collections": "開発者のストーリー、厳選したオープンソースプロジェクト、GitHub エコシステムの調査。",
       "blog": "開発者エコシステムのデータと洞察",
       "resume": "GitHub データから開発者履歴書を作成",
       "talent": "知り合う価値のある開発者を探す",
@@ -234,11 +234,11 @@
     }
   },
   "collections": {
-    "metaTitle": "管理人おすすめ：注目プロジェクトと開発者 · ghfind",
-    "metaDescription": "ghfind の貢献者品質エンジンに裏付けられた、注目の GitHub プロジェクトと開発者の厳選コレクション。",
+    "metaTitle": "深掘りリサーチ · ghfind",
+    "metaDescription": "開発者のストーリー、厳選したオープンソースプロジェクト、GitHub エコシステムの調査。",
     "eyebrow": "管理人おすすめ",
-    "heading": "厳選プロジェクト & 開発者",
-    "subtitle": "ただのスターランキングではありません——すべての推薦に「誰が作っているか、どれほどの実力か」のエンジンデータ付き。",
+    "heading": "深掘りリサーチ",
+    "subtitle": "開発者のストーリー、厳選したオープンソースプロジェクト、GitHub エコシステムの調査。",
     "empty": "コレクションはまだありません。近日公開予定です。",
     "itemCount": "{count} 件のおすすめ",
     "publishedOn": "{date} 公開",
@@ -256,7 +256,7 @@
     "avgScoreLabel": "貢献者平均スコア",
     "followersLabel": "フォロワー",
     "totalStarsLabel": "累計スター",
-    "backToCollections": "コレクション一覧",
+    "backToCollections": "深掘りリサーチに戻る",
     "dataNote": "スコアとティアは ghfind スコアリングエンジンによるもので、新しいスキャンのたびに更新されます。"
   },
   "discoveryNext": {
@@ -584,7 +584,7 @@
     "subtitle": "GitHubの実コントリビューションを大規模に採点して得たデータノート。",
     "readingTime": "読了目安 {minutes} 分",
     "notTranslated": "この記事はまだ翻訳されていません。英語の原文を表示しています。",
-    "backToList": "リサーチ一覧",
+    "backToList": "深掘りリサーチに戻る",
     "empty": "まだ記事がありません。"
   },
   "footer": {

@@ -40,7 +40,7 @@
     "developers": "Developer",
     "projectBoards": "Papan proyek",
     "projects": "Proyek",
-    "collections": "Pilihan editor",
+    "collections": "Riset Mendalam",
     "languages": "Bahasa",
     "organizations": "Organisasi",
     "versus": "Duel developer",
@@ -59,7 +59,7 @@
       "versus": "Adu dua developer secara langsung",
       "leaderboard": "Jelajahi developer terbaik berdasarkan skor",
       "projectBoards": "Temukan proyek open source menonjol per bidang",
-      "collections": "Proyek dan developer pilihan editor",
+      "collections": "Kisah developer, pilihan proyek sumber terbuka, dan riset ekosistem GitHub.",
       "blog": "Data dan wawasan ekosistem developer",
       "resume": "Buat CV developer dari data GitHub",
       "talent": "Temukan developer yang layak dikenal",
@@ -234,11 +234,11 @@
     }
   },
   "collections": {
-    "metaTitle": "Pilihan pendiri: proyek & developer · ghfind",
-    "metaDescription": "Koleksi kurasi proyek dan developer GitHub unggulan, didukung mesin kualitas kontributor ghfind.",
+    "metaTitle": "Riset Mendalam · ghfind",
+    "metaDescription": "Kisah developer, pilihan proyek sumber terbuka, dan riset ekosistem GitHub.",
     "eyebrow": "Pilihan pendiri",
-    "heading": "Proyek & developer pilihan",
-    "subtitle": "Bukan sekadar daftar bintang — setiap pilihan disertai data mesin tentang siapa yang membangun dan seberapa hebat mereka.",
+    "heading": "Riset Mendalam",
+    "subtitle": "Kisah developer, pilihan proyek sumber terbuka, dan riset ekosistem GitHub.",
     "empty": "Belum ada koleksi — kunjungi lagi nanti.",
     "itemCount": "{count} pilihan",
     "publishedOn": "Diterbitkan {date}",
@@ -256,7 +256,7 @@
     "avgScoreLabel": "skor rata-rata kontributor",
     "followersLabel": "pengikut",
     "totalStarsLabel": "total bintang",
-    "backToCollections": "Semua koleksi",
+    "backToCollections": "Kembali ke Riset Mendalam",
     "dataNote": "Skor dan tier berasal dari mesin penilaian ghfind dan diperbarui dengan setiap pemindaian baru."
   },
   "discoveryNext": {
@@ -584,7 +584,7 @@
     "subtitle": "Catatan data dari menilai kontribusi GitHub sungguhan dalam skala besar.",
     "readingTime": "{minutes} menit baca",
     "notTranslated": "Artikel ini belum diterjemahkan — menampilkan versi asli bahasa Inggris.",
-    "backToList": "Semua riset",
+    "backToList": "Kembali ke Riset Mendalam",
     "empty": "Belum ada artikel."
   },
   "footer": {

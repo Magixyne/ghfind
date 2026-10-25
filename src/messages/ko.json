@@ -40,7 +40,7 @@
     "developers": "개발자",
     "projectBoards": "프로젝트 보드",
     "projects": "프로젝트",
-    "collections": "에디터 추천",
+    "collections": "심층 연구",
     "languages": "언어",
     "organizations": "조직",
     "versus": "개발자 대결",
@@ -59,7 +59,7 @@
       "versus": "두 개발자를 정면으로 비교",
       "leaderboard": "점수순으로 우수 개발자 보기",
       "projectBoards": "분야별 주목할 오픈소스 찾기",
-      "collections": "에디터가 직접 고른 프로젝트와 개발자",
+      "collections": "개발자 이야기, 엄선한 오픈 소스 프로젝트, GitHub 생태계 연구.",
       "blog": "개발자 생태계 데이터와 인사이트",
       "resume": "GitHub 데이터로 개발자 이력서 만들기",
       "talent": "알아 둘 만한 개발자 찾기",
@@ -234,11 +234,11 @@
     }
   },
   "collections": {
-    "metaTitle": "운영자 추천: 주목할 프로젝트와 개발자 · ghfind",
-    "metaDescription": "ghfind 기여자 품질 엔진이 뒷받침하는 뛰어난 GitHub 프로젝트와 개발자 큐레이션 컬렉션.",
+    "metaTitle": "심층 연구 · ghfind",
+    "metaDescription": "개발자 이야기, 엄선한 오픈 소스 프로젝트, GitHub 생태계 연구.",
     "eyebrow": "운영자 추천",
-    "heading": "엄선한 프로젝트 & 개발자",
-    "subtitle": "또 하나의 스타 순위가 아닙니다 — 모든 추천에는 누가 만들고 실력이 어떤지 엔진 데이터가 함께합니다.",
+    "heading": "심층 연구",
+    "subtitle": "개발자 이야기, 엄선한 오픈 소스 프로젝트, GitHub 생태계 연구.",
     "empty": "아직 컬렉션이 없습니다. 곧 공개됩니다.",
     "itemCount": "추천 {count}개",
     "publishedOn": "{date} 게시",
@@ -256,7 +256,7 @@
     "avgScoreLabel": "기여자 평균 점수",
     "followersLabel": "팔로워",
     "totalStarsLabel": "누적 스타",
-    "backToCollections": "전체 컬렉션",
+    "backToCollections": "심층 연구로 돌아가기",
     "dataNote": "점수와 티어는 ghfind 스코어링 엔진에서 나오며 새 스캔마다 갱신됩니다."
   },
   "discoveryNext": {
@@ -584,7 +584,7 @@
     "subtitle": "대규모 GitHub 기여 채점에서 나온 데이터 노트.",
     "readingTime": "{minutes}분 소요",
     "notTranslated": "이 글은 아직 번역되지 않았어요 — 영어 원문을 보여드립니다.",
-    "backToList": "전체 리서치",
+    "backToList": "심층 연구로 돌아가기",
     "empty": "아직 글이 없어요."
   },
   "footer": {
