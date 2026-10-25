@@ -269,7 +269,7 @@ function StreamEntryCard({ item, now, handlers }: { item: StreamItem; now: numbe
           {item.kind === "developer" && item.score != null && item.score >= 85 ? (
             <BadgeCheck className="size-3.5 shrink-0 text-sky-300" aria-hidden />
           ) : null}
-          {item.author.handle ? <span className="truncate text-muted-foreground">{item.author.handle}</span> : null}
+          {item.author.handle ? <span className="truncate text-muted-foreground"><bdi>{item.author.handle}</bdi></span> : null}
           {item.publishedAt || item.readingMinutes ? (
             <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
               <span aria-hidden>·</span>
@@ -341,7 +341,7 @@ function StreamEntryTile({ item, handlers }: { item: StreamItem; handlers: Strea
         )}
         <div className="mt-2 flex items-center gap-1.5">
           <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-5 text-[10px]" />
-          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{isPerson(item) ? item.author.handle ?? item.author.name : item.author.name}</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground"><bdi>{isPerson(item) ? item.author.handle ?? item.author.name : item.author.name}</bdi></span>
           {item.counter ? <span className="hidden text-[11px] tabular-nums text-muted-foreground sm:inline">{compactNumber(item.counter.value, locale)}</span> : null}
           <StreamActions item={item} compact onShare={() => handlers.onShare(item)} />
         </div>

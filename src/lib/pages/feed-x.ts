@@ -1,5 +1,5 @@
 import { EDITORIAL_X_ACCOUNTS } from "@/config/x-accounts";
-import { xHeat, type XAccount, type XPost, type XTimeline } from "@/lib/stream/x";
+import { translationFor, xHeat, type XAccount, type XPost, type XTimeline } from "@/lib/stream/x";
 import type { StreamItem, StreamVoice } from "@/lib/stream/types";
 
 /**
@@ -21,7 +21,8 @@ function title(text: string): string {
   return line.length > 90 ? `${line.slice(0, 88).trimEnd()}…` : line;
 }
 
-export function xStreamItems(timeline: XTimeline, lang: "zh" | "en"): StreamItem[] {
+export function xStreamItems(timeline: XTimeline, locale: string): StreamItem[] {
+  const lang = locale === "zh" ? "zh" : "en";
   const accounts = new Map(timeline.accounts.map((account) => [account.handle, account]));
   return timeline.posts.flatMap((post: XPost): StreamItem[] => {
     const account = accounts.get(post.handle);
@@ -65,6 +66,8 @@ export function xStreamItems(timeline: XTimeline, lang: "zh" | "en"): StreamItem
         media: post.media,
         quote: post.quote,
         github: account.github,
+        // Older stored posts predate translations.
+        translation: translationFor({ lang: post.lang, translations: post.translations ?? {} }, locale),
       },
     }];
   });

@@ -6,6 +6,7 @@ import {
   X_PER_ACCOUNT_CAP,
   gatePost,
   isEngagementBait,
+  translationFor,
   mergePosts,
   parsePost,
   type XAccount,
@@ -84,6 +85,25 @@ describe("x timeline gates", () => {
     expect(merged).toHaveLength(X_PER_ACCOUNT_CAP);
     expect(merged[0].id).toBe(posts[0].id);
     expect(new Set(merged.map((post) => post.id)).size).toBe(merged.length);
+  });
+});
+
+describe("x post translations", () => {
+  it("keeps only site locales and offers one only for other-language readers", () => {
+    const post = parsed({ lang: "en", translations: { zh: "中文译文", ja: "日本語訳", xx: "nope", ko: "" } });
+    expect(post.translations).toEqual({ zh: "中文译文", ja: "日本語訳" });
+    expect(translationFor(post, "zh")).toBe("中文译文");
+    expect(translationFor(post, "en")).toBeNull();
+    expect(translationFor(post, "ko")).toBeNull();
+    expect(translationFor({ lang: "en-US", translations: { en: "x" } }, "en")).toBeNull();
+  });
+
+  it("attaches the reader's translation to stream items", () => {
+    const timeline = seedXTimeline(NOW);
+    const ja = xStreamItems(timeline, "ja")[0];
+    const en = xStreamItems(timeline, "en")[0];
+    expect(ja.extra?.kind === "post" && ja.extra.translation).toMatch(/1B/);
+    expect(en.extra?.kind === "post" && en.extra.translation).toBeNull();
   });
 });
 

@@ -292,7 +292,7 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
   // production never invents posts.
   const demoX = !(storedX && storedX.posts.length > 0) && !isProductionDeployment();
   const timeline = demoX ? seedXTimeline(now) : storedX;
-  if (timeline) items.push(...xStreamItems(timeline, lang));
+  if (timeline) items.push(...xStreamItems(timeline, locale));
   const voices = timeline ? xVoices(timeline) : [];
 
   // Badges: "hot" only for the real top slice of a kind, "new" only for real dates.

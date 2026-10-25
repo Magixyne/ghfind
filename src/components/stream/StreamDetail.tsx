@@ -170,7 +170,7 @@ export function StreamDetail({
               <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-8" />
               <div className="min-w-0 flex-1 leading-tight">
                 <p className="truncate text-sm font-semibold text-foreground">{item.author.name}</p>
-                {item.author.handle ? <p className="truncate text-xs text-muted-foreground">{item.author.handle}</p> : null}
+                {item.author.handle ? <p className="truncate text-xs text-muted-foreground"><bdi>{item.author.handle}</bdi></p> : null}
               </div>
               {item.kind !== "article" ? <FollowButton authorId={item.author.id} name={item.author.name} onFollowed={onFollowed} /> : null}
             </header>

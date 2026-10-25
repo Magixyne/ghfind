@@ -89,6 +89,8 @@ export type StreamExtra =
       quote: { author: string; text: string; url: string } | null;
       /** Linked ghfind profile (GitHub login), for the score badge and thread. */
       github: string | null;
+      /** Translation into the page locale, when the post is in another language. */
+      translation: string | null;
     };
 
 /** A curated X voice for the rail. */
