@@ -116,18 +116,18 @@ export function CollectionsIndexView({
   ].sort((a, b) => b.date.localeCompare(a.date) || a.href.localeCompare(b.href));
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-5 py-14 sm:px-6 sm:py-20">
+    <main className="research-index mx-auto flex w-full flex-1 flex-col px-5 py-8 sm:px-8 sm:py-10">
       <header className="max-w-3xl">
         <p className="text-sm font-medium tracking-wide text-muted-foreground">
           {t("eyebrow")}
         </p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-zinc-100 sm:text-5xl">
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           {t("heading")}
         </h1>
-        <p className="mt-3 text-zinc-400">{t("subtitle")}</p>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">{t("subtitle")}</p>
       </header>
 
-      <div className="mt-10 flex flex-col gap-6">
+      <div className="mt-6 flex flex-col">
         {entries.map((entry) => {
           const Icon = entry.Icon;
           return (

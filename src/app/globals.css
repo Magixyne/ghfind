@@ -1533,3 +1533,9 @@ html[data-theme="dark"] .model-sponsor-logo {
     align-self: flex-start;
   }
 }
+
+/* Unified research list follows the shared content boundary and compact directory spacing. */
+.research-index .collection-index-entry { padding-block: 22px; }
+@media (min-width: 900px) {
+  .research-index { padding-inline: clamp(28px, 3vw, 56px); }
+}
