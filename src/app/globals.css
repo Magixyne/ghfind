@@ -1524,3 +1524,12 @@ html[data-theme="dark"] .model-sponsor-logo {
 @media screen and (min-width: 1280px) {
   .workspace-shell { --workspace-content-width: 980px; }
 }
+
+/* Expand the directory band only; hero and FAQ retain their reading width. */
+@media screen and (min-width: 1280px) {
+  .workspace-shell .home-content {
+    width: calc(100% + max(0px, (100vw - var(--sidebar-width) - var(--workspace-content-width)) / 2));
+    max-width: none;
+    align-self: flex-start;
+  }
+}
