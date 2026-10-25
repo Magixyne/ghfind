@@ -1,14 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Flame, Sparkles, TrendingUp, X } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { Flame, Library, Sparkles, TrendingUp, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { topInterests } from "@/lib/stream/rank";
 import { useStreamStore } from "@/lib/stream/store";
 import type { StreamItem } from "@/lib/stream/types";
-import { compactNumber } from "./format";
 import { FollowButton } from "./StreamDetail";
 import { StreamAvatar, ScorePill } from "./StreamCard";
 
@@ -25,10 +24,9 @@ function RailSection({ title, icon: Icon, action, children }: { title: string; i
   );
 }
 
-/** Desktop right rail: learned interests, rising developers, most read, score CTA. */
+/** Desktop right rail: score CTA, learned interests, rising developers, editor's picks. */
 export function StreamRail({ items, onOpen, onFollowed }: { items: StreamItem[]; onOpen: (item: StreamItem) => void; onFollowed: (name: string) => void }) {
   const t = useTranslations("stream");
-  const locale = useLocale();
   const affinity = useStreamStore((state) => state.affinity);
   const resetInterests = useStreamStore((state) => state.resetInterests);
   const interests = topInterests(affinity);
@@ -37,10 +35,7 @@ export function StreamRail({ items, onOpen, onFollowed }: { items: StreamItem[];
     .filter((item) => item.kind === "developer")
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 4);
-  const reads = items
-    .filter((item) => item.kind === "article" || item.kind === "collection")
-    .sort((a, b) => b.baseline.views - a.baseline.views)
-    .slice(0, 4);
+  const picks = items.filter((item) => item.badge === "editor").slice(0, 4);
 
   return (
     <div className="flex flex-col gap-3">
@@ -96,16 +91,16 @@ export function StreamRail({ items, onOpen, onFollowed }: { items: StreamItem[];
         </RailSection>
       ) : null}
 
-      {reads.length > 0 ? (
-        <RailSection title={t("railTrending")} icon={Flame}>
+      {picks.length > 0 ? (
+        <RailSection title={t("railEditor")} icon={Library}>
           <ol className="flex flex-col gap-2">
-            {reads.map((item, index) => (
+            {picks.map((item, index) => (
               <li key={item.id}>
                 <button type="button" onClick={() => onOpen(item)} className="flex w-full items-start gap-2 text-start">
-                  <span className="w-4 shrink-0 text-sm font-black tabular-nums text-muted-foreground">{index + 1}</span>
+                  <span className="w-4 shrink-0 text-sm font-black tabular-nums text-amber-300">{index + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">{item.title}</span>
-                    <span className="text-xs text-muted-foreground">{t("views", { count: compactNumber(item.baseline.views, locale) })}</span>
+                    <span className="text-xs text-muted-foreground">{item.author.name}</span>
                   </span>
                 </button>
               </li>

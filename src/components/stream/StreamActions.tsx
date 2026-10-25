@@ -1,30 +1,27 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { Bookmark, Eye, Heart, MessageCircle, Share2 } from "lucide-react";
+import { motion } from "motion/react";
+import { Bookmark, Eye, Heart, Layers, MessageCircle, Share2, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { engagementOf, useStreamStore } from "@/lib/stream/store";
-import type { StreamItem } from "@/lib/stream/types";
+import { useStreamStore } from "@/lib/stream/store";
+import type { StreamCounter, StreamItem } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
 import { compactNumber } from "./format";
 
-/** Count that rolls up/down when it changes (likes, saves). */
-function RollingCount({ value, locale }: { value: number; locale: string }) {
+const COUNTER_ICON = { lookups: Eye, stars: Star, items: Layers } as const;
+
+/** The item's one real public number (lookups, stars, picks). */
+export function CounterChip({ counter, className }: { counter: StreamCounter | null; className?: string }) {
+  const t = useTranslations("stream");
+  const locale = useLocale();
+  if (!counter) return null;
+  const Icon = COUNTER_ICON[counter.kind];
+  const label = t(`counter.${counter.kind}`, { count: compactNumber(counter.value, locale) });
   return (
-    <span className="relative inline-flex h-4 min-w-[2ch] overflow-hidden tabular-nums">
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.span
-          key={value}
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -10, opacity: 0 }}
-          transition={{ duration: 0.18 }}
-          className="leading-4"
-        >
-          {compactNumber(value, locale)}
-        </motion.span>
-      </AnimatePresence>
+    <span className={cn("inline-flex items-center gap-1 text-xs tabular-nums text-muted-foreground", className)} title={label}>
+      <Icon className="size-3.5" aria-hidden />
+      <span className="truncate">{label}</span>
     </span>
   );
 }
@@ -53,7 +50,7 @@ function ActionButton({
         onClick();
       }}
       className={cn(
-        "group/action -mx-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+        "-mx-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
         active && activeClass,
       )}
     >
@@ -77,8 +74,9 @@ export function LikeIcon({ liked, className }: { liked: boolean; className?: str
 }
 
 /**
- * Engagement row shared by list cards and the detail view: comments, likes,
- * saves, views, share. `compact` (masonry cards) shows only the like count.
+ * Engagement row shared by list cards and the detail view. Likes and saves are
+ * the viewer's own (no public count yet); the only number shown is the item's
+ * real counter. `compact` (grid tiles) keeps just the like toggle.
  */
 export function StreamActions({
   item,
@@ -94,41 +92,34 @@ export function StreamActions({
   className?: string;
 }) {
   const t = useTranslations("stream");
-  const locale = useLocale();
   const liked = useStreamStore((state) => Boolean(state.liked[item.id]));
   const saved = useStreamStore((state) => Boolean(state.saved[item.id]));
-  const viewed = useStreamStore((state) => Boolean(state.viewed[item.id]));
   const toggleLike = useStreamStore((state) => state.toggleLike);
   const toggleSave = useStreamStore((state) => state.toggleSave);
-  const counts = engagementOf(item, { liked, saved, viewed });
 
   const like = (
     <ActionButton label={liked ? t("unlike") : t("like")} active={liked} activeClass="text-rose-500 hover:text-rose-500" onClick={() => toggleLike(item)}>
       <LikeIcon liked={liked} />
-      <RollingCount value={counts.likes} locale={locale} />
     </ActionButton>
   );
 
   if (compact) return <div className={cn("flex items-center", className)}>{like}</div>;
 
   return (
-    <div className={cn("flex items-center justify-between gap-2", className)}>
-      <ActionButton label={t("comments")} onClick={() => onComment?.()}>
-        <MessageCircle className="size-4" aria-hidden />
-        <span className="tabular-nums">{compactNumber(counts.comments, locale)}</span>
-      </ActionButton>
+    <div className={cn("flex items-center gap-5", className)}>
+      {item.comments ? (
+        <ActionButton label={t("comments")} onClick={() => onComment?.()}>
+          <MessageCircle className="size-4" aria-hidden />
+        </ActionButton>
+      ) : null}
       {like}
       <ActionButton label={saved ? t("unsave") : t("save")} active={saved} activeClass="text-amber-400 hover:text-amber-400" onClick={() => toggleSave(item)}>
         <Bookmark className={cn("size-4", saved && "fill-current")} aria-hidden />
-        <RollingCount value={counts.saves} locale={locale} />
       </ActionButton>
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={t("views", { count: counts.views })}>
-        <Eye className="size-4" aria-hidden />
-        <span className="tabular-nums">{compactNumber(counts.views, locale)}</span>
-      </span>
       <ActionButton label={t("share")} onClick={onShare}>
         <Share2 className="size-4" aria-hidden />
       </ActionButton>
+      <CounterChip counter={item.counter} className="ms-auto min-w-0" />
     </div>
   );
 }

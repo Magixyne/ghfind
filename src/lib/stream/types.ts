@@ -3,9 +3,11 @@
  * developers, talent, articles, collections, jobs) folded into one item shape
  * so a single ranked stream can interleave them.
  *
- * Engagement counts (views/likes/saves/comments) have no server source yet:
- * `baseline` is a deterministic seed per item (see rank.ts) and the viewer's
- * own actions are layered on top client-side (store.ts).
+ * Only real numbers are shown: `counter` and `heat` come from the source data
+ * (lookups, stars, community strength). Likes/saves/follows are the viewer's
+ * own state (store.ts) and carry no public count until a server counter
+ * exists. Rich detail is embedded (`extra`) when the list query already has
+ * it, otherwise fetched on open from /feed/item (detail.ts).
  */
 export type StreamKind = "project" | "developer" | "talent" | "article" | "collection" | "job";
 
@@ -45,21 +47,52 @@ export type StreamItem = {
   /** Internal path to the canonical page ("/u/foo", "/blog/x") or an external URL. */
   href: string;
   external: boolean;
-  /** ISO timestamp used for freshness. */
-  publishedAt: string;
+  /** Real ISO timestamp, or null when the source has none (never invented). */
+  publishedAt: string | null;
   /** Minutes, for articles/collections. */
   readingMinutes: number | null;
   sponsored: boolean;
-  /** Editorial quality prior 0–1, before engagement. */
+  /** Editorial quality prior 0–1. */
   quality: number;
-  baseline: StreamEngagement;
+  /** Real popularity 0–1 within its kind (lookups, community strength…). */
+  heat: number;
+  /** One real public number for the card, e.g. how often a profile was looked up. */
+  counter: StreamCounter | null;
+  badge: StreamBadge | null;
+  /** Where real comments live, if this item has a comment thread. */
+  comments: StreamCommentTarget | null;
+  extra: StreamExtra | null;
 };
 
-export type StreamEngagement = {
-  views: number;
-  likes: number;
-  saves: number;
-  comments: number;
+export type StreamCounter = { kind: "lookups" | "stars" | "items"; value: number };
+
+export type StreamBadge = "hot" | "new" | "editor";
+
+export type StreamCommentTarget = { kind: "blog" | "collection" | "profile"; key: string };
+
+export type StreamMeter = { key: string; value: number; max: number };
+
+/** Detail data the list queries already carry, so it ships with the item. */
+export type StreamExtra =
+  | { kind: "project"; meters: StreamMeter[]; audience: string | null; risks: string[]; repoKey: string; stars: number | null }
+  | { kind: "talent"; projects: { name: string; url: string | null; description: string; relationship: "own" | "pr" }[]; sources: { title: string; url: string | null; publisher: string }[]; skills: string[] }
+  | { kind: "collection"; picks: StreamPick[] };
+
+export type StreamPick = {
+  kind: "repo" | "developer";
+  id: string;
+  blurb: string;
+  /** Score for developers, average contributor score for repos. */
+  score: number | null;
+  tier: string | null;
+  stars: number | null;
+  href: string;
+};
+
+/** Real site-wide activity shown at the top of the stream. */
+export type StreamPulse = {
+  totalScored: number | null;
+  trending: { username: string; name: string; avatarUrl: string | null; score: number; tier: string; lookups: number }[];
 };
 
 /** What the viewer has learned the stream about them (persisted locally). */

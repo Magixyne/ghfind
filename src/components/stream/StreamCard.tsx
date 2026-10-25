@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BadgeCheck, Clock, EyeOff, Link2, MoreHorizontal, SquareArrowOutUpRight } from "lucide-react";
+import { BadgeCheck, Clock, EyeOff, Flame, Link2, MoreHorizontal, SquareArrowOutUpRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   DropdownMenu,
@@ -79,6 +79,24 @@ export function KindBadge({ item }: { item: StreamItem }) {
     <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium", style.tint, style.text)}>
       <Icon className="size-3" aria-hidden />
       {t(`kindOne.${item.kind}`)}
+    </span>
+  );
+}
+
+const BADGE_STYLE = {
+  hot: "bg-orange-500/15 text-orange-300",
+  new: "bg-sky-500/15 text-sky-300",
+  editor: "bg-amber-400/20 text-amber-300",
+} as const;
+
+/** Hot (real top slice), New (real date) or Editor's pick. */
+export function StatusBadge({ item }: { item: StreamItem }) {
+  const t = useTranslations("stream");
+  if (!item.badge) return null;
+  return (
+    <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold", BADGE_STYLE[item.badge])}>
+      {item.badge === "hot" ? <Flame className="me-0.5 size-3" aria-hidden /> : null}
+      {t(`badge.${item.badge}`)}
     </span>
   );
 }
@@ -216,7 +234,7 @@ export function StreamVisual({ item, variant }: { item: StreamItem; variant: "ma
 function Meta({ item, now }: { item: StreamItem; now: number }) {
   const t = useTranslations("stream");
   const locale = useLocale();
-  const parts: ReactNode[] = [<span key="time">{relativeTime(item.publishedAt, now, locale)}</span>];
+  const parts: ReactNode[] = item.publishedAt ? [<span key="time">{relativeTime(item.publishedAt, now, locale)}</span>] : [];
   if (item.readingMinutes) {
     parts.push(
       <span key="read" className="inline-flex items-center gap-0.5">
@@ -246,15 +264,18 @@ export function StreamListCard({ item, now, handlers }: { item: StreamItem; now:
             <BadgeCheck className="size-3.5 shrink-0 text-sky-300" aria-hidden />
           ) : null}
           {item.author.handle ? <span className="truncate text-muted-foreground">{item.author.handle}</span> : null}
-          <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-            <span aria-hidden>·</span>
-            <Meta item={item} now={now} />
-          </span>
+          {item.publishedAt || item.readingMinutes ? (
+            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <span aria-hidden>·</span>
+              <Meta item={item} now={now} />
+            </span>
+          ) : null}
           <span className="ms-auto" />
           <MoreMenu item={item} handlers={handlers} />
         </header>
         <div className="mt-0.5 flex items-center gap-1.5">
           <KindBadge item={item} />
+          <StatusBadge item={item} />
           {item.sponsored ? <span className="text-[11px] font-medium text-muted-foreground">{t("sponsored")}</span> : null}
           {item.scoreLabel === "available" ? <span className="text-[11px] font-semibold text-emerald-300">{t("available")}</span> : null}
         </div>
@@ -281,12 +302,11 @@ export function StreamListCard({ item, now, handlers }: { item: StreamItem; now:
   );
 }
 
-/** 小红书-style tile: visual on top, two-line title, author + like count. */
+/** 小红书-style tile: visual on top, two-line title, author + real counter + like. */
 export function StreamMasonryCard({ item, handlers }: { item: StreamItem; handlers: StreamCardHandlers }) {
   const t = useTranslations("stream");
   const locale = useLocale();
   const ref = useViewTracking(item);
-  const views = useStreamStore((state) => item.baseline.views + (state.viewed[item.id] ? 1 : 0));
   return (
     <article
       ref={ref}
@@ -298,6 +318,8 @@ export function StreamMasonryCard({ item, handlers }: { item: StreamItem; handle
         <span className="absolute start-2 top-2"><KindBadge item={item} /></span>
         {item.sponsored ? (
           <span className="absolute end-2 top-2 rounded bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{t("sponsored")}</span>
+        ) : item.badge ? (
+          <span className="absolute end-2 top-2"><StatusBadge item={item} /></span>
         ) : null}
       </div>
       <div className="p-2.5">
@@ -309,7 +331,7 @@ export function StreamMasonryCard({ item, handlers }: { item: StreamItem; handle
         <div className="mt-2 flex items-center gap-1.5">
           <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-5 text-[10px]" />
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{isPerson(item) ? item.author.handle ?? item.author.name : item.author.name}</span>
-          <span className="hidden text-[11px] tabular-nums text-muted-foreground sm:inline">{compactNumber(views, locale)}</span>
+          {item.counter ? <span className="hidden text-[11px] tabular-nums text-muted-foreground sm:inline">{compactNumber(item.counter.value, locale)}</span> : null}
           <StreamActions item={item} compact onShare={() => handlers.onShare(item)} />
         </div>
       </div>

@@ -9,10 +9,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link } from "@/i18n/navigation";
 import { rankStream } from "@/lib/stream/rank";
 import { useStreamStore } from "@/lib/stream/store";
-import type { StreamAffinity, StreamItem, StreamKind, StreamLayout } from "@/lib/stream/types";
+import type { StreamAffinity, StreamItem, StreamKind, StreamLayout, StreamPulse as StreamPulseData } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
 import { StreamListCard, StreamMasonryCard, type StreamCardHandlers } from "./StreamCard";
 import { FollowButton, StreamDetail } from "./StreamDetail";
+import { StreamPulse } from "./StreamPulse";
 import { StreamRail } from "./StreamRail";
 
 type Tab = "foryou" | "following" | "saved";
@@ -72,7 +73,7 @@ function distribute(items: StreamItem[], columns: number): StreamItem[][] {
   return out;
 }
 
-export function StreamApp({ items, generatedAt, demo }: { items: StreamItem[]; generatedAt: number; demo: boolean }) {
+export function StreamApp({ items, pulse, generatedAt, demo }: { items: StreamItem[]; pulse: StreamPulseData; generatedAt: number; demo: boolean }) {
   const t = useTranslations("stream");
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<Tab>("foryou");
@@ -125,7 +126,6 @@ export function StreamApp({ items, generatedAt, demo }: { items: StreamItem[]; g
     () =>
       rankStream(items, {
         affinity: snapshot.affinity,
-        engagementOf: (item) => item.baseline,
         hidden: new Set(),
         seen: snapshot.seen,
         now: generatedAt,
@@ -211,6 +211,12 @@ export function StreamApp({ items, generatedAt, demo }: { items: StreamItem[]; g
     window.history.replaceState(null, "", url);
     setOpenId(null);
   }, []);
+
+  const openUser = useCallback((username: string) => {
+    const match = items.find((item) => item.kind === "developer" && item.author.id.toLowerCase() === username.toLowerCase());
+    if (match) handlers.onOpen(match);
+    else window.location.href = new URL(`${window.location.pathname.replace(/\/feed\/?$/, "")}/u/${username}`, window.location.origin).href;
+  }, [items, handlers]);
 
   const onFollowed = useCallback((name: string) => notify(t("followedToast", { name })), [notify, t]);
 
@@ -301,6 +307,8 @@ export function StreamApp({ items, generatedAt, demo }: { items: StreamItem[]; g
         </div>
 
         {demo ? <p className="border-b border-border bg-white/[0.02] px-4 py-2 text-xs text-muted-foreground">{t("demoData")}</p> : null}
+
+        {tab === "foryou" && kind === "all" ? <StreamPulse pulse={pulse} onOpenUser={openUser} /> : null}
 
         <div ref={feedRef}>
           {page.length === 0 ? (
