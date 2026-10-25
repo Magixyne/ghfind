@@ -124,7 +124,7 @@ export function StreamDetail({
   const openUser = (username: string) => {
     const match = pool.find((entry) => entry.kind === "developer" && entry.author.id.toLowerCase() === username.toLowerCase());
     if (match) open(match);
-    else window.location.assign(item ? item.href.replace(/\/u\/[^/]+$/, `/u/${username}`) : `/u/${username}`);
+    else window.location.href = new URL(item ? item.href.replace(/\/u\/[^/]+$/, `/u/${username}`) : `/u/${username}`, window.location.origin).href;
   };
 
   const onVisualTap = () => {

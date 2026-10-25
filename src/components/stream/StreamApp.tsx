@@ -215,8 +215,7 @@ export function StreamApp({ items, pulse, generatedAt, demo }: { items: StreamIt
   const openUser = useCallback((username: string) => {
     const match = items.find((item) => item.kind === "developer" && item.author.id.toLowerCase() === username.toLowerCase());
     if (match) handlers.onOpen(match);
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Astro island, no Next router
-    else window.location.assign(`${window.location.pathname.replace(/\/feed\/?$/, "")}/u/${username}`);
+    else window.location.href = new URL(`${window.location.pathname.replace(/\/feed\/?$/, "")}/u/${username}`, window.location.origin).href;
   }, [items, handlers]);
 
   const onFollowed = useCallback((name: string) => notify(t("followedToast", { name })), [notify, t]);
