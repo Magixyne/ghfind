@@ -43,6 +43,23 @@ const REVIEWED_NEXT_API_ROUTES = new Set([
   "src/app/api/discover/internal/route.ts",
   // Owner-uploaded discover covers. GET is public; writes require the GitHub owner.
   "src/app/api/discover/covers/[owner]/[repo]/route.ts",
+  // Social posts: shared handlers also mounted in the API Worker. Public reads;
+  // same-origin, session-gated writes; publishing additionally requires score eligibility.
+  "src/app/api/feed/authors/[id]/follow/route.ts",
+  "src/app/api/feed/me/bookmarks/route.ts",
+  "src/app/api/feed/media/[id]/route.ts",
+  "src/app/api/feed/media/route.ts",
+  "src/app/api/feed/post-events/route.ts",
+  "src/app/api/feed/posts/[id]/ancestors/route.ts",
+  "src/app/api/feed/posts/[id]/bookmark/route.ts",
+  "src/app/api/feed/posts/[id]/reaction/route.ts",
+  "src/app/api/feed/posts/[id]/replies/route.ts",
+  "src/app/api/feed/posts/[id]/repost/route.ts",
+  "src/app/api/feed/posts/[id]/route.ts",
+  "src/app/api/feed/posts/route.ts",
+  "src/app/api/feed/publishing-capabilities/route.ts",
+  // Content-only X import: dedicated SOCIAL_FEED_INGEST_SECRET bearer token.
+  "src/app/api/internal/social-feed/x-posts/route.ts",
   "src/app/api/feed/events/route.ts",
   "src/app/api/feed/preferences/route.ts",
   "src/app/api/feed/profile/route.ts",
