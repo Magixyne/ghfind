@@ -1,32 +1,20 @@
 # Deep Research editorial icons
 
-Generated with the built-in imagegen tool. Served as transparent 192 × 192 WebP assets in `public/research-icons/`, displayed at 48 × 48 CSS pixels. Original GitHub avatars remain unchanged.
+Six article-specific illustrations edited with the built-in imagegen tool. Transparent 192 × 192 WebP assets live in `public/research-icons/` and display at 48 × 48 CSS pixels. The palette uses neutral slate gray with a subdued brown accent, flat shapes, and no glossy lighting. Original GitHub avatars remain unchanged.
 
-Dify uses the unmodified official SVG from https://raw.githubusercontent.com/langgenius/dify/main/web/public/logo/logo.svg (retrieved 2026-10-25). The white tile is a UI backdrop. Dify branding belongs to LangGenius; see https://dify.ai/legal/brand-usage-terms.
+Dify uses the unmodified official SVG from https://raw.githubusercontent.com/langgenius/dify/main/web/public/logo/logo.svg (retrieved 2026-10-25), displayed on a white UI backdrop. Dify branding belongs to LangGenius; see https://dify.ai/legal/brand-usage-terms.
 
-## Generation prompts
+## Edit prompt
 
-### how-we-score-github-accounts
+Each existing article illustration was supplied as the edit target with this prompt:
 
-Create one polished editorial icon for an article in ghfind's Deep Research list. Subject grounded in article: A six-spoke amber scoring dial with six distinct small nodes and a central code bracket symbol: a transparent evidence-based six-dimensional GitHub contribution scoring engine. Unified series style: crisp minimal dimensional vector-like illustration, bold clear silhouette legible at 48x48 pixels, just 2 or 3 large forms, tasteful saturated colors, subtle soft dimensional shading, generous transparent padding, centered square composition, no tile/background container, no letters/numbers/text, no watermark, no tiny details. Real alpha transparency, usable on both white and charcoal surfaces. Output a single icon only.
+Redesign this editorial article icon, retaining its topic and essential recognizable symbols, but completely replace the shiny colorful 3D rendering. Required style: restrained flat editorial pictogram for a serious research index, simple solid silhouettes and a few clean cutouts, absolutely no 3D, gradients, highlights, reflections, shadows, glow or glossy/plastic material. Palette strictly TWO subdued colors only: neutral slate gray #85888B for most of the icon, and muted dusty brown #9A8674 for a small secondary accent, at most 20 percent of the filled area. All six icons in this series must share this exact palette, no other colors. Do not keep the source's bright colors. Simplify complex decorations into 2-3 clean main shapes readable at 48px. Keep the subject, square framing and comfortable padding; no text or numbers, no background tile, genuine transparent alpha background. This should feel like quiet editorial wayfinding beside an article title, not a toy, sticker or app-store game icon. Output one icon only.
 
-### who-builds-openclaw
+## Article subjects
 
-Create one polished editorial icon for an article in ghfind's Deep Research list. Subject grounded in article: A bold friendly coral-red lobster claw holding a tiny code block, with three smaller contributor dots around it: OpenClaw, one principal developer doing most work supported by a community. Recognizable lobster claw silhouette. Unified series style: crisp minimal dimensional vector-like illustration, bold clear silhouette legible at 48x48 pixels, just 2 or 3 large forms, tasteful saturated colors, subtle soft dimensional shading, generous transparent padding, centered square composition, no tile/background container, no letters/numbers/text, no watermark, no tiny details. Real alpha transparency, usable on both white and charcoal surfaces. Output a single icon only.
-
-### we-scored-19000-github-accounts
-
-Create one polished editorial icon for an article in ghfind's Deep Research list. Subject grounded in article: An emerald magnifying glass over a compact grid of account dots, with one verified check and one hollow suspicious dot: empirical research measuring authenticity across nineteen thousand GitHub accounts. Unified series style: crisp minimal dimensional vector-like illustration, bold clear silhouette legible at 48x48 pixels, just 2 or 3 large forms, tasteful saturated colors, subtle soft dimensional shading, generous transparent padding, centered square composition, no tile/background container, no letters/numbers/text, no watermark, no tiny details. Real alpha transparency, usable on both white and charcoal surfaces. Output a single icon only.
-
-### agents-heart-hands-body
-
-Create one polished editorial icon for an article in ghfind's Deep Research list. Subject grounded in article: A friendly compact orange and teal robot whose chest contains a coral heart and whose two articulated hands are visible: AI agents developing a heart, hands and body, living independently and using tools. Unified series style: crisp minimal dimensional vector-like illustration, bold clear silhouette legible at 48x48 pixels, just 2 or 3 large forms, tasteful saturated colors, subtle soft dimensional shading, generous transparent padding, centered square composition, no tile/background container, no letters/numbers/text, no watermark, no tiny details. Real alpha transparency, usable on both white and charcoal surfaces. Output a single icon only.
-
-### deepseek-harness-apache-maka
-
-Create one polished editorial icon for an article in ghfind's Deep Research list. Subject grounded in article: Two complementary interlocking modular structures: a blue plug-like foundation and an orange stacked logbook with a small circular arrow, representing plugin-based agent runtime versus log-based agent workbench. Unified series style: crisp minimal dimensional vector-like illustration, bold clear silhouette legible at 48x48 pixels, just 2 or 3 large forms, tasteful saturated colors, subtle soft dimensional shading, generous transparent padding, centered square composition, no tile/background container, no letters/numbers/text, no watermark, no tiny details. Real alpha transparency, usable on both white and charcoal surfaces. Output a single icon only.
-
-### max-liu
-
-Create one polished editorial icon for an article in ghfind's Deep Research list. Subject grounded in article: A purple open-source community hub with a warm orange megaphone and three connected contributor dots, one upward motion accent: a young non-engineer growing LobeHub through community building and communication. No portrait. Unified series style: crisp minimal dimensional vector-like illustration, bold clear silhouette legible at 48x48 pixels, just 2 or 3 large forms, tasteful saturated colors, subtle soft dimensional shading, generous transparent padding, centered square composition, no tile/background container, no letters/numbers/text, no watermark, no tiny details. Real alpha transparency, usable on both white and charcoal surfaces. Output a single icon only.
-
+- `how-we-score-github-accounts`: six scoring dimensions around a code symbol.
+- `who-builds-openclaw`: lobster claw holding code, surrounded by contributors.
+- `we-scored-19000-github-accounts`: magnifying glass examining a group of accounts.
+- `agents-heart-hands-body`: robot with a heart and articulated hands.
+- `deepseek-harness-apache-maka`: plugin foundation paired with a log-based workbench.
+- `max-liu`: community connections, communication and growth.
