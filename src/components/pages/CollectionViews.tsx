@@ -25,16 +25,49 @@ import type { Translator } from "@/lib/translator";
  * hands them over.
  */
 
-// Editorial artwork for entries without a GitHub avatar.
-const RESEARCH_ICONS: Record<string, string | undefined> = {
-  "how-we-score-github-accounts": "/research-icons/how-we-score-github-accounts.webp",
-  "who-builds-openclaw": "/research-icons/who-builds-openclaw.webp",
-  "we-scored-19000-github-accounts": "/research-icons/we-scored-19000-github-accounts.webp",
-  "agents-heart-hands-body": "/research-icons/agents-heart-hands-body.webp",
-  "deepseek-harness-apache-maka": "/research-icons/deepseek-harness-apache-maka.webp",
-  "max-liu": "/research-icons/max-liu.webp",
-  "who-builds-dify": "/research-icons/dify.svg",
+type ResearchImage = { src: string; label: string; portrait?: boolean };
+
+const RESEARCH_ICONS: Record<string, ResearchImage[] | undefined> = {
+  "how-we-score-github-accounts": [{ src: "/research-icons/how-we-score-github-accounts.webp", label: "" }],
+  "we-scored-19000-github-accounts": [{ src: "/research-icons/we-scored-19000-github-accounts.webp", label: "" }],
+  "who-builds-openclaw": [{ src: "/research-icons/openclaw.webp", label: "OpenClaw" }],
+  "agents-heart-hands-body": [
+    { src: "/research-icons/yuiju.webp", label: "yuiju" },
+    { src: "/research-icons/lathe.webp", label: "lathe" },
+    { src: "/mosoo.svg", label: "mosoo" },
+  ],
+  "deepseek-harness-apache-maka": [
+    { src: "/deepseek.svg", label: "DeepSeek Harness" },
+    { src: "/research-icons/maka.webp", label: "Apache Maka" },
+  ],
+  "max-liu": [{ src: "/research-icons/max-liu-portrait.webp", label: "Max Liu", portrait: true }],
+  "who-builds-dify": [{ src: "/research-icons/dify.svg", label: "Dify" }],
 };
+
+function ResearchArtwork({ images }: { images: ResearchImage[] }) {
+  const grouped = images.length > 1;
+  const positions = images.length === 3
+    ? ["left-0 top-0", "right-0 top-0", "bottom-0 left-3"]
+    : ["left-0 top-0", "bottom-0 right-0"];
+  return (
+    <span className="relative mt-1 block h-12 w-12 shrink-0" title={images.map(image => image.label).filter(Boolean).join(" · ")}>
+      {images.map((image, index) => (
+        // eslint-disable-next-line @next/next/no-img-element -- small local artwork and source project marks
+        <img
+          key={image.src}
+          src={image.src}
+          alt=""
+          width={grouped ? 24 : 48}
+          height={grouped ? 24 : 48}
+          loading="lazy"
+          className={grouped
+            ? `absolute h-6 w-6 rounded-md bg-white object-contain ${positions[index]}`
+            : `h-12 w-12 rounded-xl ${image.portrait ? "object-cover" : "object-contain"} ${image.label === "Dify" ? "bg-white p-1" : ""}`}
+        />
+      ))}
+    </span>
+  );
+}
 
 const longDate = (locale: string) =>
   new Intl.DateTimeFormat(bcp47(locale), { year: "numeric", month: "long", day: "numeric" });
@@ -114,15 +147,7 @@ export function CollectionsIndexView({
                       className="mt-1 h-12 w-12 shrink-0 rounded-xl"
                     />
                   ) : entry.artwork ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- small local editorial artwork, pre-sized for the list
-                    <img
-                      src={entry.artwork}
-                      alt=""
-                      width={48}
-                      height={48}
-                      loading="lazy"
-                      className={`mt-1 h-12 w-12 shrink-0 object-contain ${entry.artwork === "/research-icons/dify.svg" ? "rounded-xl bg-white p-1" : ""}`}
-                    />
+                    <ResearchArtwork images={entry.artwork} />
                   ) : (
                     <span
                       aria-hidden="true"
