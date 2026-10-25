@@ -25,6 +25,17 @@ import type { Translator } from "@/lib/translator";
  * hands them over.
  */
 
+// Editorial artwork for entries without a GitHub avatar.
+const RESEARCH_ICONS: Record<string, string | undefined> = {
+  "how-we-score-github-accounts": "/research-icons/how-we-score-github-accounts.webp",
+  "who-builds-openclaw": "/research-icons/who-builds-openclaw.webp",
+  "we-scored-19000-github-accounts": "/research-icons/we-scored-19000-github-accounts.webp",
+  "agents-heart-hands-body": "/research-icons/agents-heart-hands-body.webp",
+  "deepseek-harness-apache-maka": "/research-icons/deepseek-harness-apache-maka.webp",
+  "max-liu": "/research-icons/max-liu.webp",
+  "who-builds-dify": "/research-icons/dify.svg",
+};
+
 const longDate = (locale: string) =>
   new Intl.DateTimeFormat(bcp47(locale), { year: "numeric", month: "long", day: "numeric" });
 
@@ -53,6 +64,7 @@ export function CollectionsIndexView({
       minutes: articleReadingMinutes(collection, locale),
       count: collection.items.length,
       avatarOwner: collection.subject?.id.split("/")[0],
+      artwork: RESEARCH_ICONS[collection.slug],
       Icon: collection.type === "developers" ? Users : collection.type === "projects" ? Code2 : BookOpen,
     })),
     ...posts.map(post => ({
@@ -65,6 +77,7 @@ export function CollectionsIndexView({
       minutes: post.readingMinutes,
       count: 0,
       avatarOwner: undefined,
+      artwork: RESEARCH_ICONS[post.slug],
       Icon: FileSearch,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date) || a.href.localeCompare(b.href));
@@ -99,6 +112,16 @@ export function CollectionsIndexView({
                       alt=""
                       loading="lazy"
                       className="mt-1 h-12 w-12 shrink-0 rounded-xl"
+                    />
+                  ) : entry.artwork ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- small local editorial artwork, pre-sized for the list
+                    <img
+                      src={entry.artwork}
+                      alt=""
+                      width={48}
+                      height={48}
+                      loading="lazy"
+                      className={`mt-1 h-12 w-12 shrink-0 object-contain ${entry.artwork === "/research-icons/dify.svg" ? "rounded-xl bg-white p-1" : ""}`}
                     />
                   ) : (
                     <span
