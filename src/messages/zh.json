@@ -1820,7 +1820,8 @@
       "talent": "人才",
       "article": "文章",
       "collection": "合集",
-      "job": "招聘"
+      "job": "招聘",
+      "post": "X 动态"
     },
     "kindOne": {
       "project": "项目",
@@ -1828,7 +1829,8 @@
       "talent": "人才",
       "article": "文章",
       "collection": "合集",
-      "job": "职位"
+      "job": "职位",
+      "post": "X 动态"
     },
     "layoutList": "列表",
     "layoutMasonry": "双列",
@@ -1865,7 +1867,8 @@
       "location": "地点",
       "project": "代表项目",
       "stars": "Star",
-      "salary": "薪资"
+      "salary": "薪资",
+      "note": "推荐理由"
     },
     "loadingMore": "加载中…",
     "endTitle": "你已经看完了",
@@ -1979,6 +1982,24 @@
       }
     },
     "loadingDetail": "加载中…",
-    "railEditor": "编辑推荐"
+    "railEditor": "编辑推荐",
+    "xCategory": {
+      "researcher": "研究员",
+      "builder": "构建者",
+      "media": "科技媒体",
+      "developer": "高分开发者"
+    },
+    "viewOnX": "在 X 上查看",
+    "xMetrics": {
+      "replies": "回复",
+      "reposts": "转发",
+      "likes": "喜欢",
+      "views": "浏览"
+    },
+    "xLatest": "最近在 X 上",
+    "railVoices": "技术声音",
+    "railVoicesHint": "只收录研究员、构建者、科技媒体，以及 ghfind 评分 80+ 的开发者。",
+    "xSource": "来自 X · 指标为 X 上的真实数据",
+    "ghfindProfile": "ghfind 主页"
   }
 }

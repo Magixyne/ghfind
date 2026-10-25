@@ -1,4 +1,5 @@
 import type { StreamItem, StreamKind } from "./types";
+import type { XAccount, XPost, XTimeline } from "./x";
 
 /**
  * Demo items for the /feed prototype when no live source answers (local dev
@@ -76,4 +77,38 @@ export function seedStreamItems(lang: "zh" | "en", now: number): StreamItem[] {
       extra: null,
     };
   });
+}
+
+/**
+ * Demo X timeline for local dev only (fictional accounts, never shown in
+ * production). One account links to the demo developer above so the
+ * profile ↔ X linking is visible.
+ */
+export function seedXTimeline(now: number): XTimeline {
+  const hours = (value: number) => new Date(now - value * 3_600_000).toISOString();
+  const account = (handle: string, name: string, category: XAccount["category"], github: string | null, ghfind: XAccount["ghfind"] = null): XAccount => ({
+    handle, name, category, github, talentId: null, verified: true, avatarUrl: null, note: null, ghfind, source: github ? "score" : "editorial",
+  });
+  const post = (id: string, handle: string, text: string, at: number, topics: string[], metrics: [number, number, number, number], extra: Partial<XPost> = {}): XPost => ({
+    id, handle, text, createdAt: hours(at), url: `https://x.com/${handle}/status/${id}`, kind: "post",
+    metrics: { likes: metrics[0], reposts: metrics[1], replies: metrics[2], views: metrics[3] },
+    media: null, quote: null, topics, technical: 0.9, lang: "en", ...extra,
+  });
+  return {
+    updatedAt: now,
+    accounts: [
+      account("demo_researcher", "Demo Researcher", "researcher", null),
+      account("demo_builder", "Demo Builder", "builder", null),
+      account("demo_media", "Demo Tech Weekly", "media", null),
+      account("demo_maintainer", "Demo Maintainer", "developer", "demo-maintainer", { score: 91, tier: "god" }),
+    ],
+    posts: [
+      post("1900000000000000001", "demo_researcher", "We trained a 1B model with half the tokens by filtering for code that compiles and passes its own tests. Data quality beats data quantity again — ablations and the filter script in the paper.", 3, ["LLM", "data quality"], [2400, 380, 120, 210000]),
+      post("1900000000000000002", "demo_maintainer", "Shipped incremental parsing in our Rust compiler front-end today. Re-check of a 40k-line crate after a one-line edit went from 2.1s to 90ms. Write-up on how we kept the red-green tree cache coherent:", 6, ["Rust", "compilers"], [860, 140, 45, 64000], {
+        quote: { author: "demo-maintainer", text: "Incremental parsing in practice: red-green trees, cache invalidation and what broke.", url: "https://example.com/incremental-parsing" },
+      }),
+      post("1900000000000000003", "demo_builder", "Hard-won lesson from running agents in production: give them a sandbox that boots in <100ms and they stop trying to be clever with the host. Our failure rate dropped 60% after we moved every tool call into a disposable VM.", 9, ["agents", "infra"], [1500, 210, 98, 120000]),
+      post("1900000000000000004", "demo_media", "New issue: how three open-source inference engines handle KV-cache eviction under load, with benchmarks on the same hardware.", 20, ["inference", "benchmarks"], [420, 90, 12, 38000]),
+    ],
+  };
 }

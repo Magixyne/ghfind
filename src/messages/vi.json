@@ -1813,7 +1813,8 @@
       "talent": "Talent",
       "article": "Articles",
       "collection": "Collections",
-      "job": "Jobs"
+      "job": "Jobs",
+      "post": "On X"
     },
     "kindOne": {
       "project": "Project",
@@ -1821,7 +1822,8 @@
       "talent": "Talent",
       "article": "Article",
       "collection": "Collection",
-      "job": "Job"
+      "job": "Job",
+      "post": "X post"
     },
     "layoutList": "List",
     "layoutMasonry": "Grid",
@@ -1858,7 +1860,8 @@
       "location": "Location",
       "project": "Project",
       "stars": "Stars",
-      "salary": "Salary"
+      "salary": "Salary",
+      "note": "Why follow"
     },
     "loadingMore": "Loading more…",
     "endTitle": "You're all caught up",
@@ -1972,6 +1975,24 @@
       }
     },
     "loadingDetail": "Loading…",
-    "railEditor": "Editor's picks"
+    "railEditor": "Editor's picks",
+    "xCategory": {
+      "researcher": "Researcher",
+      "builder": "Builder",
+      "media": "Tech media",
+      "developer": "Top developer"
+    },
+    "viewOnX": "View on X",
+    "xMetrics": {
+      "replies": "Replies",
+      "reposts": "Reposts",
+      "likes": "Likes",
+      "views": "Views"
+    },
+    "xLatest": "Lately on X",
+    "railVoices": "Voices worth following",
+    "railVoicesHint": "Researchers, builders, tech media, and developers scoring 80+ on ghfind only.",
+    "xSource": "From X · metrics are live X numbers",
+    "ghfindProfile": "ghfind profile"
   }
 }

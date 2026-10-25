@@ -16,6 +16,7 @@ import { CounterChip, StreamActions } from "./StreamActions";
 import { KindBadge, ScorePill, StatusBadge, StreamAvatar, StreamVisual, isTextTile, type StreamCardHandlers } from "./StreamCard";
 import { StreamComments } from "./StreamComments";
 import { Section, StreamKindSections } from "./StreamDetailSections";
+import { PostDetailSection, XLatest } from "./StreamPost";
 
 const STAT_KEYS = new Set(["confidence", "community", "language", "lookups", "delta", "location", "project", "stars", "salary"]);
 /** Kinds whose detail needs the /feed/item round trip (body or comments). */
@@ -79,7 +80,7 @@ function MiniCard({ item, onOpen }: { item: StreamItem; onOpen: () => void }) {
       <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-8" />
       <span className="min-w-0 flex-1">
         <span className="line-clamp-1 text-sm font-semibold text-foreground">{item.title}</span>
-        <span className="line-clamp-1 text-xs text-muted-foreground">{item.summary}</span>
+        <span className="line-clamp-1 text-xs text-muted-foreground">{item.kind === "post" ? `${item.author.name} ${item.author.handle ?? ""}` : item.summary}</span>
       </span>
       <KindBadge item={item} />
     </button>
@@ -206,16 +207,27 @@ export function StreamDetail({
                   <CounterChip counter={item.counter} className="ms-auto" />
                 </div>
 
-                <div className="mt-2 flex items-start justify-between gap-3">
-                  <DialogTitle className="text-xl font-black leading-snug tracking-tight">{item.title}</DialogTitle>
-                  {!person ? <ScorePill item={item} size="lg" /> : null}
-                </div>
-                {item.summary ? <DialogDescription className="mt-1.5 text-[15px] leading-6 text-foreground/85">{item.summary}</DialogDescription> : null}
+                {item.kind === "post" ? (
+                  <>
+                    <DialogTitle className="sr-only">{item.title}</DialogTitle>
+                    <PostDetailSection item={item} onOpenUser={openUser} />
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-2 flex items-start justify-between gap-3">
+                      <DialogTitle className="text-xl font-black leading-snug tracking-tight">{item.title}</DialogTitle>
+                      {!person ? <ScorePill item={item} size="lg" /> : null}
+                    </div>
+                    {item.summary ? <DialogDescription className="mt-1.5 text-[15px] leading-6 text-foreground/85">{item.summary}</DialogDescription> : null}
+                  </>
+                )}
                 {item.body
                   ? item.body.split(/\n{2,}/).map((paragraph) => (
                       <p key={paragraph.slice(0, 40)} className="mt-2 text-sm leading-6 text-foreground/80">{paragraph}</p>
                     ))
                   : null}
+
+                {person ? <XLatest item={item} pool={pool} onOpen={open} /> : null}
 
                 <StreamKindSections item={item} detail={detail} loading={loading} onOpenUser={openUser} />
 
@@ -238,7 +250,7 @@ export function StreamDetail({
                   </div>
                 ) : null}
 
-                <a
+                {item.kind === "post" ? null : <a
                   href={item.href}
                   target={item.external ? "_blank" : undefined}
                   rel={item.external ? "noopener noreferrer" : undefined}
@@ -246,7 +258,7 @@ export function StreamDetail({
                 >
                   {t("openOriginal")}
                   <SquareArrowOutUpRight className="size-4 text-muted-foreground" aria-hidden />
-                </a>
+                </a>}
 
                 <div ref={commentsRef} className="mt-5 border-t border-border pt-4">
                   <StreamComments item={item} comments={detail?.comments ?? []} loading={loading} />

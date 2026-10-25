@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link } from "@/i18n/navigation";
 import { rankStream } from "@/lib/stream/rank";
 import { useStreamStore } from "@/lib/stream/store";
-import type { StreamAffinity, StreamItem, StreamKind, StreamLayout, StreamPulse as StreamPulseData } from "@/lib/stream/types";
+import type { StreamAffinity, StreamItem, StreamKind, StreamLayout, StreamPulse as StreamPulseData, StreamVoice } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
 import { StreamListCard, StreamMasonryCard, type StreamCardHandlers } from "./StreamCard";
 import { FollowButton, StreamDetail } from "./StreamDetail";
@@ -20,7 +20,7 @@ type Tab = "foryou" | "following" | "saved";
 type KindFilter = "all" | StreamKind;
 type Toast = { id: number; message: string; action?: { label: string; run: () => void } };
 
-const KINDS: StreamKind[] = ["project", "developer", "talent", "article", "collection", "job"];
+const KINDS: StreamKind[] = ["post", "project", "developer", "talent", "article", "collection", "job"];
 const PAGE = 10;
 /** Likes + saves + hides since the last ranking before we offer a re-rank. */
 const RETUNE_AFTER = 3;
@@ -73,7 +73,7 @@ function distribute(items: StreamItem[], columns: number): StreamItem[][] {
   return out;
 }
 
-export function StreamApp({ items, pulse, generatedAt, demo }: { items: StreamItem[]; pulse: StreamPulseData; generatedAt: number; demo: boolean }) {
+export function StreamApp({ items, pulse, voices, generatedAt, demo }: { items: StreamItem[]; pulse: StreamPulseData; voices: StreamVoice[]; generatedAt: number; demo: boolean }) {
   const t = useTranslations("stream");
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<Tab>("foryou");
@@ -365,7 +365,7 @@ export function StreamApp({ items, pulse, generatedAt, demo }: { items: StreamIt
 
       <aside className="hidden w-80 shrink-0 xl:block">
         <div className="sticky top-4 pt-3">
-          <StreamRail items={items} onOpen={handlers.onOpen} onFollowed={onFollowed} />
+          <StreamRail items={items} voices={voices} onOpen={handlers.onOpen} onFollowed={onFollowed} />
         </div>
       </aside>
 

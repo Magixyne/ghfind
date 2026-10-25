@@ -9,7 +9,7 @@
  * exists. Rich detail is embedded (`extra`) when the list query already has
  * it, otherwise fetched on open from /feed/item (detail.ts).
  */
-export type StreamKind = "project" | "developer" | "talent" | "article" | "collection" | "job";
+export type StreamKind = "project" | "developer" | "talent" | "article" | "collection" | "job" | "post";
 
 /** "foryou" is the ranked mix; following/saved are viewer filters; the rest filter by kind. */
 export type StreamChannel = "foryou" | "following" | "saved" | StreamKind;
@@ -23,6 +23,8 @@ export type StreamAuthor = {
   avatarUrl: string | null;
   /** Secondary line, e.g. "@login" or a company tagline. */
   handle: string | null;
+  /** Linked curated X account, when this person posts on the X timeline. */
+  x?: { handle: string; verified: boolean; category: string } | null;
 };
 
 export type StreamStat = { label: string; value: string };
@@ -76,7 +78,21 @@ export type StreamMeter = { key: string; value: number; max: number };
 export type StreamExtra =
   | { kind: "project"; meters: StreamMeter[]; audience: string | null; risks: string[]; repoKey: string; stars: number | null }
   | { kind: "talent"; projects: { name: string; url: string | null; description: string; relationship: "own" | "pr" }[]; sources: { title: string; url: string | null; publisher: string }[]; skills: string[] }
-  | { kind: "collection"; picks: StreamPick[] };
+  | { kind: "collection"; picks: StreamPick[] }
+  | {
+      kind: "post";
+      handle: string;
+      verified: boolean;
+      category: string;
+      metrics: { likes: number; reposts: number; replies: number; views: number | null };
+      media: { url: string; alt: string | null } | null;
+      quote: { author: string; text: string; url: string } | null;
+      /** Linked ghfind profile (GitHub login), for the score badge and thread. */
+      github: string | null;
+    };
+
+/** A curated X voice for the rail. */
+export type StreamVoice = { handle: string; name: string; avatarUrl: string | null; category: string; verified: boolean; github: string | null; posts: number };
 
 export type StreamPick = {
   kind: "repo" | "developer";

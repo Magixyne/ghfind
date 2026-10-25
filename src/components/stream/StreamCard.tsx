@@ -15,6 +15,7 @@ import type { StreamItem } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
 import { KIND_STYLE, compactNumber, initials, isTierKey, relativeTime, tierIconSrc } from "./format";
 import { StreamActions } from "./StreamActions";
+import { StreamPostListCard, StreamPostTile } from "./StreamPost";
 
 export type StreamCardHandlers = {
   onOpen: (item: StreamItem) => void;
@@ -27,7 +28,7 @@ export type StreamCardHandlers = {
 const VIEW_MS = 1_000;
 const DWELL_MS = 4_000;
 
-function useViewTracking(item: StreamItem) {
+export function useViewTracking(item: StreamItem) {
   const ref = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const node = ref.current;
@@ -160,7 +161,7 @@ function isPerson(item: StreamItem): boolean {
 
 /** Text kinds without a cover get a title tile; it would only repeat the heading in the detail view. */
 export function isTextTile(item: StreamItem): boolean {
-  return !item.coverUrl && (item.kind === "article" || item.kind === "collection");
+  return !item.coverUrl && (item.kind === "article" || item.kind === "collection" || item.kind === "post");
 }
 
 /** Cover image, or a generated tile in the kind's accent (小红书-style text card). */
@@ -248,6 +249,11 @@ function Meta({ item, now }: { item: StreamItem; now: number }) {
 
 /** X-style row: avatar column, header line, title + summary, optional cover, action bar. */
 export function StreamListCard({ item, now, handlers }: { item: StreamItem; now: number; handlers: StreamCardHandlers }) {
+  if (item.kind === "post") return <StreamPostListCard item={item} now={now} handlers={handlers} />;
+  return <StreamEntryCard item={item} now={now} handlers={handlers} />;
+}
+
+function StreamEntryCard({ item, now, handlers }: { item: StreamItem; now: number; handlers: StreamCardHandlers }) {
   const t = useTranslations("stream");
   const ref = useViewTracking(item);
   return (
@@ -304,6 +310,11 @@ export function StreamListCard({ item, now, handlers }: { item: StreamItem; now:
 
 /** 小红书-style tile: visual on top, two-line title, author + real counter + like. */
 export function StreamMasonryCard({ item, handlers }: { item: StreamItem; handlers: StreamCardHandlers }) {
+  if (item.kind === "post") return <StreamPostTile item={item} handlers={handlers} />;
+  return <StreamEntryTile item={item} handlers={handlers} />;
+}
+
+function StreamEntryTile({ item, handlers }: { item: StreamItem; handlers: StreamCardHandlers }) {
   const t = useTranslations("stream");
   const locale = useLocale();
   const ref = useViewTracking(item);

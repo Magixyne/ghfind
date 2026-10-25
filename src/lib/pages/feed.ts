@@ -10,7 +10,10 @@ import { loadHomeCollectionCards } from "@/lib/pages/home";
 import { listProjectBoard, type ProjectAssessment } from "@/lib/project-analysis-db";
 import { heatThreshold } from "@/lib/stream/rank";
 import { seedStreamItems } from "@/lib/stream/seed";
-import type { StreamExtra, StreamItem, StreamKind, StreamPulse } from "@/lib/stream/types";
+import type { StreamExtra, StreamItem, StreamKind, StreamPulse, StreamVoice } from "@/lib/stream/types";
+import { linkXAccounts, xStreamItems, xVoices } from "@/lib/pages/feed-x";
+import { seedXTimeline } from "@/lib/stream/seed";
+import { readXTimeline } from "@/lib/x-timeline.server";
 import { listTalentsPage } from "@/lib/talent-db";
 import { TIER_KEY } from "@/lib/tier";
 
@@ -60,11 +63,11 @@ function finish(draft: Draft): StreamItem {
   return { heat: 0, counter: null, badge: null, comments: null, extra: null, ...draft };
 }
 
-export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[]; pulse: StreamPulse; generatedAt: number; demo: boolean }> {
+export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[]; pulse: StreamPulse; voices: StreamVoice[]; generatedAt: number; demo: boolean }> {
   const now = Date.now();
   const lang = locale === "zh" ? "zh" : "en";
 
-  const [projects, developers, trending24h, totalScored, talents, collectionCards, collections, jobs] = await Promise.all([
+  const [projects, developers, trending24h, totalScored, talents, collectionCards, collections, jobs, storedX] = await Promise.all([
     settle("projects", loadProjects, []),
     settle("developers", () => getGoLeaderboard("trending", "7d", 24), []),
     settle("pulse", () => getGoLeaderboard("trending", "24h", 10), []),
@@ -73,6 +76,7 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
     settle("collections", () => loadHomeCollectionCards(locale), []),
     settle("collection_items", listCollections, []),
     settle("jobs", () => listJobs(locale, { limit: 6 }), []),
+    settle("x_timeline", readXTimeline, null),
   ]);
   const posts = (() => {
     try {
@@ -137,7 +141,7 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
       title: dev.display_name || dev.username,
       summary: tags.join(" · "),
       body: null,
-      author: { id: dev.username, name: dev.display_name || dev.username, avatarUrl: dev.avatar_url, handle: `@${dev.username}` },
+      author: { id: dev.username.toLowerCase(), name: dev.display_name || dev.username, avatarUrl: dev.avatar_url, handle: `@${dev.username}` },
       coverUrl: null,
       tags,
       score: Math.round(dev.final_score),
@@ -163,7 +167,7 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
       title: talent.name,
       summary: talent.bio || talent.role,
       body: [talent.note, talent.projectDescription].filter(Boolean).join("\n\n") || null,
-      author: { id: github ?? talent.id, name: talent.name, avatarUrl: talent.avatarUrl ?? (github ? `https://github.com/${github}.png?size=80` : null), handle: talent.role || null },
+      author: { id: github?.toLowerCase() ?? talent.id, name: talent.name, avatarUrl: talent.avatarUrl ?? (github ? `https://github.com/${github}.png?size=80` : null), handle: talent.role || null },
       coverUrl: null,
       tags: [talent.direction, ...talent.skills].filter(Boolean).slice(0, 5),
       score: talent.score,
@@ -282,9 +286,17 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
     }));
   }
 
+  // Curated X posts. Outside production an empty timeline falls back to demo
+  // voices so the prototype shows the mix; production never invents posts.
+  const timeline = storedX && storedX.posts.length > 0
+    ? storedX
+    : process.env.NODE_ENV !== "production" ? seedXTimeline(now) : null;
+  if (timeline) items.push(...xStreamItems(timeline, lang));
+  const voices = timeline ? xVoices(timeline) : [];
+
   // Badges: "hot" only for the real top slice of a kind, "new" only for real dates.
   const thresholds = new Map<StreamKind, number>();
-  for (const kind of ["project", "developer", "talent"] as StreamKind[]) {
+  for (const kind of ["project", "developer", "talent", "post"] as StreamKind[]) {
     thresholds.set(kind, heatThreshold(items.filter((entry) => entry.kind === kind).map((entry) => entry.heat)));
   }
   const badged = items.map((entry): StreamItem => {
@@ -311,12 +323,13 @@ export async function loadFeedPage(locale: string): Promise<{ items: StreamItem[
 
   // Internal links are resolved here so client links need no locale logic.
   const localized = badged.map((entry) => (entry.external ? entry : { ...entry, href: localePath(locale, entry.href) }));
+  const link = (list: StreamItem[]) => (timeline ? linkXAccounts(list, timeline) : list);
   // Outside production (local dev has no D1 tables), demo items stand in for
   // every kind that loaded nothing, so the prototype shows the full mix.
   if (process.env.NODE_ENV !== "production") {
     const loaded = new Set(localized.map((entry) => entry.kind));
     const fill = seedStreamItems(lang, now).filter((entry) => !loaded.has(entry.kind));
-    return { items: [...localized, ...fill], pulse, generatedAt: now, demo: fill.length > 0 };
+    return { items: link([...localized, ...fill]), pulse, voices, generatedAt: now, demo: fill.length > 0 || timeline !== storedX };
   }
-  return { items: localized, pulse, generatedAt: now, demo: false };
+  return { items: link(localized), pulse, voices, generatedAt: now, demo: false };
 }
