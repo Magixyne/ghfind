@@ -29,6 +29,8 @@ interface FeedState {
   capabilitiesError: boolean;
   pending: Record<string, boolean>;
   notice: string | null;
+  loginOpen: boolean;
+  setLoginOpen: (open: boolean) => void;
   start: () => Promise<void>;
   refreshSession: () => Promise<void>;
   setChannel: (channel: FeedChannel) => Promise<void>;
@@ -93,6 +95,8 @@ export function createFeedStore(initialPage: FeedPage | null, initialError?: str
     capabilitiesError: false,
     pending: {},
     notice: null,
+    loginOpen: false,
+    setLoginOpen: (loginOpen) => set({ loginOpen, notice: null }),
     clearNotice: () => set({ notice: null }),
     start: () => {
       starting ??= Promise.all([get().refreshSession(), get().loadList("recommended")]).then(() => undefined);
@@ -194,7 +198,7 @@ export function createFeedStore(initialPage: FeedPage | null, initialError?: str
         const updated = await feedClient.mutate(post, action);
         markUpdated(updated.id);
         set((state) => ({ posts: mergePosts(state.posts, [updated]) }));
-      } catch (error) { set({ notice: feedError(error) }); }
+      } catch (error) { const code = feedError(error); set(code === "login_required" ? { loginOpen: true, notice: null } : { notice: code }); }
       finally { set((state) => ({ pending: { ...state.pending, [id]: false } })); }
     },
     follow: async (authorId, following) => {
@@ -206,7 +210,7 @@ export function createFeedStore(initialPage: FeedPage | null, initialError?: str
         for (const post of Object.values(get().posts)) if (post.author.id === authorId) markUpdated(post.id);
         set((state) => ({ posts: Object.fromEntries(Object.entries(state.posts).map(([id, post]) => [id, post.author.id === authorId && post.viewer ? { ...post, viewer: { ...post.viewer, following_author: result.following } } : post])) }));
         await get().loadList("following");
-      } catch (error) { set({ notice: feedError(error) }); }
+      } catch (error) { const code = feedError(error); set(code === "login_required" ? { loginOpen: true, notice: null } : { notice: code }); }
       finally { set((state) => ({ pending: { ...state.pending, [key]: false } })); }
     },
   }));

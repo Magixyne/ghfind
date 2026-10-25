@@ -19,6 +19,7 @@ interface FeedPostCardProps {
   now: number;
   pending: boolean;
   onOpen: (id: string) => void;
+  onReply: (id: string) => void;
   onAction: (id: string, action: FeedAction) => void;
   onFollow: (id: string, following: boolean) => void;
   onCopy: (id: string) => void;
@@ -69,7 +70,7 @@ function useQualifiedView(post: FeedPost) {
   return ref;
 }
 
-export function FeedPostCard({ post, now, pending, onOpen, onAction, onFollow, onCopy, focused = false, connected = false }: FeedPostCardProps) {
+export function FeedPostCard({ post, now, pending, onOpen, onReply, onAction, onFollow, onCopy, focused = false, connected = false }: FeedPostCardProps) {
   const t = useTranslations("stream");
   const locale = useLocale();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -78,7 +79,7 @@ export function FeedPostCard({ post, now, pending, onOpen, onAction, onFollow, o
   const available = post.status === "published";
   const viewer = post.viewer;
   const actions: { label: string; icon: typeof Heart; action?: FeedAction; count?: number; active?: boolean; run?: () => void }[] = [
-    { label: t(available ? "replySend" : "feed.viewReplies"), icon: MessageCircle, count: post.metrics.direct_replies, run: () => onOpen(post.id) },
+    { label: t(available ? "replySend" : "feed.viewReplies"), icon: MessageCircle, count: post.metrics.direct_replies, run: () => available ? onReply(post.id) : onOpen(post.id) },
     { label: t(viewer?.reposted ? "feed.undoRepost" : "feed.repost"), icon: Repeat2, count: post.metrics.reposts, action: "repost", active: viewer?.reposted },
     { label: t(viewer?.reaction === "like" ? "unlike" : "like"), icon: Heart, count: post.metrics.likes, action: "like", active: viewer?.reaction === "like" },
     { label: t(viewer?.reaction === "dislike" ? "feed.undoDislike" : "feed.dislike"), icon: ThumbsDown, action: "dislike", active: viewer?.reaction === "dislike" },

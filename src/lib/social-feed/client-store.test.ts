@@ -130,7 +130,8 @@ describe("feed client persistence and navigation", () => {
     await store.getState().mutate(item.id, "like");
     expect(store.getState().posts[item.id].metrics.likes).toBe(0);
     expect(store.getState().posts[item.id].viewer?.reaction).toBeNull();
-    expect(store.getState().notice).toBe("login_required");
+    expect(store.getState().notice).toBeNull();
+    expect(store.getState().loginOpen).toBe(true);
     expect(store.getState().pending[item.id]).toBe(false);
   });
 });

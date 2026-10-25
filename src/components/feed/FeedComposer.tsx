@@ -4,7 +4,6 @@ import { useId, useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, UserRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useStore } from "zustand";
-import { LoginDialog } from "@/components/LoginDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -37,8 +36,9 @@ interface ComposerProps {
 
 export function FeedLogin({ store }: { store: FeedStore }) {
   const me = useStore(store, (state) => state.me);
+  const loginText = useTranslations("loginDialog");
   if (!me) return null;
-  return <div className="inline-flex [&_.sidebar-login]:m-0 [&_.sidebar-login]:w-auto [&_.sidebar-login]:gap-2 [&_.sidebar-login]:px-3 [&_.sidebar-login]:py-2 [&_.sidebar-label]:inline"><LoginDialog me={me} onRetry={store.getState().refreshSession} /></div>;
+  return <Button variant="outline" onClick={() => store.getState().setLoginOpen(true)}>{loginText("entry")}</Button>;
 }
 
 function PublicationNotice({ store, parentId, open, onOpenChange }: ComposerProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -52,7 +52,7 @@ function PublicationNotice({ store, parentId, open, onOpenChange }: ComposerProp
   return <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
     <DialogContent
       className="w-[min(calc(100vw-2rem),23rem)] translate-x-0 translate-y-0 gap-3 bg-background p-4"
-      style={{ insetInlineStart: "auto", insetInlineEnd: "1rem", top: "auto", bottom: "max(1rem, env(safe-area-inset-bottom))", transform: "none" }}
+      style={{ left: "50%", top: "clamp(5rem, 18vh, 12rem)", bottom: "auto", translate: "none", transform: "translateX(-50%)" }}
     >
       <div className="flex items-center justify-between gap-3">
         <DialogTitle className="text-base">{t("feed.publishAccessTitle")}</DialogTitle>
@@ -157,6 +157,7 @@ function WritableComposer({ store, parentId }: ComposerProps) {
   };
   const submit = async () => {
     if (submitLock.current || pending) return;
+    if (me && !me.user && !me.account) { store.getState().setLoginOpen(true); return; }
     const allowed = parentId ? capabilities?.can_reply : capabilities?.can_publish;
     if (!me?.user || !allowed || capabilitiesError || me.loadFailed || capabilities?.reason === "score_unavailable") {
       setAccessOpen(true);
@@ -204,7 +205,10 @@ function WritableComposer({ store, parentId }: ComposerProps) {
       }
     } catch (failure) {
       const code = feedError(failure);
-      if (code === "publishing_denied" || code === "login_required") {
+      if (code === "login_required") {
+        store.getState().setLoginOpen(true);
+        void store.getState().refreshSession();
+      } else if (code === "publishing_denied") {
         setAccessOpen(true);
         void store.getState().refreshSession();
       } else setError(code);

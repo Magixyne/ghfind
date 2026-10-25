@@ -12,6 +12,7 @@ import { createFeedStore, type FeedStore } from "@/lib/social-feed/client-store"
 import type { StreamProjectPick, StreamVoice } from "@/lib/stream/types";
 import { useMountEffect } from "@/lib/use-mount-effect";
 import { cn } from "@/lib/utils";
+import { LoginDialog } from "@/components/LoginDialog";
 import { FeedComposer, FeedLogin } from "./FeedComposer";
 import { FeedMessage, FeedPostCard } from "./FeedPostCard";
 import { FeedRail } from "./FeedRail";
@@ -26,6 +27,7 @@ export interface FeedAppProps {
 }
 interface PostHandlers {
   onOpen: (id: string) => void;
+  onReply: (id: string) => void;
   onAction: (id: string, action: FeedAction) => void;
   onFollow: (id: string, following: boolean) => void;
   onCopy: (id: string) => void;
@@ -70,10 +72,16 @@ export function FeedApp({ initialPage, projects, voices, generatedAt, initialErr
     window.history.replaceState(window.history.state, "", url);
     void state.openPost(null);
   };
+  const requireLogin = () => {
+    if (state.me && (state.me.user || state.me.account)) return false;
+    state.setLoginOpen(true);
+    return true;
+  };
   const handlers: PostHandlers = {
+    onReply: (id) => { if (!requireLogin()) openPost(id); },
     onOpen: openPost,
-    onAction: (id, action) => { setCopyNotice(null); void state.mutate(id, action); },
-    onFollow: (id, following) => { setCopyNotice(null); void state.follow(id, following); },
+    onAction: (id, action) => { if (requireLogin()) return; setCopyNotice(null); void state.mutate(id, action); },
+    onFollow: (id, following) => { if (requireLogin()) return; setCopyNotice(null); void state.follow(id, following); },
     onCopy: (id) => {
       const url = new URL(window.location.href);
       url.searchParams.set("post", id);
@@ -83,19 +91,18 @@ export function FeedApp({ initialPage, projects, voices, generatedAt, initialErr
   const card = (post: FeedPost) => <FeedPostCard key={`${post.id}:${post.view_token ?? ""}`} post={post} now={generatedAt} pending={Boolean(state.pending[post.id] || state.pending[`author:${post.author.id}`])} {...handlers} />;
   const channels: { id: FeedChannel; label: string }[] = [{ id: "recommended", label: t("tabForYou") }, { id: "following", label: t("tabFollowing") }];
   const retry = <Button variant="outline" size="sm" onClick={() => void state.loadList(state.channel)}>{t("feed.retry")}</Button>;
-  const signedOut = Boolean(state.me && !state.me.user && !state.me.account);
 
   return <main className="stream-layout mx-auto flex w-full max-w-6xl flex-1 justify-center gap-6 pb-24 min-[900px]:px-4 min-[900px]:pb-10">
     <section className="stream-timeline min-w-0 w-full max-w-[600px] border-border min-[900px]:border-x">
       <header className="sticky top-[57px] z-30 border-b border-border bg-background/95 backdrop-blur min-[900px]:top-0">
         <div className="flex items-center justify-between px-4 pt-2"><h1 className="text-lg font-bold">{t("heading")}</h1><div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="size-9" aria-label={t("feed.myBookmarks")} title={t("feed.myBookmarks")} onClick={() => { setBookmarksOpen(true); void state.loadList("bookmarks"); }}><Bookmark className="size-4" /></Button>
+          <Button variant="ghost" size="icon" className="size-9" aria-label={t("feed.myBookmarks")} title={t("feed.myBookmarks")} onClick={() => { if (requireLogin()) return; setBookmarksOpen(true); void state.loadList("bookmarks"); }}><Bookmark className="size-4" /></Button>
           <Button variant="ghost" size="icon" className="size-9" disabled={list.loading} aria-label={t("refresh")} title={t("refresh")} onClick={() => void state.loadList(state.channel)}><RefreshCw className={cn("size-4", list.loading && "animate-spin motion-reduce:animate-none")} /></Button>
         </div></div>
         <div role="tablist" aria-label={t("channels")} className="flex">{channels.map((channel) => <button key={channel.id} id={`feed-tab-${channel.id}`} role="tab" aria-selected={state.channel === channel.id} aria-controls="feed-timeline" type="button" className={cn("relative min-h-12 flex-1 px-3 py-3 text-sm hover:bg-foreground/[0.025]", state.channel === channel.id ? "font-bold text-foreground" : "text-muted-foreground")} onClick={() => void state.setChannel(channel.id)}>{channel.label}{state.channel === channel.id ? <span aria-hidden className="absolute bottom-0 left-1/2 h-[3px] w-14 -translate-x-1/2 rounded-full bg-orange-500" /> : null}</button>)}</div>
       </header>
       <FeedComposer store={store} />
-      {state.notice || copyNotice ? <div role={state.notice ? "alert" : "status"} className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-sm"><p>{state.notice ? errorMessage(state.notice) : copyNotice}</p>{state.notice === "login_required" && signedOut ? <FeedLogin store={store} /> : null}<Button variant="ghost" size="icon" className="size-7" aria-label={t("close")} onClick={() => { state.clearNotice(); setCopyNotice(null); }}><X className="size-3.5" /></Button></div> : null}
+      {state.notice || copyNotice ? <div role={state.notice ? "alert" : "status"} className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-sm"><p>{state.notice ? errorMessage(state.notice) : copyNotice}</p><Button variant="ghost" size="icon" className="size-7" aria-label={t("close")} onClick={() => { state.clearNotice(); setCopyNotice(null); }}><X className="size-3.5" /></Button></div> : null}
       <div id="feed-timeline" role="tabpanel" aria-labelledby={`feed-tab-${state.channel}`} aria-busy={list.loading}>
         {currentPosts.map(card)}
         {list.error ? <FeedMessage action={list.error === "login_required" ? <FeedLogin store={store} /> : retry}>{errorMessage(list.error)}</FeedMessage> : null}
@@ -127,6 +134,7 @@ export function FeedApp({ initialPage, projects, voices, generatedAt, initialErr
         </div>
       </DialogContent>
     </Dialog>
+    <LoginDialog me={state.me ?? { user: null, scored: false, oauth: false }} onRetry={state.refreshSession} showTrigger={false} open={state.loginOpen} onOpenChange={state.setLoginOpen} nearComposer />
   </main>;
 }
 
