@@ -1,15 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Flame, Library, Sparkles, TrendingUp, X } from "lucide-react";
+import { BadgeCheck, Flame, Library, Megaphone, Sparkles, TrendingUp, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { topInterests } from "@/lib/stream/rank";
 import { useStreamStore } from "@/lib/stream/store";
-import type { StreamItem } from "@/lib/stream/types";
+import type { StreamItem, StreamVoice } from "@/lib/stream/types";
 import { FollowButton } from "./StreamDetail";
 import { StreamAvatar, ScorePill } from "./StreamCard";
+import { XMark } from "./StreamPost";
 
 function RailSection({ title, icon: Icon, action, children }: { title: string; icon: typeof Flame; action?: ReactNode; children: ReactNode }) {
   return (
@@ -25,7 +26,7 @@ function RailSection({ title, icon: Icon, action, children }: { title: string; i
 }
 
 /** Desktop right rail: score CTA, learned interests, rising developers, editor's picks. */
-export function StreamRail({ items, onOpen, onFollowed }: { items: StreamItem[]; onOpen: (item: StreamItem) => void; onFollowed: (name: string) => void }) {
+export function StreamRail({ items, voices, onOpen, onFollowed }: { items: StreamItem[]; voices: StreamVoice[]; onOpen: (item: StreamItem) => void; onFollowed: (name: string) => void }) {
   const t = useTranslations("stream");
   const affinity = useStreamStore((state) => state.affinity);
   const resetInterests = useStreamStore((state) => state.resetInterests);
@@ -70,6 +71,34 @@ export function StreamRail({ items, onOpen, onFollowed }: { items: StreamItem[];
           <p className="text-xs leading-5 text-muted-foreground">{t("railInterestsEmpty")}</p>
         )}
       </RailSection>
+
+      {voices.length > 0 ? (
+        <RailSection title={t("railVoices")} icon={Megaphone}>
+          <p className="-mt-1 mb-2 text-[11px] leading-4 text-muted-foreground">{t("railVoicesHint")}</p>
+          <ul className="flex flex-col gap-2">
+            {voices.map((voice) => {
+              const latest = items.find((item) => item.kind === "post" && item.author.x?.handle === voice.handle);
+              return (
+                <li key={voice.handle} className="flex items-center gap-2">
+                  <button type="button" disabled={!latest} onClick={() => latest && onOpen(latest)} className="flex min-w-0 flex-1 items-center gap-2 text-start">
+                    <StreamAvatar src={voice.avatarUrl} name={voice.name} className="size-8" />
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="flex items-center gap-1 truncate text-sm font-semibold text-foreground">
+                        <span className="truncate">{voice.name}</span>
+                        {voice.verified ? <BadgeCheck className="size-3.5 shrink-0 fill-sky-500 text-background" aria-hidden /> : null}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">{t(`xCategory.${voice.category}`)} · @{voice.handle}</span>
+                    </span>
+                  </button>
+                  <a href={`https://x.com/${voice.handle}`} target="_blank" rel="noopener noreferrer" aria-label={`@${voice.handle}`} className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-foreground hover:bg-white/[0.04]">
+                    <XMark className="size-3" />
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </RailSection>
+      ) : null}
 
       {developers.length > 0 ? (
         <RailSection title={t("railTopDevelopers")} icon={TrendingUp}>

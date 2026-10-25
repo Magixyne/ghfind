@@ -76,6 +76,8 @@ const REVIEWED_NEXT_API_ROUTES = new Set([
   "src/app/api/internal/project-analyses/reconcile/route.ts",
   "src/app/api/internal/feed/reconcile/route.ts",
   "src/app/api/internal/feed/tags/review/route.ts",
+  // Curated X timeline ingest for /feed: ADMIN_SECRET only, KV-backed, no-store.
+  "src/app/api/internal/x-timeline/route.ts",
   "src/app/api/material-card/[username]/route.tsx",
   "src/app/api/og/blog/[slug]/route.tsx",
   "src/app/api/og/home/route.tsx",

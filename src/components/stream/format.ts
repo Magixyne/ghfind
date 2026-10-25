@@ -1,4 +1,4 @@
-import { BookOpen, Briefcase, FolderGit2, Library, UserRound, Users, type LucideIcon } from "lucide-react";
+import { BookOpen, Briefcase, FolderGit2, Library, MessageSquareQuote, UserRound, Users, type LucideIcon } from "lucide-react";
 import { tierAvatarFrame, tierAvatarFrameIconPath } from "@/lib/tier";
 import type { Tier } from "@/lib/types";
 import type { StreamKind } from "@/lib/stream/types";
@@ -11,6 +11,8 @@ export const KIND_STYLE: Record<StreamKind, { icon: LucideIcon; text: string; ti
   article: { icon: BookOpen, text: "text-sky-300", tint: "bg-sky-500/10", tile: "from-sky-500/25 via-sky-500/5" },
   collection: { icon: Library, text: "text-amber-300", tint: "bg-amber-500/10", tile: "from-amber-500/25 via-amber-500/5" },
   job: { icon: Briefcase, text: "text-rose-400", tint: "bg-rose-500/10", tile: "from-rose-500/25 via-rose-500/5" },
+  // Neutral, like X's own black/white mark.
+  post: { icon: MessageSquareQuote, text: "text-foreground", tint: "bg-foreground/10", tile: "from-foreground/15 via-foreground/5" },
 };
 
 const TIER_BY_KEY: Record<string, Tier> = { god: "夯", elite: "顶级", solid: "人上人", npc: "NPC", trash: "拉完了" };
