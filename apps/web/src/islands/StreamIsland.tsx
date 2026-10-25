@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
-import { StreamApp } from "@/components/stream/StreamApp";
+import { FeedApp } from "@/components/feed/FeedApp";
 import { IslandRoot } from "./IslandRoot";
 import type { WithIntl } from "./types";
 
-export function StreamIsland({ intl, ...props }: WithIntl<ComponentProps<typeof StreamApp>>) {
-  return <IslandRoot intl={intl}><StreamApp {...props} /></IslandRoot>;
+export function StreamIsland({ intl, ...props }: WithIntl<ComponentProps<typeof FeedApp>>) {
+  return <IslandRoot intl={intl}><FeedApp {...props} /></IslandRoot>;
 }

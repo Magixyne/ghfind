@@ -4,17 +4,15 @@ import { StreamIsland } from "../../../islands/StreamIsland";
 import { getMessages, getTranslator, pickMessages, routeLocale } from "../../../lib/i18n";
 import { loadFeedPage } from "@/lib/pages/feed";
 
-// Prototype of the social-style stream (see src/components/stream). Kept out
-// of the index until it replaces the homepage.
 const locale = routeLocale(Astro.params.locale);
 if (!locale) return new Response(null, { status: 404 });
-const [t, messages, { items, pulse, voices, generatedAt, demo, demoX }] = await Promise.all([
+const [t, messages, feed] = await Promise.all([
   getTranslator(locale, "stream"),
   getMessages(locale),
   loadFeedPage(locale),
 ]);
-Astro.response.headers.set("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
+Astro.response.headers.set("Cache-Control", "no-store");
 ---
 <Base locale={locale} path="/feed" title={t("metaTitle")} description={t("metaDescription")} robots="noindex, follow">
-  <StreamIsland client:load items={items} pulse={pulse} voices={voices} generatedAt={generatedAt} demo={demo} demoX={demoX} intl={{ locale, pathname: "/feed", search: Astro.url.search, messages: pickMessages(messages, ["stream", "dimensions"]) }} />
+  <StreamIsland client:load {...feed} intl={{ locale, pathname: "/feed", search: Astro.url.search, messages: pickMessages(messages, ["stream", "loginDialog"]) }} />
 </Base>

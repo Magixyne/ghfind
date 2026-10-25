@@ -1,20 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { BadgeCheck, Flame, Library, Megaphone, Sparkles, TrendingUp, X } from "lucide-react";
+import { BadgeCheck, Flame, Megaphone, Code2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { topInterests } from "@/lib/stream/rank";
-import { useStreamStore } from "@/lib/stream/store";
-import type { StreamItem, StreamVoice } from "@/lib/stream/types";
-import { FollowButton } from "./StreamDetail";
-import { StreamAvatar, ScorePill } from "./StreamCard";
+import type { StreamItem, StreamProjectPick, StreamVoice } from "@/lib/stream/types";
+import { StreamAvatar } from "./StreamCard";
 import { XMark } from "./StreamPost";
 
 function RailSection({ title, icon: Icon, action, children }: { title: string; icon: typeof Flame; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-3">
+    <section className="rounded-2xl border border-border bg-background p-3">
       <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-foreground">
         <Icon className="size-4 text-muted-foreground" aria-hidden />
         {title}
@@ -25,22 +22,12 @@ function RailSection({ title, icon: Icon, action, children }: { title: string; i
   );
 }
 
-/** Desktop right rail: score CTA, learned interests, rising developers, editor's picks. */
-export function StreamRail({ items, voices, onOpen, onFollowed }: { items: StreamItem[]; voices: StreamVoice[]; onOpen: (item: StreamItem) => void; onFollowed: (name: string) => void }) {
+/** Desktop right rail: score CTA, daily open-source projects and X authors. */
+export function StreamRail({ items, projects, voices, onOpen }: { items: StreamItem[]; projects: StreamProjectPick[]; voices: StreamVoice[]; onOpen: (item: StreamItem) => void }) {
   const t = useTranslations("stream");
-  const affinity = useStreamStore((state) => state.affinity);
-  const resetInterests = useStreamStore((state) => state.resetInterests);
-  const interests = topInterests(affinity);
-
-  const developers = items
-    .filter((item) => item.kind === "developer")
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, 4);
-  const picks = items.filter((item) => item.badge === "editor").slice(0, 4);
-
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-3">
+      <section className="rounded-2xl border border-border bg-background p-3">
         <h2 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
           <Flame className="size-4 text-orange-300" aria-hidden />
           {t("railCtaTitle")}
@@ -51,25 +38,20 @@ export function StreamRail({ items, voices, onOpen, onFollowed }: { items: Strea
         </Button>
       </section>
 
-      <RailSection
-        title={t("railInterests")}
-        icon={Sparkles}
-        action={interests.length > 0 ? (
-          <button type="button" onClick={resetInterests} className="inline-flex items-center gap-0.5 text-xs font-normal text-muted-foreground hover:text-foreground">
-            <X className="size-3" aria-hidden />
-            {t("railReset")}
-          </button>
-        ) : null}
-      >
-        {interests.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {interests.map((tag) => (
-              <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">#{tag}</span>
+      <RailSection title={t("railDailyProjects")} icon={Code2}>
+        {projects.length > 0 ? (
+          <ul className="divide-y divide-border">
+            {projects.map((project) => (
+              <li key={project.repoKey} className="py-2 first:pt-0">
+                <a href={project.href} target="_blank" rel="noopener noreferrer" className="block rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+                  <span className="block truncate text-sm font-semibold text-foreground hover:underline">{project.repoKey}</span>
+                  <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{project.summary}</span>
+                </a>
+              </li>
             ))}
-          </div>
-        ) : (
-          <p className="text-xs leading-5 text-muted-foreground">{t("railInterestsEmpty")}</p>
-        )}
+          </ul>
+        ) : <p className="text-xs leading-5 text-muted-foreground">{t("railDailyProjectsEmpty")}</p>}
+        <Link href="/projects" prefetch={false} className="mt-2 inline-block text-xs font-medium text-foreground hover:underline">{t("railDailyProjectsMore")}</Link>
       </RailSection>
 
       {voices.length > 0 ? (
@@ -100,43 +82,6 @@ export function StreamRail({ items, voices, onOpen, onFollowed }: { items: Strea
         </RailSection>
       ) : null}
 
-      {developers.length > 0 ? (
-        <RailSection title={t("railTopDevelopers")} icon={TrendingUp}>
-          <ul className="flex flex-col gap-2">
-            {developers.map((item) => (
-              <li key={item.id} className="flex items-center gap-2">
-                <button type="button" onClick={() => onOpen(item)} className="flex min-w-0 flex-1 items-center gap-2 text-start">
-                  <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-8" />
-                  <span className="min-w-0 flex-1 leading-tight">
-                    <span className="block truncate text-sm font-semibold text-foreground">{item.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground"><bdi>{item.author.handle}</bdi></span>
-                  </span>
-                  <ScorePill item={item} />
-                </button>
-                <FollowButton authorId={item.author.id} name={item.author.name} onFollowed={onFollowed} />
-              </li>
-            ))}
-          </ul>
-        </RailSection>
-      ) : null}
-
-      {picks.length > 0 ? (
-        <RailSection title={t("railEditor")} icon={Library}>
-          <ol className="flex flex-col gap-2">
-            {picks.map((item, index) => (
-              <li key={item.id}>
-                <button type="button" onClick={() => onOpen(item)} className="flex w-full items-start gap-2 text-start">
-                  <span className="w-4 shrink-0 text-sm font-black tabular-nums text-amber-300">{index + 1}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">{item.title}</span>
-                    <span className="text-xs text-muted-foreground">{item.author.name}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </RailSection>
-      ) : null}
     </div>
   );
 }

@@ -1051,7 +1051,7 @@ html[data-theme="light"] :is(.text-zinc-500, .text-zinc-600) { color: #777773; }
 /* Workspace shell: navigation is a quiet, persistent left rail. */
 .workspace-shell { --sidebar-width: 208px; min-height: 100dvh; }
 .workspace-shell[data-collapsed="true"] { --sidebar-width: 72px; }
-.workspace-sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; width: var(--sidebar-width); z-index: 40; display: flex; flex-direction: column; background: var(--surface-muted); border-inline-end: 1px solid var(--border); padding: 22px 12px 14px; transition: width 180ms ease; }
+.workspace-sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; width: var(--sidebar-width); z-index: 40; display: flex; flex-direction: column; background: var(--background); border-inline-end: 1px solid var(--border); padding: 22px 12px 14px; transition: width 180ms ease; }
 .workspace-brand { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 20px; }
 .workspace-brand-link { display: flex; align-items: center; gap: 10px; min-width: 0; padding-inline: 7px; font-size: 21px; font-weight: 650; letter-spacing: -.7px; }
 .workspace-brand-caption { display: block; font-size: 10px; font-weight: 400; letter-spacing: .02em; color: var(--muted-foreground); margin-top: 2px; }
@@ -1069,7 +1069,8 @@ html[data-theme="light"] :is(.text-zinc-500, .text-zinc-600) { color: #777773; }
 .sidebar-link > svg { flex-shrink: 0; }
 .sidebar-link > span.sidebar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-link:hover { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 4%, transparent); }
-.sidebar-link[aria-current="page"] { background: color-mix(in srgb, var(--foreground) 7%, transparent); color: var(--foreground); font-weight: 550; }
+.sidebar-link[aria-current="page"] { background: transparent; color: var(--foreground); font-weight: 550; }
+.sidebar-link[aria-current="page"]:hover { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
 .sidebar-link[data-featured] { color: var(--foreground); font-weight: 550; }
 .sidebar-link[data-featured] > svg { color: #ea6a1f; }
 .sidebar-new-badge { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-inline-start: 1px; padding: 2px 4px; border-radius: 3px; background: var(--foreground); color: var(--background); font-size: 8px; font-weight: 650; line-height: 1; letter-spacing: .01em; }
@@ -1169,7 +1170,7 @@ html[data-theme="light"] .login-apple-mark { filter: invert(1); }
   .workspace-body { margin-inline-start: 0; }
   .workspace-mobile-bar { display: flex; align-items: center; gap: 10px; background: var(--background); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; height: 57px; padding-inline: 16px; }
   .workspace-mobile-trigger { display: inline-flex; }
-  html .workspace-mobile-sidebar[role="dialog"] { display: flex; flex-direction: column; gap: 0; width: min(290px, 88vw); padding: 24px 16px 16px; border-radius: 0; background: var(--surface-muted); height: 100dvh; }
+  html .workspace-mobile-sidebar[role="dialog"] { display: flex; flex-direction: column; gap: 0; width: min(290px, 88vw); padding: 24px 16px 16px; border-radius: 0; background: var(--background); height: 100dvh; }
   .workspace-mobile-sidebar .workspace-brand { justify-content: space-between; }
   .workspace-mobile-sidebar .workspace-navigation { overflow-y: auto; }
   .workspace-mobile-sidebar .sidebar-link { min-height: 42px; }
@@ -1496,4 +1497,30 @@ html[data-theme="light"] .login-apple-mark { filter: invert(1); }
 /* Preserve the transparent sponsor mark and keep its wordmark legible. */
 html[data-theme="dark"] .model-sponsor-logo {
   filter: invert(1) hue-rotate(180deg);
+}
+
+/* Shared reading frame: keep navigation in the same position across pages.
+   Desktop: 275px navigation + 980px content (Feed: 600 / 30 gap / 350). */
+@media screen and (min-width: 900px) {
+  .workspace-shell {
+    --sidebar-width: 275px;
+    --workspace-content-width: 600px;
+    width: min(100%, calc(var(--sidebar-width) + var(--workspace-content-width)));
+    margin-inline: auto;
+  }
+  .workspace-shell > .workspace-sidebar {
+    inset-inline-start: max(0px, calc((100vw - var(--sidebar-width) - var(--workspace-content-width)) / 2));
+  }
+  .workspace-shell .stream-layout {
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: 0;
+    justify-content: flex-start;
+    gap: 30px;
+  }
+  .stream-layout > .stream-timeline { width: 600px; max-width: 600px; flex-shrink: 0; }
+  .stream-layout > .stream-rail { width: 350px; }
+}
+@media screen and (min-width: 1280px) {
+  .workspace-shell { --workspace-content-width: 980px; }
 }

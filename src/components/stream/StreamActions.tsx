@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Bookmark, Eye, Heart, Layers, MessageCircle, Share2, Star } from "lucide-react";
+import { Eye, Heart, Layers, MessageCircle, Share2, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useStreamStore } from "@/lib/stream/store";
@@ -74,7 +74,7 @@ export function LikeIcon({ liked, className }: { liked: boolean; className?: str
 }
 
 /**
- * Engagement row shared by list cards and the detail view. Likes and saves are
+ * Engagement row shared by list cards and the detail view. Likes are
  * the viewer's own (no public count yet); the only number shown is the item's
  * real counter. `compact` (grid tiles) keeps just the like toggle.
  */
@@ -93,9 +93,7 @@ export function StreamActions({
 }) {
   const t = useTranslations("stream");
   const liked = useStreamStore((state) => Boolean(state.liked[item.id]));
-  const saved = useStreamStore((state) => Boolean(state.saved[item.id]));
   const toggleLike = useStreamStore((state) => state.toggleLike);
-  const toggleSave = useStreamStore((state) => state.toggleSave);
 
   const like = (
     <ActionButton label={liked ? t("unlike") : t("like")} active={liked} activeClass="text-rose-500 hover:text-rose-500" onClick={() => toggleLike(item)}>
@@ -113,9 +111,6 @@ export function StreamActions({
         </ActionButton>
       ) : null}
       {like}
-      <ActionButton label={saved ? t("unsave") : t("save")} active={saved} activeClass="text-amber-400 hover:text-amber-400" onClick={() => toggleSave(item)}>
-        <Bookmark className={cn("size-4", saved && "fill-current")} aria-hidden />
-      </ActionButton>
       <ActionButton label={t("share")} onClick={onShare}>
         <Share2 className="size-4" aria-hidden />
       </ActionButton>

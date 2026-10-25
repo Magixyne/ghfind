@@ -118,3 +118,6 @@ export type StreamAffinity = {
   kinds: Partial<Record<StreamKind, number>>;
   tags: Record<string, number>;
 };
+
+/** Independent sidebar recommendations; never mixed into the X timeline. */
+export type StreamProjectPick = { repoKey: string; summary: string; href: string };

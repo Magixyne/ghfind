@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { ingestXTimeline, readXTimeline, removeFromXTimeline } from "@/lib/x-timeline.server";
+import { readXTimeline, removeFromXTimeline } from "@/lib/x-timeline.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +15,6 @@ export const dynamic = "force-dynamic";
  *
  * Auth: ADMIN_SECRET in `x-admin-secret` (same as /api/admin/*) or as a Bearer token.
  */
-
-const MAX_BODY_BYTES = 512 * 1024;
 
 function secureEqual(left: string, right: string): boolean {
   const a = Buffer.from(left);
@@ -44,21 +42,10 @@ export async function GET(req: NextRequest) {
   });
 }
 
+/** New content-only imports use the durable social-feed endpoint. */
 export async function POST(req: NextRequest) {
   if (!authorized(req)) return json({ error: "unauthorized" }, 401);
-  const length = Number(req.headers.get("content-length") ?? 0);
-  if (length > MAX_BODY_BYTES) return json({ error: "body_too_large" }, 413);
-  let body: unknown;
-  try {
-    const text = await req.text();
-    if (text.length > MAX_BODY_BYTES) return json({ error: "body_too_large" }, 413);
-    body = JSON.parse(text);
-  } catch {
-    return json({ error: "invalid_body" }, 400);
-  }
-  const dryRun = req.nextUrl.searchParams.get("dryRun") === "1";
-  const result = await ingestXTimeline(body, { dryRun });
-  return result ? json(result) : json({ error: "storage_unavailable" }, 503);
+  return json({ error: "x_importer_retired", replacement: "/api/internal/social-feed/x-posts" }, 410);
 }
 
 export async function DELETE(req: NextRequest) {

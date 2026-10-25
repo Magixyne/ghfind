@@ -2,35 +2,32 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUp, Bookmark, Compass, Flame, House, LayoutGrid, LayoutList, RefreshCw, Trophy } from "lucide-react";
+import { ArrowUp, Users, Compass, Flame, House, LayoutGrid, LayoutList, RefreshCw, Trophy } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link } from "@/i18n/navigation";
 import { rankStream } from "@/lib/stream/rank";
 import { useStreamStore } from "@/lib/stream/store";
-import type { StreamAffinity, StreamItem, StreamKind, StreamLayout, StreamPulse as StreamPulseData, StreamVoice } from "@/lib/stream/types";
+import type { StreamAffinity, StreamItem, StreamProjectPick, StreamLayout, StreamVoice } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
 import { StreamListCard, StreamMasonryCard, type StreamCardHandlers } from "./StreamCard";
 import { FollowButton, StreamDetail } from "./StreamDetail";
-import { StreamPulse } from "./StreamPulse";
 import { StreamRail } from "./StreamRail";
 
-type Tab = "foryou" | "following" | "saved";
-type KindFilter = "all" | StreamKind;
+type Tab = "foryou" | "following";
 type Toast = { id: number; message: string; action?: { label: string; run: () => void } };
 
-const KINDS: StreamKind[] = ["post", "project", "developer", "talent", "article", "collection", "job"];
 const PAGE = 10;
-/** Likes + saves + hides since the last ranking before we offer a re-rank. */
+/** Likes + hides since the last ranking before we offer a re-rank. */
 const RETUNE_AFTER = 3;
 const ITEM_PARAM = "item";
 
 /** Rank inputs frozen at the last refresh, so the list never reorders under the reader. */
 type Snapshot = { affinity: StreamAffinity; seen: ReadonlySet<string>; seed: number; signals: number; version: number };
 
-function signalCount(state: { liked: object; saved: object; hidden: string[] }): number {
-  return Object.keys(state.liked).length + Object.keys(state.saved).length + state.hidden.length;
+function signalCount(state: { liked: object; hidden: string[] }): number {
+  return Object.keys(state.liked).length + state.hidden.length;
 }
 
 function takeSnapshot(previous: Snapshot): Snapshot {
@@ -73,13 +70,12 @@ function distribute(items: StreamItem[], columns: number): StreamItem[][] {
   return out;
 }
 
-export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = false }: { items: StreamItem[]; pulse: StreamPulseData; voices: StreamVoice[]; generatedAt: number; demo: boolean; demoX?: boolean }) {
+export function StreamApp({ items, projects, voices, generatedAt, demoX = false }: { items: StreamItem[]; projects: StreamProjectPick[]; voices: StreamVoice[]; generatedAt: number; demoX?: boolean }) {
   const t = useTranslations("stream");
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<Tab>("foryou");
-  const [kind, setKind] = useState<KindFilter>("all");
   const [snapshot, setSnapshot] = useState<Snapshot>({ affinity: { kinds: {}, tags: {} }, seen: new Set(), seed: 0, signals: 0, version: 0 });
-  // Page size grows per view; switching tab/kind or re-ranking starts over.
+  // Page size grows per view; switching tab or re-ranking starts over.
   const [paging, setPaging] = useState({ key: "", count: PAGE });
   const [openId, setOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -90,7 +86,6 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
 
   const hidden = useStreamStore((state) => state.hidden);
   const following = useStreamStore((state) => state.following);
-  const saved = useStreamStore((state) => state.saved);
   const storedLayout = useStreamStore((state) => state.layout);
   const signals = useStreamStore(signalCount);
   const setLayout = useStreamStore((state) => state.setLayout);
@@ -138,12 +133,10 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
     const hiddenSet = new Set(hidden);
     let list = ranked.filter((item) => !hiddenSet.has(item.id));
     if (tab === "following") list = list.filter((item) => following[item.author.id]);
-    if (tab === "saved") list = ranked.filter((item) => saved[item.id]);
-    if (kind !== "all") list = list.filter((item) => item.kind === kind);
     return list;
-  }, [ranked, hidden, tab, following, saved, kind]);
+  }, [ranked, hidden, tab, following]);
 
-  const viewKey = `${tab}|${kind}|${snapshot.version}`;
+  const viewKey = `${tab}|${snapshot.version}`;
   const limit = paging.key === viewKey ? paging.count : PAGE;
   const page = visible.slice(0, limit);
   const hasMore = limit < visible.length;
@@ -212,19 +205,13 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
     setOpenId(null);
   }, []);
 
-  const openUser = useCallback((username: string) => {
-    const match = items.find((item) => item.kind === "developer" && item.author.id.toLowerCase() === username.toLowerCase());
-    if (match) handlers.onOpen(match);
-    else window.location.href = new URL(`${window.location.pathname.replace(/\/feed\/?$/, "")}/u/${username}`, window.location.origin).href;
-  }, [items, handlers]);
-
   const onFollowed = useCallback((name: string) => notify(t("followedToast", { name })), [notify, t]);
 
   const openItem = openId ? byId.get(openId) ?? null : null;
   const retune = hydrated && tab === "foryou" && Math.abs(signals - snapshot.signals) >= RETUNE_AFTER;
 
   const suggestions = useMemo(
-    () => items.filter((item) => item.kind === "developer" || item.kind === "talent").sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5),
+    () => [...new Map(items.map((item) => [item.author.id, item])).values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5),
     [items],
   );
 
@@ -243,13 +230,12 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
   const tabs: { id: Tab; label: string }[] = [
     { id: "foryou", label: t("tabForYou") },
     { id: "following", label: t("tabFollowing") },
-    { id: "saved", label: t("navSaved") },
   ];
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 justify-center gap-6 pb-24 min-[900px]:px-4 min-[900px]:pb-10">
-      <div className="w-full min-w-0 max-w-[680px] border-border min-[900px]:border-x">
-        {/* Sticky header: tabs, layout switch, kind chips. Sits under the 57px mobile bar below 900px;
+    <main className="stream-layout mx-auto flex w-full max-w-6xl flex-1 justify-center gap-6 pb-24 min-[900px]:px-4 min-[900px]:pb-10">
+      <div className="stream-timeline w-full min-w-0 max-w-[680px] border-border min-[900px]:border-x">
+        {/* Sticky header: tabs and layout switch. Sits under the 57px mobile bar below 900px;
             on phones the title row folds away and the controls ride along the tab row. */}
         <div className="sticky top-[57px] z-30 border-b border-border bg-background/90 backdrop-blur min-[900px]:top-0">
           <h1 className="sr-only">{t("heading")}</h1>
@@ -278,22 +264,6 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
             </div>
             <div className="pe-2 sm:hidden">{controls}</div>
           </div>
-          <div className="flex gap-1.5 overflow-x-auto border-t border-border px-3 py-2 [scrollbar-width:none] sm:px-4">
-            {(["all", ...KINDS] as KindFilter[]).map((id) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={kind === id}
-                onClick={() => setKind(id)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3 py-1 text-xs transition-colors",
-                  kind === id ? "border-foreground/25 bg-foreground font-semibold text-background" : "border-border bg-card font-medium text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {id === "all" ? t("tabForYou") : t(`kind.${id}`)}
-              </button>
-            ))}
-          </div>
           <AnimatePresence>
             {retune ? (
               <motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -12, opacity: 0 }} className="pointer-events-none absolute inset-x-0 top-full flex justify-center">
@@ -306,10 +276,7 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
           </AnimatePresence>
         </div>
 
-        {demo ? <p className="border-b border-border bg-white/[0.02] px-4 py-2 text-xs text-muted-foreground">{t("demoData")}</p> : null}
-        {demoX && (kind === "post" || kind === "all") ? <p className="border-b border-border bg-white/[0.02] px-4 py-2 text-xs text-muted-foreground">{t("demoX")}</p> : null}
-
-        {tab === "foryou" && kind === "all" ? <StreamPulse pulse={pulse} onOpenUser={openUser} /> : null}
+        {demoX ? <p className="border-b border-border bg-background px-4 py-2 text-xs text-muted-foreground">{t("demoX")}</p> : null}
 
         <div ref={feedRef}>
           {page.length === 0 ? (
@@ -330,7 +297,7 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
                 </ul>
               </div>
             ) : (
-              <p className="px-4 py-12 text-center text-sm text-muted-foreground">{t("savedEmpty")}</p>
+              <p className="px-4 py-12 text-center text-sm text-muted-foreground">{t("feedEmpty")}</p>
             )
           ) : layout === "list" ? (
             <div key={viewKey}>
@@ -364,9 +331,9 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
         </div>
       </div>
 
-      <aside className="hidden w-80 shrink-0 xl:block">
+      <aside className="stream-rail hidden w-80 shrink-0 xl:block">
         <div className="sticky top-4 pt-3">
-          <StreamRail items={items} voices={voices} onOpen={handlers.onOpen} onFollowed={onFollowed} />
+          <StreamRail projects={projects} items={items} voices={voices} onOpen={handlers.onOpen} />
         </div>
       </aside>
 
@@ -411,7 +378,7 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
 
       {/* Phone tab bar: the stream is home; score is the primary action. */}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur min-[900px]:hidden">
-        <button type="button" onClick={() => { setTab("foryou"); setKind("all"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className={cn("flex flex-col items-center gap-0.5 py-2 text-[10px]", tab === "foryou" ? "text-foreground" : "text-muted-foreground")}>
+        <button type="button" onClick={() => { setTab("foryou"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className={cn("flex flex-col items-center gap-0.5 py-2 text-[10px]", tab === "foryou" ? "text-foreground" : "text-muted-foreground")}>
           <House className="size-5" aria-hidden />
           {t("navHome")}
         </button>
@@ -428,9 +395,9 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = fal
           <Trophy className="size-5" aria-hidden />
           {t("navLeaderboard")}
         </Link>
-        <button type="button" onClick={() => { setTab("saved"); window.scrollTo({ top: 0 }); }} className={cn("flex flex-col items-center gap-0.5 py-2 text-[10px]", tab === "saved" ? "text-foreground" : "text-muted-foreground")}>
-          <Bookmark className="size-5" aria-hidden />
-          {t("navSaved")}
+        <button type="button" onClick={() => { setTab("following"); window.scrollTo({ top: 0 }); }} className={cn("flex flex-col items-center gap-0.5 py-2 text-[10px]", tab === "following" ? "text-foreground" : "text-muted-foreground")}>
+          <Users className="size-5" aria-hidden />
+          {t("tabFollowing")}
         </button>
       </nav>
     </main>
