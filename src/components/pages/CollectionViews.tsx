@@ -1,3 +1,5 @@
+import { BookOpen, Code2, FileSearch, Users } from "lucide-react";
+import type { PostMeta } from "@/lib/blog";
 import { Link } from "@/i18n/navigation";
 import {
   JsonLd,
@@ -29,15 +31,43 @@ const longDate = (locale: string) =>
 export function CollectionsIndexView({
   locale,
   collections,
+  posts,
   t,
   tBlog,
 }: {
   locale: string;
   collections: Collection[];
+  posts: PostMeta[];
   t: Translator;
   tBlog: Translator;
 }) {
   const dateFmt = longDate(locale);
+  const entries = [
+    ...collections.map(collection => ({
+      href: `/collections/${collection.slug}`,
+      title: pickText(collection.title, locale),
+      description: pickText(collection.intro, locale),
+      date: collection.publishedAt,
+      tags: collection.tags,
+      label: t(`type.${collection.type}`),
+      minutes: articleReadingMinutes(collection, locale),
+      count: collection.items.length,
+      avatarOwner: collection.subject?.id.split("/")[0],
+      Icon: collection.type === "developers" ? Users : collection.type === "projects" ? Code2 : BookOpen,
+    })),
+    ...posts.map(post => ({
+      href: `/blog/${post.slug}`,
+      title: post.title,
+      description: post.description,
+      date: post.date,
+      tags: post.tags,
+      label: tBlog("heading"),
+      minutes: post.readingMinutes,
+      count: 0,
+      avatarOwner: undefined,
+      Icon: FileSearch,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date) || a.href.localeCompare(b.href));
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-5 py-14 sm:px-6 sm:py-20">
@@ -52,25 +82,20 @@ export function CollectionsIndexView({
       </header>
 
       <div className="mt-10 flex flex-col gap-6">
-        {collections.map((collection) => {
-          const minutes = articleReadingMinutes(collection, locale);
-          const avatarOwner = collection.subject
-            ? collection.subject.kind === "repo"
-              ? collection.subject.id.split("/")[0]
-              : collection.subject.id
-            : null;
+        {entries.map((entry) => {
+          const Icon = entry.Icon;
           return (
-            <article key={collection.slug}>
+            <article key={entry.href}>
               <Link
-                href={`/collections/${collection.slug}`}
+                href={entry.href}
                 prefetch={false}
                 className="collection-index-entry group block"
               >
                 <div className="flex items-start gap-4">
-                  {avatarOwner ? (
+                  {entry.avatarOwner ? (
                     // eslint-disable-next-line @next/next/no-img-element -- GitHub avatar; the image optimizer would just add Vercel cost
                     <img
-                      src={`https://github.com/${avatarOwner}.png?size=112`}
+                      src={`https://github.com/${entry.avatarOwner}.png?size=112`}
                       alt=""
                       loading="lazy"
                       className="mt-1 h-12 w-12 shrink-0 rounded-xl"
@@ -78,15 +103,17 @@ export function CollectionsIndexView({
                   ) : (
                     <span
                       aria-hidden="true"
-                      className="mt-1 h-12 w-12 shrink-0"
-                    />
+                      className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"
+                    >
+                      <Icon className="h-6 w-6" strokeWidth={1.7} />
+                    </span>
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-medium text-muted-foreground">
-                        {t(`type.${collection.type}`)}
+                        {entry.label}
                       </span>
-                      {collection.tags.map((tag) => (
+                      {entry.tags.map((tag) => (
                         <span
                           key={tag}
                           className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground"
@@ -96,29 +123,29 @@ export function CollectionsIndexView({
                       ))}
                     </div>
                     <h2 className="mt-3 text-xl font-bold text-zinc-100 group-hover:text-white sm:text-2xl">
-                      {pickText(collection.title, locale)}
+                      {entry.title}
                     </h2>
                     <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-zinc-400">
-                      {pickText(collection.intro, locale)}
+                      {entry.description}
                     </p>
                     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-zinc-500">
-                      <time dateTime={collection.publishedAt}>
+                      <time dateTime={entry.date}>
                         {t("publishedOn", {
-                          date: dateFmt.format(new Date(collection.publishedAt)),
+                          date: dateFmt.format(new Date(entry.date)),
                         })}
                       </time>
-                      {minutes !== null && (
+                      {entry.minutes !== null && (
                         <>
                           <span aria-hidden>·</span>
                           <span>
-                            {tBlog("readingTime", { minutes })}
+                            {tBlog("readingTime", { minutes: entry.minutes })}
                           </span>
                         </>
                       )}
-                      {collection.items.length > 0 && (
+                      {entry.count > 0 && (
                         <>
                           <span aria-hidden>·</span>
-                          <span>{t("itemCount", { count: collection.items.length })}</span>
+                          <span>{t("itemCount", { count: entry.count })}</span>
                         </>
                       )}
                     </div>
@@ -128,7 +155,7 @@ export function CollectionsIndexView({
             </article>
           );
         })}
-        {collections.length === 0 && <p className="text-zinc-500">{t("empty")}</p>}
+        {entries.length === 0 && <p className="text-zinc-500">{t("empty")}</p>}
       </div>
     </main>
   );

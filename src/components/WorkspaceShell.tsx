@@ -48,7 +48,7 @@ export function WorkspaceShell({ children, account, sponsor }: { children: React
           </p>}
           {group.items.map(item => {
             const Icon = NAV_ICONS[item.icon ?? ""] ?? Code2;
-            const current = active(item.href ?? "/");
+            const current = active(item.href ?? "/") || (item.activePaths ?? []).some(active);
             return <Link key={item.key} href={item.href ?? "/"} prefetch={false} onClick={() => setOpen(false)}
               className="sidebar-link" data-featured={item.featured || undefined} aria-current={current ? "page" : undefined}
               title={nav(`hint.${item.key}`)} aria-label={nav(item.key)}>

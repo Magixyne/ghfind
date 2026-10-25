@@ -40,7 +40,7 @@
     "developers": "Desenvolvedores",
     "projectBoards": "Quadros de projetos",
     "projects": "Projetos",
-    "collections": "Escolhas do editor",
+    "collections": "Pesquisa aprofundada",
     "languages": "Linguagens",
     "organizations": "Organizações",
     "versus": "Duelo de devs",
@@ -59,7 +59,7 @@
       "versus": "Coloque dois desenvolvedores frente a frente",
       "leaderboard": "Veja os melhores desenvolvedores por nota",
       "projectBoards": "Descubra projetos open source em destaque por área",
-      "collections": "Projetos e desenvolvedores escolhidos pelo editor",
+      "collections": "Histórias de desenvolvedores, projetos de código aberto selecionados e pesquisas sobre o GitHub.",
       "blog": "Dados e análises do ecossistema de desenvolvedores",
       "resume": "Monte um currículo de desenvolvedor com seus dados do GitHub",
       "talent": "Encontre desenvolvedores que valem a pena conhecer",
@@ -232,11 +232,11 @@
     }
   },
   "collections": {
-    "metaTitle": "Seleção do fundador: projetos e desenvolvedores · ghfind",
-    "metaDescription": "Coleções curadas de projetos e desenvolvedores de destaque no GitHub, com o respaldo do motor de qualidade de contribuidores do ghfind.",
+    "metaTitle": "Pesquisa aprofundada · ghfind",
+    "metaDescription": "Histórias de desenvolvedores, projetos de código aberto selecionados e pesquisas sobre o GitHub.",
     "eyebrow": "Seleção do fundador",
-    "heading": "Projetos e desenvolvedores selecionados",
-    "subtitle": "Não é mais uma lista de estrelas: cada escolha traz dados do motor sobre quem constrói e qual o nível.",
+    "heading": "Pesquisa aprofundada",
+    "subtitle": "Histórias de desenvolvedores, projetos de código aberto selecionados e pesquisas sobre o GitHub.",
     "empty": "Ainda não há coleções — volte em breve.",
     "itemCount": "{count} escolhas",
     "publishedOn": "Publicado em {date}",
@@ -254,7 +254,7 @@
     "avgScoreLabel": "pontuação média dos contribuidores",
     "followersLabel": "seguidores",
     "totalStarsLabel": "estrelas totais",
-    "backToCollections": "Todas as coleções",
+    "backToCollections": "Voltar à Pesquisa aprofundada",
     "dataNote": "Pontuações e níveis vêm do motor de pontuação do ghfind e são atualizados a cada novo escaneamento."
   },
   "discoveryNext": {
@@ -582,7 +582,7 @@
     "subtitle": "Notas de dados sobre pontuar contribuição real no GitHub em larga escala.",
     "readingTime": "{minutes} min de leitura",
     "notTranslated": "Este artigo ainda não foi traduzido — mostrando o original em inglês.",
-    "backToList": "Toda a pesquisa",
+    "backToList": "Voltar à Pesquisa aprofundada",
     "empty": "Nenhum artigo ainda."
   },
   "footer": {

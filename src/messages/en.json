@@ -40,7 +40,7 @@
     "developers": "Developers",
     "projectBoards": "Project Boards",
     "projects": "Projects",
-    "collections": "Editor's Picks",
+    "collections": "Deep Research",
     "languages": "Languages",
     "organizations": "Organizations",
     "versus": "Dev Versus",
@@ -59,7 +59,7 @@
       "versus": "Put two developers head to head",
       "leaderboard": "Browse top developers by score",
       "projectBoards": "Find notable open-source projects by field",
-      "collections": "Projects and developers hand-picked by the editor",
+      "collections": "Developer stories, curated open-source projects, and research on the GitHub ecosystem.",
       "blog": "Data and insights on the developer ecosystem",
       "resume": "Build a developer résumé from your GitHub data",
       "talent": "Find developers worth knowing",
@@ -232,11 +232,11 @@
     }
   },
   "collections": {
-    "metaTitle": "Founder's picks: projects & developers · ghfind",
-    "metaDescription": "Hand-curated collections of standout GitHub projects and developers, backed by ghfind's contributor-quality engine.",
+    "metaTitle": "Deep Research · ghfind",
+    "metaDescription": "Developer stories, curated open-source projects, and research on the GitHub ecosystem.",
     "eyebrow": "Founder's picks",
-    "heading": "Curated projects & developers",
-    "subtitle": "Not another star list — every pick ships with engine data on who builds it and how good they are.",
+    "heading": "Deep Research",
+    "subtitle": "Developer stories, curated open-source projects, and research on the GitHub ecosystem.",
     "empty": "No collections yet — check back soon.",
     "itemCount": "{count} picks",
     "publishedOn": "Published {date}",
@@ -254,7 +254,7 @@
     "avgScoreLabel": "avg contributor score",
     "followersLabel": "followers",
     "totalStarsLabel": "total stars",
-    "backToCollections": "All collections",
+    "backToCollections": "Back to Deep Research",
     "dataNote": "Scores and tiers come from the ghfind scoring engine and refresh with every new scan."
   },
   "discoveryNext": {
@@ -582,7 +582,7 @@
     "subtitle": "Data notes from scoring real GitHub contribution at scale.",
     "readingTime": "{minutes} min read",
     "notTranslated": "This article hasn't been translated yet — showing the English original.",
-    "backToList": "All research",
+    "backToList": "Back to Deep Research",
     "empty": "No articles yet."
   },
   "footer": {

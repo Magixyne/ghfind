@@ -40,7 +40,7 @@
     "developers": "开发者",
     "projectBoards": "项目榜",
     "projects": "项目",
-    "collections": "站长精选",
+    "collections": "深度研究",
     "languages": "语言",
     "organizations": "组织",
     "versus": "开发者 PK",
@@ -59,7 +59,7 @@
       "versus": "两位开发者正面 PK，看谁更强",
       "leaderboard": "按评分浏览优质开发者",
       "projectBoards": "按领域发现值得关注的开源项目",
-      "collections": "站长亲自挑选的项目与开发者",
+      "collections": "开发者故事、开源项目精选与 GitHub 生态研究。",
       "blog": "开发者生态的数据与洞察",
       "resume": "用 GitHub 数据生成开发者简历",
       "talent": "发现值得认识的开发者",
@@ -232,11 +232,11 @@
     }
   },
   "collections": {
-    "metaTitle": "开源项目与开发者故事 · ghfind",
-    "metaDescription": "围绕开源项目发展历程与开发者实践经历的专题内容。",
+    "metaTitle": "深度研究 · ghfind",
+    "metaDescription": "开发者故事、开源项目精选与 GitHub 生态研究。",
     "eyebrow": "站长推荐",
-    "heading": "开源项目与开发者故事",
-    "subtitle": "聚焦项目发展历程与开发者的实践经历。",
+    "heading": "深度研究",
+    "subtitle": "开发者故事、开源项目精选与 GitHub 生态研究。",
     "empty": "还没有合集，敬请期待。",
     "itemCount": "{count} 个推荐",
     "publishedOn": "发布于 {date}",
@@ -254,7 +254,7 @@
     "avgScoreLabel": "贡献者平均分",
     "followersLabel": "关注者",
     "totalStarsLabel": "累计 star",
-    "backToCollections": "全部合集",
+    "backToCollections": "返回深度研究",
     "dataNote": "评分与段位来自 ghfind 评分引擎，随每次新扫描持续刷新。"
   },
   "discoveryNext": {
@@ -582,7 +582,7 @@
     "subtitle": "来自大规模真实贡献评分的数据笔记。",
     "readingTime": "阅读约 {minutes} 分钟",
     "notTranslated": "这篇文章还没有中文版，以下为英文原文。",
-    "backToList": "全部研究",
+    "backToList": "返回深度研究",
     "empty": "还没有文章。"
   },
   "footer": {
