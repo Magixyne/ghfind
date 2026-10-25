@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { applySignal, type StreamSignal } from "./rank";
-import type { StreamAffinity, StreamEngagement, StreamItem, StreamLayout } from "./types";
+import type { StreamComment } from "./detail";
+import type { StreamAffinity, StreamItem, StreamLayout } from "./types";
 
 /**
- * Viewer state for the /feed prototype, persisted to localStorage. Nothing
- * here reaches the server yet; when real counters land, `like`/`save`/`view`
- * become the write path and `engagementOf` reads the server totals instead of
- * the seeded baseline.
+ * Viewer state for the /feed prototype, persisted to localStorage. Likes and
+ * saves stay private until a server counter exists, so no public count is
+ * shown for them. `posted` keeps comments this viewer just sent (not
+ * persisted) so they show before the shared cache refreshes.
  *
  * `skipHydration` keeps the first client render identical to the server
  * render; StreamApp calls `persist.rehydrate()` after mount.
@@ -24,6 +25,8 @@ export type StreamStore = {
   layout: StreamLayout | null;
   /** Bumped by "refresh" so the ranking jitter reshuffles near-ties. */
   seed: number;
+  posted: Record<string, StreamComment[]>;
+  addPosted: (thread: string, comment: StreamComment) => void;
   toggleLike: (item: StreamItem) => boolean;
   toggleSave: (item: StreamItem) => boolean;
   toggleFollow: (authorId: string) => boolean;
@@ -60,6 +63,8 @@ export const useStreamStore = create<StreamStore>()(
       affinity: EMPTY_AFFINITY,
       layout: null,
       seed: 0,
+      posted: {},
+      addPosted: (thread, comment) => set({ posted: { ...get().posted, [thread]: [comment, ...(get().posted[thread] ?? [])] } }),
       toggleLike: (item) => {
         const [liked, on] = toggle(get().liked, item.id);
         set({ liked, affinity: on ? applySignal(get().affinity, item, "like") : get().affinity });
@@ -103,16 +108,3 @@ export const useStreamStore = create<StreamStore>()(
     },
   ),
 );
-
-/** Seeded totals plus this viewer's own actions. */
-export function engagementOf(
-  item: StreamItem,
-  mine: { liked: boolean; saved: boolean; viewed: boolean },
-): StreamEngagement {
-  return {
-    views: item.baseline.views + (mine.viewed ? 1 : 0),
-    likes: item.baseline.likes + (mine.liked ? 1 : 0),
-    saves: item.baseline.saves + (mine.saved ? 1 : 0),
-    comments: item.baseline.comments,
-  };
-}

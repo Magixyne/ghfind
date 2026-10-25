@@ -1,20 +1,55 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Heart, MessageCircle, SquareArrowOutUpRight, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Heart, Library, SquareArrowOutUpRight, UserCheck, UserPlus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import type { StreamItemDetail } from "@/lib/stream/detail";
 import { relatedItems } from "@/lib/stream/rank";
 import { useStreamStore } from "@/lib/stream/store";
 import type { StreamItem } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
-import { KIND_STYLE, compactNumber, relativeTime } from "./format";
-import { StreamActions } from "./StreamActions";
-import { KindBadge, ScorePill, StreamAvatar, StreamVisual, isTextTile, type StreamCardHandlers } from "./StreamCard";
+import { KIND_STYLE, relativeTime } from "./format";
+import { CounterChip, StreamActions } from "./StreamActions";
+import { KindBadge, ScorePill, StatusBadge, StreamAvatar, StreamVisual, isTextTile, type StreamCardHandlers } from "./StreamCard";
+import { StreamComments } from "./StreamComments";
+import { Section, StreamKindSections } from "./StreamDetailSections";
 
 const STAT_KEYS = new Set(["confidence", "community", "language", "lookups", "delta", "location", "project", "stars", "salary"]);
+/** Kinds whose detail needs the /feed/item round trip (body or comments). */
+const LAZY_KINDS = new Set(["developer", "article", "collection", "job"]);
+
+const detailCache = new Map<string, Promise<StreamItemDetail | null>>();
+
+function fetchDetail(item: StreamItem): Promise<StreamItemDetail | null> {
+  const cached = detailCache.get(item.id);
+  if (cached) return cached;
+  const base = window.location.pathname.replace(/\/$/, "");
+  const params = new URLSearchParams({ id: item.id });
+  if (item.comments) params.set("thread", `${item.comments.kind}:${item.comments.key}`);
+  const request = fetch(`${base}/item?${params.toString()}`)
+    .then((response) => (response.ok ? (response.json() as Promise<StreamItemDetail>) : null))
+    .catch(() => null);
+  detailCache.set(item.id, request);
+  // A failed load may succeed on the next open.
+  void request.then((value) => { if (!value) detailCache.delete(item.id); });
+  return request;
+}
+
+function useItemDetail(item: StreamItem | null) {
+  const needsFetch = item != null && (LAZY_KINDS.has(item.kind) || item.comments != null);
+  const [state, setState] = useState<{ id: string | null; detail: StreamItemDetail | null }>({ id: null, detail: null });
+  useEffect(() => {
+    if (!item || !needsFetch) return;
+    let alive = true;
+    void fetchDetail(item).then((detail) => { if (alive) setState({ id: item.id, detail }); });
+    return () => { alive = false; };
+  }, [item, needsFetch]);
+  const current = item && state.id === item.id ? state.detail : null;
+  return { detail: current, loading: needsFetch && state.id !== item?.id };
+}
 
 export function FollowButton({ authorId, name, onFollowed }: { authorId: string; name: string; onFollowed?: (name: string) => void }) {
   const t = useTranslations("stream");
@@ -38,10 +73,24 @@ export function FollowButton({ authorId, name, onFollowed }: { authorId: string;
   );
 }
 
+function MiniCard({ item, onOpen }: { item: StreamItem; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-2.5 py-2 text-start">
+      <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-8" />
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-1 text-sm font-semibold text-foreground">{item.title}</span>
+        <span className="line-clamp-1 text-xs text-muted-foreground">{item.summary}</span>
+      </span>
+      <KindBadge item={item} />
+    </button>
+  );
+}
+
 /**
  * Detail view. Full-screen on phones, a wide modal on desktop. The URL carries
  * `?item=<id>` (pushed by StreamApp), so Back closes it and links deep-link.
- * Related items swap in place, which keeps the reader inside the stream.
+ * Every exit inside it (similar people, editor's picks, more from the author,
+ * related) swaps in place, which keeps the reader inside the stream.
  */
 export function StreamDetail({
   item,
@@ -65,6 +114,18 @@ export function StreamDetail({
   const [burst, setBurst] = useState(0);
   const lastTap = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const commentsRef = useRef<HTMLDivElement | null>(null);
+  const { detail, loading } = useItemDetail(item);
+
+  const open = (next: StreamItem) => {
+    handlers.onOpen(next);
+    scrollRef.current?.scrollTo({ top: 0 });
+  };
+  const openUser = (username: string) => {
+    const match = pool.find((entry) => entry.kind === "developer" && entry.author.id.toLowerCase() === username.toLowerCase());
+    if (match) open(match);
+    else window.location.assign(item ? item.href.replace(/\/u\/[^/]+$/, `/u/${username}`) : `/u/${username}`);
+  };
 
   const onVisualTap = () => {
     if (!item) return;
@@ -78,15 +139,24 @@ export function StreamDetail({
     }
   };
 
-  const related = item ? relatedItems(item, pool) : [];
+  const shown = new Set(item ? [item.id] : []);
+  const editorPicks = item
+    ? pool.filter((entry) => entry.badge === "editor" && entry.id !== item.id).slice(0, 6)
+    : [];
+  editorPicks.forEach((entry) => shown.add(entry.id));
+  const sameAuthor = item && item.author.id !== "ghfind"
+    ? pool.filter((entry) => entry.author.id === item.author.id && !shown.has(entry.id)).slice(0, 3)
+    : [];
+  sameAuthor.forEach((entry) => shown.add(entry.id));
+  const related = item ? relatedItems(item, pool, 5, shown) : [];
   const style = item ? KIND_STYLE[item.kind] : null;
   const person = item?.kind === "developer" || item?.kind === "talent";
 
   return (
-    <Dialog open={item != null} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open={item != null} onOpenChange={(value) => { if (!value) onClose(); }}>
       <DialogContent
         aria-describedby={undefined}
-        className="inset-0 flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0 sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(88dvh,820px)] sm:w-[min(calc(100vw-2rem),42rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border"
+        className="inset-0 flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0 sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(90dvh,860px)] sm:w-[min(calc(100vw-2rem),44rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border"
       >
         {item && style ? (
           <>
@@ -106,32 +176,34 @@ export function StreamDetail({
 
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="px-4 pb-4 pt-3">
-                <div className="relative select-none" onClick={onVisualTap} title={t("doubleTapHint")}>
-                  {isTextTile(item) ? null : <StreamVisual item={item} variant="detail" />}
-                  <AnimatePresence>
-                    {burst > 0 ? (
-                      <motion.span
-                        key={burst}
-                        initial={{ scale: 0.3, opacity: 0 }}
-                        animate={{ scale: [0.3, 1.2, 1], opacity: [0, 1, 1] }}
-                        exit={{ scale: 1.4, opacity: 0 }}
-                        transition={{ duration: 0.45 }}
-                        onAnimationComplete={() => window.setTimeout(() => setBurst(0), 250)}
-                        className="pointer-events-none absolute inset-0 flex items-center justify-center"
-                      >
-                        <Heart className="size-20 fill-rose-500 text-rose-500 drop-shadow-lg" aria-hidden />
-                      </motion.span>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
+                {isTextTile(item) ? null : (
+                  <div className="relative select-none" onClick={onVisualTap}>
+                    <StreamVisual item={item} variant="detail" />
+                    <AnimatePresence>
+                      {burst > 0 ? (
+                        <motion.span
+                          key={burst}
+                          initial={{ scale: 0.3, opacity: 0 }}
+                          animate={{ scale: [0.3, 1.2, 1], opacity: [0, 1, 1] }}
+                          exit={{ scale: 1.4, opacity: 0 }}
+                          transition={{ duration: 0.45 }}
+                          onAnimationComplete={() => window.setTimeout(() => setBurst(0), 250)}
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                        >
+                          <Heart className="size-20 fill-rose-500 text-rose-500 drop-shadow-lg" aria-hidden />
+                        </motion.span>
+                      ) : null}
+                    </AnimatePresence>
+                  </div>
+                )}
 
-                <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                <div className={cn("flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground", !isTextTile(item) && "mt-3")}>
                   <KindBadge item={item} />
+                  <StatusBadge item={item} />
                   {item.sponsored ? <span>{t("sponsored")}</span> : null}
-                  <span>{relativeTime(item.publishedAt, now, locale)}</span>
-                  {item.readingMinutes ? <><span aria-hidden>·</span><span>{t("minutesRead", { minutes: item.readingMinutes })}</span></> : null}
-                  <span aria-hidden>·</span>
-                  <span>{t("views", { count: compactNumber(item.baseline.views, locale) })}</span>
+                  {item.publishedAt ? <span>{relativeTime(item.publishedAt, now, locale)}</span> : null}
+                  {item.readingMinutes ? <span>· {t("minutesRead", { minutes: item.readingMinutes })}</span> : null}
+                  <CounterChip counter={item.counter} className="ms-auto" />
                 </div>
 
                 <div className="mt-2 flex items-start justify-between gap-3">
@@ -140,13 +212,15 @@ export function StreamDetail({
                 </div>
                 {item.summary ? <DialogDescription className="mt-1.5 text-[15px] leading-6 text-foreground/85">{item.summary}</DialogDescription> : null}
                 {item.body
-                  ? item.body.split(/\n{2,}/).map((paragraph, index) => (
-                      <p key={index} className="mt-2 text-sm leading-6 text-foreground/80">{paragraph}</p>
+                  ? item.body.split(/\n{2,}/).map((paragraph) => (
+                      <p key={paragraph.slice(0, 40)} className="mt-2 text-sm leading-6 text-foreground/80">{paragraph}</p>
                     ))
                   : null}
 
-                {item.stats.length > 0 ? (
-                  <dl className="mt-3 grid grid-cols-3 gap-1.5">
+                <StreamKindSections item={item} detail={detail} loading={loading} onOpenUser={openUser} />
+
+                {item.stats.length > 0 && item.kind !== "developer" ? (
+                  <dl className="mt-4 grid grid-cols-3 gap-1.5">
                     {item.stats.map((stat) => (
                       <div key={stat.label} className="rounded-lg border border-border bg-white/[0.02] px-2.5 py-1.5">
                         <dt className="text-[11px] text-muted-foreground">{STAT_KEYS.has(stat.label) ? t(`stats.${stat.label}`) : stat.label}</dt>
@@ -173,45 +247,55 @@ export function StreamDetail({
                   {t("openOriginal")}
                   <SquareArrowOutUpRight className="size-4 text-muted-foreground" aria-hidden />
                 </a>
-                <a
-                  href={item.href}
-                  className="mt-1.5 flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <MessageCircle className="size-3.5" aria-hidden />
-                  {t("discussion")}
-                </a>
+
+                <div ref={commentsRef} className="mt-5 border-t border-border pt-4">
+                  <StreamComments item={item} comments={detail?.comments ?? []} loading={loading} />
+                </div>
               </div>
 
-              {related.length > 0 ? (
-                <section className="border-t border-border px-4 py-3">
-                  <h4 className="text-sm font-bold text-foreground">{t("related")}</h4>
-                  <ul className="mt-1 divide-y divide-border">
-                    {related.map((entry) => (
-                      <li key={entry.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handlers.onOpen(entry);
-                            scrollRef.current?.scrollTo({ top: 0 });
-                          }}
-                          className="flex w-full items-center gap-2.5 py-2 text-start"
-                        >
-                          <StreamAvatar src={entry.author.avatarUrl} name={entry.author.name} className="size-8" />
-                          <span className="min-w-0 flex-1">
-                            <span className="line-clamp-1 text-sm font-semibold text-foreground">{entry.title}</span>
-                            <span className="line-clamp-1 text-xs text-muted-foreground">{entry.summary}</span>
-                          </span>
-                          <KindBadge item={entry} />
-                        </button>
-                      </li>
+              {editorPicks.length > 0 ? (
+                <section className="border-t border-border py-3">
+                  <h4 className="flex items-center gap-1.5 px-4 text-sm font-bold text-foreground">
+                    <Library className="size-4 text-amber-300" aria-hidden />
+                    {t("editorPicks")}
+                  </h4>
+                  <div className="mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                    {editorPicks.map((entry) => (
+                      <button key={entry.id} type="button" onClick={() => open(entry)} className="w-44 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-amber-500/15 to-transparent p-2.5 text-start hover:border-foreground/20">
+                        <span className="line-clamp-3 text-[13px] font-bold leading-snug text-foreground">{entry.title}</span>
+                        <span className="mt-1.5 flex items-center gap-1.5">
+                          <StreamAvatar src={entry.author.avatarUrl} name={entry.author.name} className="size-4 text-[9px]" />
+                          <span className="truncate text-[11px] text-muted-foreground">{entry.author.name}</span>
+                        </span>
+                      </button>
                     ))}
-                  </ul>
+                  </div>
                 </section>
+              ) : null}
+
+              {sameAuthor.length > 0 ? (
+                <Section title={t("moreFrom", { name: item.author.name })} className="mt-0 border-t border-border px-4 py-3">
+                  <div className="divide-y divide-border">
+                    {sameAuthor.map((entry) => <MiniCard key={entry.id} item={entry} onOpen={() => open(entry)} />)}
+                  </div>
+                </Section>
+              ) : null}
+
+              {related.length > 0 ? (
+                <Section title={t("related")} className="mt-0 border-t border-border px-4 py-3">
+                  <div className="divide-y divide-border">
+                    {related.map((entry) => <MiniCard key={entry.id} item={entry} onOpen={() => open(entry)} />)}
+                  </div>
+                </Section>
               ) : null}
             </div>
 
             <footer className="border-t border-border px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-              <StreamActions item={item} onComment={() => { if (item.external) window.open(item.href, "_blank", "noopener"); else window.location.assign(item.href); }} onShare={() => handlers.onShare(item)} />
+              <StreamActions
+                item={item}
+                onComment={() => commentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                onShare={() => handlers.onShare(item)}
+              />
             </footer>
           </>
         ) : null}

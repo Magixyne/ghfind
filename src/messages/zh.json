@@ -1837,7 +1837,6 @@
     "score": "评分",
     "productScore": "产品分",
     "minutesRead": "{minutes} 分钟读完",
-    "views": "{count} 次阅读",
     "like": "点赞",
     "unlike": "取消点赞",
     "save": "收藏",
@@ -1880,7 +1879,6 @@
     "railInterestsEmpty": "点赞或收藏几条内容，推荐流就会学会你的口味。",
     "railReset": "重置",
     "railTopDevelopers": "上升最快的开发者",
-    "railTrending": "最多阅读",
     "railCtaTitle": "你排第几？",
     "railCtaBody": "30 秒给你的 GitHub 打分，生成你自己的卡片进入推荐流。",
     "railCtaButton": "测测我的 GitHub",
@@ -1890,6 +1888,97 @@
     "navSaved": "收藏",
     "navLeaderboard": "榜单",
     "doubleTapHint": "双击点赞",
-    "backToTop": "回到顶部"
+    "backToTop": "回到顶部",
+    "counter": {
+      "lookups": "被查 {count} 次",
+      "stars": "{count} Star",
+      "items": "{count} 个精选"
+    },
+    "badge": {
+      "hot": "热门",
+      "new": "新",
+      "editor": "编辑推荐"
+    },
+    "pulseTotal": "已有 {count} 位开发者被评分",
+    "pulseTrending": "24h 热议",
+    "pulseLookups": "{count} 次查看",
+    "aiRoast": "AI 锐评",
+    "aiNote": "由 ghfind 评分模型生成",
+    "dimsTitle": "六维评分",
+    "beat": "超过 {percent}% 的开发者",
+    "rankOf": "第 {rank} / {total} 名",
+    "weekDelta": "本周 {delta}",
+    "facts": {
+      "followers": "关注者",
+      "totalStars": "总 Star",
+      "mergedPrs": "合并 PR",
+      "contributions": "年度贡献",
+      "years": "账号年限"
+    },
+    "topRepos": "代表仓库",
+    "battles": "VS 战绩",
+    "battleWon": "胜",
+    "battleLost": "负",
+    "battleDraw": "平",
+    "battleViews": "{count} 次围观",
+    "similar": "相似开发者",
+    "reactionsTitle": "社区反应",
+    "reactionsCta": "去主页投一票",
+    "projectDims": {
+      "pain": "需求痛点",
+      "effectiveness": "解决效果",
+      "experience": "上手体验",
+      "valueDensity": "价值密度"
+    },
+    "projectScoreTitle": "产品评分拆解",
+    "audience": "适合谁",
+    "risks": "需要注意",
+    "talentProjects": "代表项目",
+    "ownProject": "主导",
+    "prProject": "贡献",
+    "sources": "公开资料",
+    "picksTitle": "合集里的精选",
+    "toc": "目录",
+    "excerpt": "摘录",
+    "readFull": "阅读全文",
+    "jobDescription": "职位描述",
+    "companySite": "公司官网",
+    "moreFrom": "更多来自 {name}",
+    "editorPicks": "编辑推荐",
+    "commentsTitle": "评论",
+    "commentsEmpty": "还没有人评论，来抢沙发吧",
+    "commentPlaceholder": "说点什么…",
+    "commentAnonymousHint": "无需登录，匿名发布",
+    "commentSend": "发送",
+    "anonymous": "匿名用户",
+    "commentFailed": "发送失败，请稍后再试",
+    "commentRateLimited": "发得太快了，休息一下",
+    "commentLinks": "评论里不能带链接",
+    "commentsClosed": "这类内容暂不支持评论，可以去完整页面看看",
+    "justNow": "刚刚",
+    "quick": {
+      "developer": {
+        "a": "这个分数合理",
+        "b": "求带 🙏",
+        "c": "已关注，学习了"
+      },
+      "talent": {
+        "a": "方向很棒",
+        "b": "欢迎来聊聊",
+        "c": "已关注"
+      },
+      "article": {
+        "a": "学到了",
+        "b": "很有启发",
+        "c": "求更新"
+      },
+      "collection": {
+        "a": "已收藏",
+        "b": "求更多同类",
+        "c": "第一个就很赞"
+      }
+    },
+    "loadingDetail": "加载中…",
+    "railEditor": "编辑推荐"
   }
 }

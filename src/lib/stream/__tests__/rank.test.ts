@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   affinityScore,
   applySignal,
-  baselineEngagement,
+  heatThreshold,
   diversify,
   freshness,
   rankStream,
@@ -35,14 +35,17 @@ function make(id: string, kind: StreamKind, extra: Partial<StreamItem> = {}): St
     readingMinutes: null,
     sponsored: false,
     quality,
-    baseline: baselineEngagement(id, quality),
+    heat: 0.3,
+    counter: null,
+    badge: null,
+    comments: null,
+    extra: null,
     ...extra,
   };
 }
 
 const ctx = (overrides: Partial<Parameters<typeof rankStream>[1]> = {}) => ({
   affinity: EMPTY,
-  engagementOf: (item: StreamItem) => item.baseline,
   hidden: new Set<string>(),
   now: NOW,
   seed: "0",
@@ -120,11 +123,17 @@ describe("stream ranking", () => {
     expect(related.map((item) => item.id)).toEqual(["y", "x"]);
   });
 
-  it("seeds plausible engagement that rises with quality", () => {
-    const low = baselineEngagement("same-id", 0.2);
-    const high = baselineEngagement("same-id", 0.9);
-    expect(high.views).toBeGreaterThan(low.views);
-    expect(high.likes).toBeLessThan(high.views);
-    expect(high.saves).toBeLessThanOrEqual(high.likes);
+  it("treats undated items as neutral, never as new", () => {
+    expect(freshness(null, NOW)).toBe(0.3);
+  });
+
+  it("lifts hotter items when everything else is equal", () => {
+    const items = [make("cold", "project", { heat: 0 }), make("hot", "article", { heat: 1 })];
+    expect(rankStream(items, ctx()).map((item) => item.id)[0]).toBe("hot");
+  });
+
+  it("marks only the real top slice as hot", () => {
+    expect(heatThreshold([0.1, 0.2, 0.3])).toBe(Infinity);
+    expect(heatThreshold([0.9, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1])).toBe(0.5);
   });
 });

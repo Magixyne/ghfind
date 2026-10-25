@@ -1,4 +1,3 @@
-import { baselineEngagement } from "./rank";
 import type { StreamItem, StreamKind } from "./types";
 
 /**
@@ -66,11 +65,15 @@ export function seedStreamItems(lang: "zh" | "en", now: number): StreamItem[] {
       stats: [],
       href: "#",
       external: false,
-      publishedAt: new Date(now - seed.days * DAY).toISOString(),
+      publishedAt: seed.kind === "article" || seed.kind === "collection" ? new Date(now - seed.days * DAY).toISOString() : null,
       readingMinutes: seed.minutes ?? null,
       sponsored: seed.sponsored ?? false,
       quality: seed.quality,
-      baseline: baselineEngagement(id, seed.quality),
+      heat: seed.quality * 0.6,
+      counter: null,
+      badge: seed.kind === "collection" ? "editor" : null,
+      comments: null,
+      extra: null,
     };
   });
 }

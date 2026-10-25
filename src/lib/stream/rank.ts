@@ -1,17 +1,17 @@
-import type { StreamAffinity, StreamEngagement, StreamItem, StreamKind } from "./types";
+import type { StreamAffinity, StreamItem, StreamKind } from "./types";
 
 /**
  * Ranking for the /feed prototype. Pure and deterministic for a given seed so
  * it can be unit tested and reproduced: the same viewer state plus the same
  * refresh seed always yields the same order.
  *
- *   rank = 0.35·quality + 0.20·freshness + 0.20·engagement + 0.25·affinity + jitter
+ *   rank = 0.35·quality + 0.20·freshness + 0.20·heat + 0.25·affinity + jitter
  *
  * minus a penalty for items already viewed, followed by a diversity pass (no three items of one kind in a row; sponsored
  * jobs spaced out and kept off the first slots).
  */
 
-const WEIGHTS = { quality: 0.35, freshness: 0.2, engagement: 0.2, affinity: 0.25, jitter: 0.06 };
+const WEIGHTS = { quality: 0.35, freshness: 0.2, heat: 0.2, affinity: 0.25, jitter: 0.06 };
 const FRESHNESS_HALF_LIFE_DAYS = 21;
 /** Sponsored items never take the first slots and keep this many items apart. */
 const SPONSORED_FIRST_SLOT = 3;
@@ -33,35 +33,12 @@ export function unitHash(input: string): number {
   return hashString(input) / 0x1_0000_0000;
 }
 
-/**
- * Seeded engagement for an item until real counters exist. Better items get
- * more views and a higher like rate, so the prototype feels plausible.
- */
-export function baselineEngagement(id: string, quality: number): StreamEngagement {
-  const r = unitHash(id);
-  const views = Math.round(300 + (2_000 + 18_000 * r) * (0.35 + quality));
-  const likeRate = 0.02 + 0.06 * quality * unitHash(`${id}:like`);
-  const likes = Math.round(views * likeRate);
-  return {
-    views,
-    likes,
-    saves: Math.round(likes * (0.2 + 0.3 * unitHash(`${id}:save`))),
-    comments: Math.round(likes * (0.05 + 0.12 * unitHash(`${id}:comment`))),
-  };
-}
-
-export function freshness(publishedAt: string, now: number): number {
-  const time = Date.parse(publishedAt);
+/** Undated items (most profiles) sit at a neutral 0.3 rather than looking new or stale. */
+export function freshness(publishedAt: string | null, now: number): number {
+  const time = publishedAt ? Date.parse(publishedAt) : Number.NaN;
   if (!Number.isFinite(time)) return 0.3;
   const days = Math.max(0, (now - time) / 86_400_000);
   return Math.pow(0.5, days / FRESHNESS_HALF_LIFE_DAYS);
-}
-
-/** Weighted interaction rate squashed to [0, 1). Saves and comments say more than likes. */
-export function engagementScore(e: StreamEngagement): number {
-  const weighted = e.likes + 2 * e.saves + 3 * e.comments;
-  const rate = weighted / (e.views + 200);
-  return 1 - Math.exp(-rate * 8);
 }
 
 /** Viewer affinity for an item in [-1, 1]. */
@@ -75,12 +52,12 @@ export function affinityScore(item: Pick<StreamItem, "kind" | "tags">, affinity:
 
 export function scoreItem(
   item: StreamItem,
-  ctx: { affinity: StreamAffinity; engagement: StreamEngagement; now: number; seed: string },
+  ctx: { affinity: StreamAffinity; now: number; seed: string },
 ): number {
   return (
     WEIGHTS.quality * item.quality +
     WEIGHTS.freshness * freshness(item.publishedAt, ctx.now) +
-    WEIGHTS.engagement * engagementScore(ctx.engagement) +
+    WEIGHTS.heat * item.heat +
     WEIGHTS.affinity * affinityScore(item, ctx.affinity) +
     WEIGHTS.jitter * unitHash(`${ctx.seed}:${item.id}`)
   );
@@ -118,7 +95,6 @@ export function rankStream(
   items: StreamItem[],
   ctx: {
     affinity: StreamAffinity;
-    engagementOf: (item: StreamItem) => StreamEngagement;
     hidden: ReadonlySet<string>;
     /** Already-viewed items sink on refresh so the stream feels new. */
     seen?: ReadonlySet<string>;
@@ -131,7 +107,7 @@ export function rankStream(
     .map((item) => ({
       item,
       score:
-        scoreItem(item, { affinity: ctx.affinity, engagement: ctx.engagementOf(item), now: ctx.now, seed: ctx.seed }) -
+        scoreItem(item, { affinity: ctx.affinity, now: ctx.now, seed: ctx.seed }) -
         (ctx.seen?.has(item.id) ? SEEN_PENALTY : 0),
     }))
     .sort((x, y) => y.score - x.score);
@@ -139,10 +115,10 @@ export function rankStream(
 }
 
 /** Related items for the detail view: shared tags first, then same kind. */
-export function relatedItems(target: StreamItem, items: StreamItem[], limit = 6): StreamItem[] {
+export function relatedItems(target: StreamItem, items: StreamItem[], limit = 6, exclude: ReadonlySet<string> = new Set()): StreamItem[] {
   const tags = new Set(target.tags.map((tag) => tag.toLowerCase()));
   return items
-    .filter((item) => item.id !== target.id)
+    .filter((item) => item.id !== target.id && !exclude.has(item.id))
     .map((item) => ({
       item,
       score:
@@ -201,4 +177,11 @@ export function topInterests(affinity: StreamAffinity, limit = 5): string[] {
     .sort((x, y) => y[1] - x[1])
     .slice(0, limit)
     .map(([tag]) => tag);
+}
+
+/** Top `share` of a kind by heat: the "hot" badge marks only real standouts. */
+export function heatThreshold(values: number[], share = 0.15): number {
+  if (values.length < 4) return Infinity;
+  const sorted = [...values].sort((a, b) => b - a);
+  return sorted[Math.max(0, Math.ceil(sorted.length * share) - 1)];
 }
