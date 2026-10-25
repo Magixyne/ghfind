@@ -134,7 +134,7 @@ function DeveloperSections({ item, body, onOpenUser }: { item: StreamItem; body:
                       {battle.won === true ? t("battleWon") : battle.won === false ? t("battleLost") : t("battleDraw")}
                     </span>
                     <span className="font-semibold tabular-nums text-foreground">{battle.myScore} : {battle.theirScore}</span>
-                    <span className="truncate text-muted-foreground">@{battle.opponent}</span>
+                    <span className="truncate text-muted-foreground"><bdi>@{battle.opponent}</bdi></span>
                     {battle.views > 0 ? <span className="ms-auto shrink-0 text-[11px] text-muted-foreground">{t("battleViews", { count: compactNumber(battle.views, locale) })}</span> : null}
                   </span>
                   {battle.verdict ? <span className="mt-1 line-clamp-2 block text-xs leading-5 text-foreground/80">{battle.verdict}</span> : null}

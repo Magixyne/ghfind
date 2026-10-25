@@ -62,7 +62,8 @@ posts per call.
       "quote": { "author": "…", "text": "…", "url": "https://…" },
       "topics": ["LLM", "tokenizers"],
       "technical": 0.9,
-      "lang": "en"
+      "lang": "en",
+      "translations": { "zh": "…", "ja": "…", "ar": "…" }
     }
   ]
 }
@@ -72,6 +73,12 @@ Response: `{ accepted, updated, rejected: [{ id, reason }], refusedAccounts, sto
 
 - `GET /api/internal/x-timeline` — stored counts and last update.
 - `DELETE /api/internal/x-timeline?id=<postId>` or `?handle=<handle>` — moderation.
+
+`translations` is optional: the agent's translation of the post into any site
+locale (`zh en ja ko es pt id vi ar`). Readers whose locale differs from the
+post's `lang` get a "Show translation" toggle (on by default in the detail
+view, and in grid tiles), labelled as agent-translated; the original text is
+always one tap away.
 
 Only `pbs.twimg.com` media and avatar URLs are kept; post links always point to
 `x.com`. Post text is shown exactly as written, with the author, a link to the

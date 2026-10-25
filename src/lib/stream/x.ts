@@ -1,3 +1,5 @@
+import { LOCALES } from "@ghfind/i18n";
+
 /**
  * Curated X (Twitter) timeline for the /feed stream.
  *
@@ -60,6 +62,8 @@ export type XPost = {
   topics: string[];
   technical: number;
   lang: string | null;
+  /** Agent-made translations by site locale, shown behind a "Show translation" toggle. */
+  translations: Partial<Record<string, string>>;
 };
 
 export type XTimeline = {
@@ -79,6 +83,7 @@ export type XRejectReason =
   | "too_old";
 
 const HANDLE = /^[A-Za-z0-9_]{1,15}$/;
+const TRANSLATION_LOCALES = new Set<string>(LOCALES);
 const POST_ID = /^\d{1,25}$/;
 const MAX_TEXT = 1_200;
 
@@ -167,7 +172,25 @@ export function parsePost(input: unknown): XPost | null {
     topics: Array.isArray(raw.topics) ? raw.topics.map((topic) => str(topic, 40)).filter((topic): topic is string => Boolean(topic)).slice(0, 6) : [],
     technical: typeof raw.technical === "number" ? Math.min(1, Math.max(0, raw.technical)) : 0,
     lang: str(raw.lang, 8),
+    translations: parseTranslations(raw.translations),
   };
+}
+
+function parseTranslations(value: unknown): XPost["translations"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: XPost["translations"] = {};
+  for (const [locale, text] of Object.entries(value as Record<string, unknown>)) {
+    const clean = str(text, MAX_TEXT);
+    if (TRANSLATION_LOCALES.has(locale) && clean) out[locale] = clean;
+  }
+  return out;
+}
+
+/** Translation to offer a reader, or null when the post is already in their language. */
+export function translationFor(post: { lang: string | null; translations: XPost["translations"] }, locale: string): string | null {
+  const lang = post.lang?.toLowerCase().split("-")[0] ?? null;
+  if (lang === locale) return null;
+  return post.translations[locale] ?? null;
 }
 
 /** Why a parsed post may not enter the timeline, or null when it may. */

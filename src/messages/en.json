@@ -1994,6 +1994,9 @@
     "railVoicesHint": "Researchers, builders, tech media, and developers scoring 80+ on ghfind only.",
     "xSource": "From X · metrics are live X numbers",
     "ghfindProfile": "ghfind profile",
-    "demoX": "X posts are demo data for now: accounts and posts are fictional and are replaced once real posts are pushed."
+    "demoX": "X posts are demo data for now: accounts and posts are fictional and are replaced once real posts are pushed.",
+    "showTranslation": "Show translation",
+    "showOriginal": "Show original",
+    "translatedBy": "Translated by the ghfind agent"
   }
 }

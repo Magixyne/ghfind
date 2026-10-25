@@ -97,7 +97,8 @@ export function seedXTimeline(now: number): XTimeline {
     return {
       id, handle, text, createdAt: hours(at), url: `https://x.com/${handle}/status/${id}`, kind: "post",
       metrics: { likes: metrics[0], reposts: metrics[1], replies: metrics[2], views: metrics[3] },
-      media: null, quote: null, topics, technical: 0.9, lang: /[\u4e00-\u9fff]/.test(text) ? "zh" : "en", ...extra,
+      media: null, quote: null, topics, technical: 0.9, lang: /[\u4e00-\u9fff]/.test(text) ? "zh" : "en",
+      translations: DEMO_TRANSLATIONS[sequence] ?? {}, ...extra,
     };
   };
   return {
@@ -132,3 +133,79 @@ export function seedXTimeline(now: number): XTimeline {
     ],
   };
 }
+
+/**
+ * Demo translations by post order in seedXTimeline (1-based), standing in
+ * for what the operator agent sends. Six posts carry every site locale; the
+ * rest only the zh/en counterpart.
+ */
+const DEMO_TRANSLATIONS: Record<number, Partial<Record<string, string>>> = {
+  1: {
+    zh: "我们只挑「能编译、且能通过自身测试」的代码做数据，用一半的 token 训出了一个 1B 模型。数据质量又一次赢了数据数量——消融实验和过滤脚本都在论文里。",
+    ja: "コンパイルが通り、自身のテストにも合格するコードだけに絞り込むことで、半分のトークンで 1B モデルを学習しました。またしてもデータの量より質。アブレーションとフィルタスクリプトは論文に。",
+    ko: "컴파일되고 자체 테스트까지 통과하는 코드만 걸러서, 절반의 토큰으로 1B 모델을 학습했습니다. 이번에도 데이터의 양보다 질이 이겼습니다. 어블레이션과 필터 스크립트는 논문에 있습니다.",
+    es: "Entrenamos un modelo de 1B con la mitad de tokens filtrando solo código que compila y pasa sus propios tests. La calidad de los datos vuelve a ganarle a la cantidad: ablaciones y script de filtrado en el paper.",
+    pt: "Treinamos um modelo de 1B com metade dos tokens filtrando apenas código que compila e passa nos próprios testes. Qualidade de dados vence quantidade de novo — ablações e o script de filtro estão no paper.",
+    id: "Kami melatih model 1B dengan separuh token dengan hanya menyaring kode yang bisa dikompilasi dan lolos tesnya sendiri. Kualitas data lagi-lagi mengalahkan kuantitas — ablasi dan skrip filternya ada di paper.",
+    vi: "Chúng tôi huấn luyện mô hình 1B với một nửa số token bằng cách chỉ giữ lại mã biên dịch được và vượt qua chính bộ test của nó. Chất lượng dữ liệu lại thắng số lượng — ablation và script lọc có trong bài báo.",
+    ar: "درّبنا نموذجًا بحجم 1B بنصف عدد الرموز عبر تصفية الشيفرة التي تُترجَم وتجتاز اختباراتها فقط. جودة البيانات تتفوّق على كميتها مجددًا، والتجارب وسكربت التصفية في الورقة.",
+  },
+  2: {
+    en: "After stretching our long-context eval from 128k to 1M tokens: most models still score well on needle-in-a-haystack, but drop sharply on multi-hop reasoning. Eval set and repro scripts are open source — critique welcome.",
+    ja: "長文脈評価を 128k から 1M トークンまで伸ばしたところ、多くのモデルは「針探し」では高得点のままでも、マルチホップ推論では大きく落ちました。評価セットと再現スクリプトは公開済み、ご批判歓迎です。",
+    ko: "장문 컨텍스트 평가를 128k에서 1M 토큰으로 늘려 보니, 대부분의 모델이 '바늘 찾기'에서는 여전히 점수가 좋지만 멀티홉 추론에서는 크게 떨어졌습니다. 평가셋과 재현 스크립트는 공개했으니 의견 환영합니다.",
+    es: "Al ampliar nuestra evaluación de contexto largo de 128k a 1M tokens: la mayoría de los modelos sigue puntuando bien en «aguja en un pajar», pero cae mucho en razonamiento multi-salto. El conjunto de evaluación y los scripts son open source.",
+    pt: "Ao estender nossa avaliação de contexto longo de 128k para 1M tokens: a maioria dos modelos continua indo bem em “agulha no palheiro”, mas cai muito em raciocínio multi-etapas. Conjunto de avaliação e scripts são open source.",
+    id: "Setelah memperluas evaluasi konteks panjang dari 128k ke 1M token: sebagian besar model tetap bagus di uji \"jarum dalam jerami\", tapi anjlok di penalaran multi-langkah. Set evaluasi dan skrip reproduksinya open source.",
+    vi: "Khi kéo bài đánh giá ngữ cảnh dài từ 128k lên 1M token: đa số mô hình vẫn đạt điểm tốt ở bài \"mò kim đáy bể\", nhưng tụt mạnh ở suy luận nhiều bước. Bộ đánh giá và script tái lập đã được mở mã nguồn.",
+    ar: "بعد توسيع تقييم السياق الطويل من 128 ألفًا إلى مليون رمز: ما زالت معظم النماذج تحقق نتائج جيدة في «الإبرة في كومة القش»، لكنها تتراجع بشدة في الاستدلال متعدد الخطوات. مجموعة التقييم والسكربتات مفتوحة المصدر.",
+  },
+  3: { zh: "今天给我们的 Rust 编译器前端上线了增量解析。4 万行的 crate 改一行后重新检查，从 2.1 秒降到 90 毫秒。写了篇文章讲我们如何让红绿树缓存保持一致：" },
+  4: {
+    zh: "在生产环境跑 Agent 的血泪教训：给它一个 100 毫秒内就能启动的沙箱，它就不会再对宿主机耍小聪明。把每次工具调用都挪进一次性虚拟机后，我们的失败率下降了 60%。",
+    ja: "本番でエージェントを運用して得た教訓：100ms 以内に起動するサンドボックスを与えれば、ホストで小細工をしなくなる。すべてのツール呼び出しを使い捨て VM に移したら、失敗率が 60% 下がりました。",
+    ko: "프로덕션에서 에이전트를 돌리며 얻은 교훈: 100ms 안에 뜨는 샌드박스를 주면 호스트에서 잔꾀를 부리지 않습니다. 모든 도구 호출을 일회용 VM으로 옮긴 뒤 실패율이 60% 줄었습니다.",
+    es: "Lección aprendida operando agentes en producción: dales un sandbox que arranque en menos de 100 ms y dejan de hacerse los listos con el host. Nuestra tasa de fallos bajó un 60% al mover cada llamada a herramienta a una VM desechable.",
+    pt: "Lição aprendida rodando agentes em produção: dê a eles um sandbox que sobe em menos de 100 ms e eles param de tentar ser espertos com o host. Nossa taxa de falhas caiu 60% ao mover cada chamada de ferramenta para uma VM descartável.",
+    id: "Pelajaran dari menjalankan agen di produksi: beri mereka sandbox yang menyala di bawah 100 ms, maka mereka berhenti \"akal-akalan\" di host. Tingkat kegagalan kami turun 60% setelah semua pemanggilan tool dipindah ke VM sekali pakai.",
+    vi: "Bài học xương máu khi chạy agent trên production: cho chúng một sandbox khởi động dưới 100ms là chúng thôi giở trò với máy chủ. Tỉ lệ lỗi của chúng tôi giảm 60% sau khi chuyển mọi lần gọi công cụ vào VM dùng một lần.",
+    ar: "درس صعب من تشغيل الوكلاء في بيئة الإنتاج: امنحهم بيئة معزولة تقلع في أقل من 100 ملّي ثانية وسيتوقفون عن التحايل على الخادم. انخفض معدل الإخفاق لدينا 60% بعد نقل كل استدعاء أداة إلى آلة افتراضية مؤقتة.",
+  },
+  5: { en: "One lesson from three years of building developer tools: users don't stay because you have more features — they stay because it worked in the first 5 minutes. Cutting install from 7 steps to one command doubled our week-two retention." },
+  6: { zh: "上周故障的复盘已发布。根因：两个服务都配了「安全」的指数退避，却用了同一个抖动种子，结果引发重试风暴。修复只有一行，定位花了 9 个小时。" },
+  7: { zh: "新一期：三款开源推理引擎在高负载下如何处理 KV-cache 淘汰，同一硬件上的基准测试，附可复现配置。" },
+  8: { en: "Open-source watch: a vector database with only 3 maintainers gained 12k stars in two weeks. We dug through its code and issues — why it took off, and the pitfalls it's most likely to hit next." },
+  9: {
+    zh: "提醒一下：基准上 2 个点的提升，常常落在多次运行的噪声范围内。我们对 5 个常用评测各跑了 10 个随机种子——标准差比大多数论文报告的提升还大。请报告方差。",
+    ja: "念のため：ベンチマークでの 2 ポイント向上は、実行ごとのノイズの範囲内であることが多いです。主要な 5 つの評価をシード 10 個ずつで再実行したところ、標準偏差は報告される改善幅の多くより大きかった。分散も報告しましょう。",
+    ko: "다시 한번: 벤치마크 2점 향상은 실행할 때마다 생기는 노이즈 범위 안인 경우가 많습니다. 자주 쓰는 평가 5개를 시드 10개씩 다시 돌려 보니, 표준편차가 보고된 개선 폭 대부분보다 컸습니다. 분산도 함께 보고해 주세요.",
+    es: "Recordatorio: una mejora de 2 puntos en un benchmark suele estar dentro del ruido entre ejecuciones. Repetimos 5 evaluaciones populares con 10 semillas cada una: la desviación estándar es mayor que la mayoría de las mejoras publicadas. Reporten la varianza.",
+    pt: "Lembrete: um ganho de 2 pontos num benchmark muitas vezes está dentro do ruído entre execuções. Rodamos 5 avaliações populares com 10 seeds cada — o desvio padrão é maior que a maioria das melhorias publicadas. Reportem a variância.",
+    id: "Pengingat: kenaikan 2 poin di benchmark sering masih dalam rentang noise antar-run. Kami menjalankan ulang 5 evaluasi populer dengan masing-masing 10 seed — standar deviasinya lebih besar dari kebanyakan peningkatan yang dilaporkan. Tolong laporkan variansnya.",
+    vi: "Nhắc nhở: mức tăng 2 điểm trên benchmark thường nằm trong nhiễu giữa các lần chạy. Chúng tôi chạy lại 5 bài đánh giá phổ biến, mỗi bài 10 seed — độ lệch chuẩn còn lớn hơn phần lớn mức cải thiện được công bố. Hãy báo cáo phương sai.",
+    ar: "تذكير: تحسّن بمقدار نقطتين في معيار ما يقع غالبًا ضمن ضجيج التشغيل المتكرر. أعدنا تشغيل 5 تقييمات شائعة بعشر بذور لكل منها، وكان الانحراف المعياري أكبر من معظم التحسينات المنشورة. رجاءً انشروا التباين.",
+  },
+  10: { zh: "给库作者的提醒：只改类型也发大版本，没问题。让用户的 CI 因为一个小版本升级而挂掉，才是问题。" },
+  11: { en: "Small models can do tool calling well: a 3B model with structured decoding matched our 70B baseline on an internal function-calling benchmark at 1/8 the latency. How we built the training data is in section 4 of the report." },
+  12: {
+    zh: "不太主流的观点：大多数团队第一天并不需要向量数据库。Postgres + pgvector 撑到了 4000 万条向量我们才感觉到压力。先测量，再决定。",
+    ja: "少数派の意見：ほとんどのチームは初日からベクトル DB を必要としていない。Postgres + pgvector で 4,000 万件の埋め込みまで問題なく運用できました。まず計測を。",
+    ko: "인기 없는 의견: 대부분의 팀은 첫날부터 벡터 DB가 필요하지 않습니다. Postgres + pgvector로 임베딩 4천만 개까지 아무 문제 없이 버텼습니다. 먼저 측정하세요.",
+    es: "Opinión impopular: la mayoría de los equipos no necesita una base de datos vectorial el primer día. Postgres + pgvector nos llevó hasta 40 millones de embeddings sin problemas. Mide primero.",
+    pt: "Opinião impopular: a maioria dos times não precisa de um banco vetorial no primeiro dia. Postgres + pgvector nos levou a 40 milhões de embeddings sem dor. Meça primeiro.",
+    id: "Opini tidak populer: kebanyakan tim tidak butuh vector DB di hari pertama. Postgres + pgvector sanggup sampai 40 juta embedding sebelum kami merasa kesulitan. Ukur dulu.",
+    vi: "Ý kiến không được lòng số đông: hầu hết đội ngũ không cần cơ sở dữ liệu vector ngay ngày đầu. Postgres + pgvector chịu được tới 40 triệu embedding chúng tôi mới thấy vướng. Hãy đo trước.",
+    ar: "رأي غير شائع: معظم الفرق لا تحتاج قاعدة بيانات متجهات من اليوم الأول. حملنا Postgres مع pgvector حتى 40 مليون متجه قبل أن نشعر بأي ضغط. قِس أولًا.",
+  },
+  13: { zh: "写了个小小的 eBPF 工具，能把每一次 TCP 重传都归因到具体是哪个 Kubernetes Pod 引起的。「网络好慢」类工单的排查从几天缩短到几分钟。这周开源。" },
+  14: {
+    en: "A counterintuitive hiring lesson: several of our best engineers had ordinary résumés, but each kept a carefully written GitHub project going for two-plus years that hardly anyone used.",
+    ja: "採用で得た直感に反する教訓：最高のエンジニアの何人かは、履歴書はごく普通でした。ただ全員、ほとんど誰も使っていないのに丁寧に書かれた GitHub プロジェクトを 2 年以上メンテしていました。",
+    ko: "채용에서 얻은 반직관적인 교훈: 우리 최고의 엔지니어 몇 명은 이력서가 평범했지만, 거의 아무도 쓰지 않는데도 정성껏 작성한 GitHub 프로젝트를 2년 넘게 유지하고 있었습니다.",
+    es: "Una lección contraintuitiva de contratación: varios de nuestros mejores ingenieros tenían currículums normales, pero todos mantenían desde hacía más de dos años un proyecto de GitHub muy cuidado que casi nadie usaba.",
+    pt: "Uma lição contraintuitiva de contratação: vários dos nossos melhores engenheiros tinham currículos comuns, mas todos mantinham há mais de dois anos um projeto no GitHub muito bem escrito que quase ninguém usava.",
+    id: "Pelajaran rekrutmen yang kontraintuitif: beberapa engineer terbaik kami punya CV biasa saja, tapi masing-masing merawat proyek GitHub yang ditulis dengan serius selama lebih dari dua tahun, meski hampir tak ada yang memakainya.",
+    vi: "Một bài học tuyển dụng ngược đời: vài kỹ sư giỏi nhất của chúng tôi có CV rất bình thường, nhưng ai cũng duy trì hơn hai năm một dự án GitHub viết rất chỉn chu mà hầu như chẳng ai dùng.",
+    ar: "درس غير متوقع في التوظيف: عدد من أفضل مهندسينا كانت سيرهم الذاتية عادية، لكن كلًّا منهم حافظ لأكثر من عامين على مشروع في GitHub مكتوب بعناية رغم أن أحدًا تقريبًا لا يستخدمه.",
+  },
+};

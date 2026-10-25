@@ -1,6 +1,7 @@
 "use client";
 
-import { BadgeCheck, ChartNoAxesColumn, Heart, MessageCircle, Repeat2 } from "lucide-react";
+import { useState } from "react";
+import { BadgeCheck, ChartNoAxesColumn, Heart, Languages, MessageCircle, Repeat2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { StreamItem } from "@/lib/stream/types";
 import { cn } from "@/lib/utils";
@@ -53,11 +54,36 @@ export function XMetrics({ extra, className }: { extra: PostExtra; className?: s
   );
 }
 
-/** Post text as written (never rewritten), with optional media and quoted block. */
-export function PostBody({ item, extra, clamp }: { item: StreamItem; extra: PostExtra; clamp: boolean }) {
+/**
+ * Post text as written (never rewritten), with optional media and quoted
+ * block. A post in another language offers the agent's translation behind a
+ * toggle, like X's "Translate post"; the original always stays one tap away.
+ */
+export function PostBody({ item, extra, clamp, translated = false }: { item: StreamItem; extra: PostExtra; clamp: boolean; translated?: boolean }) {
+  const t = useTranslations("stream");
+  const [showTranslation, setShowTranslation] = useState(translated);
+  const translation = extra.translation;
   return (
     <>
-      <p className={cn("whitespace-pre-line break-words text-[15px] leading-6 text-foreground", clamp && "line-clamp-6")}>{item.summary}</p>
+      <p dir="auto" className={cn("whitespace-pre-line break-words text-[15px] leading-6 text-foreground", clamp && "line-clamp-6")}>
+        {translation && showTranslation ? translation : item.summary}
+      </p>
+      {translation ? (
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowTranslation((value) => !value);
+            }}
+            className="inline-flex items-center gap-1 font-medium text-[var(--link)] hover:underline"
+          >
+            <Languages className="size-3.5" aria-hidden />
+            {showTranslation ? t("showOriginal") : t("showTranslation")}
+          </button>
+          {showTranslation ? <span className="text-muted-foreground">{t("translatedBy")}</span> : null}
+        </p>
+      ) : null}
       {extra.media ? (
         // eslint-disable-next-line @next/next/no-img-element -- remote X media
         <img src={extra.media.url} alt={extra.media.alt ?? ""} loading="lazy" className="mt-2 max-h-80 w-full rounded-xl border border-border object-cover" />
@@ -71,7 +97,7 @@ export function PostBody({ item, extra, clamp }: { item: StreamItem; extra: Post
           className="mt-2 block rounded-xl border border-border px-3 py-2 hover:bg-white/[0.02]"
         >
           {extra.quote.author ? <span className="block text-xs font-semibold text-muted-foreground">{extra.quote.author}</span> : null}
-          <span className="line-clamp-3 text-sm leading-5 text-foreground/85">{extra.quote.text}</span>
+          <span dir="auto" className="line-clamp-3 text-sm leading-5 text-foreground/85">{extra.quote.text}</span>
         </a>
       ) : null}
     </>
@@ -84,7 +110,7 @@ function AuthorLine({ item, extra, now }: { item: StreamItem; extra: PostExtra; 
     <header className="flex min-w-0 items-center gap-1.5 text-sm">
       <span className="truncate font-semibold text-foreground">{item.author.name}</span>
       {extra.verified ? <BadgeCheck className="size-4 shrink-0 fill-sky-500 text-background" aria-hidden /> : null}
-      <span className="truncate text-muted-foreground">@{extra.handle}</span>
+      <span className="truncate text-muted-foreground"><bdi>@{extra.handle}</bdi></span>
       {item.publishedAt ? <span className="shrink-0 text-xs text-muted-foreground">· {relativeTime(item.publishedAt, now, locale)}</span> : null}
       <XMark className="ms-auto size-3.5 shrink-0 text-muted-foreground" />
     </header>
@@ -122,7 +148,7 @@ export function StreamPostListCard({ item, now, handlers }: { item: StreamItem; 
         </div>
         {item.tags.length > 0 ? (
           <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-[var(--link)]">
-            {item.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+            {item.tags.map((tag) => <bdi key={tag}>#{tag}</bdi>)}
           </div>
         ) : null}
         <XMetrics extra={extra} className="mt-2" />
@@ -134,6 +160,7 @@ export function StreamPostListCard({ item, now, handlers }: { item: StreamItem; 
 
 /** Grid tile: the quote is the visual. */
 export function StreamPostTile({ item, handlers }: { item: StreamItem; handlers: StreamCardHandlers }) {
+  const t = useTranslations("stream");
   const locale = useLocale();
   const ref = useViewTracking(item);
   const extra = postExtra(item);
@@ -147,7 +174,8 @@ export function StreamPostTile({ item, handlers }: { item: StreamItem; handlers:
           {extra.verified ? <BadgeCheck className="size-3.5 shrink-0 fill-sky-500 text-background" aria-hidden /> : null}
           <XMark className="size-3 shrink-0 text-muted-foreground" />
         </div>
-        <p className="mt-2 line-clamp-[8] whitespace-pre-line break-words text-sm font-medium leading-5 text-foreground">{item.summary}</p>
+        <p dir="auto" className="mt-2 line-clamp-[8] whitespace-pre-line break-words text-sm font-medium leading-5 text-foreground">{extra.translation ?? item.summary}</p>
+        {extra.translation ? <p className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground"><Languages className="size-3" aria-hidden />{t("translatedBy")}</p> : null}
         {extra.media ? (
           // eslint-disable-next-line @next/next/no-img-element -- remote X media
           <img src={extra.media.url} alt="" loading="lazy" className="mt-2 aspect-video w-full rounded-lg object-cover" />
@@ -176,10 +204,10 @@ export function PostDetailSection({ item, onOpenUser }: { item: StreamItem; onOp
       <div className="flex flex-wrap items-center gap-1.5">
         <CategoryChip category={extra.category} />
         {extra.verified ? <BadgeCheck className="size-4 fill-sky-500 text-background" aria-hidden /> : null}
-        <span className="text-xs text-muted-foreground">@{extra.handle}</span>
+        <span className="text-xs text-muted-foreground"><bdi>@{extra.handle}</bdi></span>
       </div>
       <div className="mt-2">
-        <PostBody item={item} extra={extra} clamp={false} />
+        <PostBody item={item} extra={extra} clamp={false} translated />
       </div>
       <XMetrics extra={extra} className="mt-3" />
       <p className="mt-1 text-[11px] text-muted-foreground">{t("xSource")}</p>
@@ -212,7 +240,7 @@ export function XLatest({ item, pool, onOpen }: { item: StreamItem; pool: Stream
         <XMark className="size-3.5" />
         {t("xLatest")}
         <a href={`https://x.com/${x.handle}`} target="_blank" rel="noopener noreferrer" className="ms-auto inline-flex items-center gap-1 text-xs font-normal text-muted-foreground hover:text-foreground">
-          @{x.handle}
+          <bdi>@{x.handle}</bdi>
           {x.verified ? <BadgeCheck className="size-3.5 fill-sky-500 text-background" aria-hidden /> : null}
         </a>
       </h4>
@@ -221,7 +249,7 @@ export function XLatest({ item, pool, onOpen }: { item: StreamItem; pool: Stream
           {posts.map((entry) => (
             <li key={entry.id}>
               <button type="button" onClick={() => onOpen(entry)} className="block w-full rounded-xl border border-border px-3 py-2 text-start hover:bg-white/[0.02]">
-                <span className="line-clamp-3 whitespace-pre-line text-sm leading-5 text-foreground">{entry.summary}</span>
+                <span dir="auto" className="line-clamp-3 whitespace-pre-line text-sm leading-5 text-foreground">{entry.summary}</span>
                 {entry.publishedAt ? <span className="mt-1 block text-[11px] text-muted-foreground">{new Date(entry.publishedAt).toLocaleDateString(locale)}</span> : null}
               </button>
             </li>

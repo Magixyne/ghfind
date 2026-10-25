@@ -87,7 +87,7 @@ export function StreamRail({ items, voices, onOpen, onFollowed }: { items: Strea
                         <span className="truncate">{voice.name}</span>
                         {voice.verified ? <BadgeCheck className="size-3.5 shrink-0 fill-sky-500 text-background" aria-hidden /> : null}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">{t(`xCategory.${voice.category}`)} · @{voice.handle}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{t(`xCategory.${voice.category}`)} · <bdi>@{voice.handle}</bdi></span>
                     </span>
                   </button>
                   <a href={`https://x.com/${voice.handle}`} target="_blank" rel="noopener noreferrer" aria-label={`@${voice.handle}`} className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-foreground hover:bg-white/[0.04]">
@@ -109,7 +109,7 @@ export function StreamRail({ items, voices, onOpen, onFollowed }: { items: Strea
                   <StreamAvatar src={item.author.avatarUrl} name={item.author.name} className="size-8" />
                   <span className="min-w-0 flex-1 leading-tight">
                     <span className="block truncate text-sm font-semibold text-foreground">{item.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{item.author.handle}</span>
+                    <span className="block truncate text-xs text-muted-foreground"><bdi>{item.author.handle}</bdi></span>
                   </span>
                   <ScorePill item={item} />
                 </button>
