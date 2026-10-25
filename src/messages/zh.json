@@ -2000,6 +2000,7 @@
     "railVoices": "技术声音",
     "railVoicesHint": "只收录研究员、构建者、科技媒体，以及 ghfind 评分 80+ 的开发者。",
     "xSource": "来自 X · 指标为 X 上的真实数据",
-    "ghfindProfile": "ghfind 主页"
+    "ghfindProfile": "ghfind 主页",
+    "demoX": "X 动态目前为演示数据：账号与内容均为虚构，接入真实数据后自动替换。"
   }
 }

@@ -73,7 +73,7 @@ function distribute(items: StreamItem[], columns: number): StreamItem[][] {
   return out;
 }
 
-export function StreamApp({ items, pulse, voices, generatedAt, demo }: { items: StreamItem[]; pulse: StreamPulseData; voices: StreamVoice[]; generatedAt: number; demo: boolean }) {
+export function StreamApp({ items, pulse, voices, generatedAt, demo, demoX = false }: { items: StreamItem[]; pulse: StreamPulseData; voices: StreamVoice[]; generatedAt: number; demo: boolean; demoX?: boolean }) {
   const t = useTranslations("stream");
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<Tab>("foryou");
@@ -307,6 +307,7 @@ export function StreamApp({ items, pulse, voices, generatedAt, demo }: { items: 
         </div>
 
         {demo ? <p className="border-b border-border bg-white/[0.02] px-4 py-2 text-xs text-muted-foreground">{t("demoData")}</p> : null}
+        {demoX && (kind === "post" || kind === "all") ? <p className="border-b border-border bg-white/[0.02] px-4 py-2 text-xs text-muted-foreground">{t("demoX")}</p> : null}
 
         {tab === "foryou" && kind === "all" ? <StreamPulse pulse={pulse} onOpenUser={openUser} /> : null}
 
