@@ -1,3 +1,5 @@
+import type { Locale } from "@ghfind/i18n";
+
 /** Public post and repository contracts. X content never supplies ghfind interaction metrics. */
 export const FEED_MINIMUM_SCORE = 60;
 export const FEED_MAX_TEXT_LENGTH = 5_000;
@@ -7,6 +9,7 @@ export const FEED_DEFAULT_PAGE_SIZE = 20;
 export const FEED_MAX_PAGE_SIZE = 50;
 export const FEED_PUBLICATION_POLICY_VERSION = "social-feed-v1";
 export const FEED_X_CURATED_POLICY_VERSION = "social-feed-x-curated-v1";
+export const FEED_MAX_TRANSLATION_LABEL_LENGTH = 100;
 
 export type FeedOrigin = "x" | "ghfind";
 export type FeedPostKind = "original" | "reply";
@@ -55,12 +58,21 @@ export interface FeedViewerState {
   can_reply: boolean;
   can_delete: boolean;
 }
+/** Body text in the page locale for the post's current content_version. */
+export interface FeedPostTranslation {
+  locale: Locale;
+  text: string;
+  source_lang: string | null;
+}
 export interface FeedPost {
   id: string;
   origin: FeedOrigin;
   kind: FeedPostKind;
   author: FeedAuthor;
+  /** Always the original body; `translation` is the page-locale variant when one applies. */
   text: string;
+  source_lang: string | null;
+  translation: FeedPostTranslation | null;
   media: FeedMedia[];
   published_at: string;
   content_version: number;
@@ -142,15 +154,36 @@ export interface XPostInput {
   media?: FeedMedia[];
   published_at: string;
   parent_post_id?: string;
+  /** Detected language of `text` (lowercase BCP 47, e.g. "en", "zh-hans"). */
+  source_lang?: string | null;
+  /** Translations of exactly this `text`; dropped if a newer edit already won. */
+  translations?: Partial<Record<Locale, FeedTranslationText>>;
+}
+export interface FeedTranslationText {
+  text: string;
+  source_lang?: string | null;
+  model?: string | null;
+  provider?: string | null;
+}
+export interface FeedTranslationInput extends FeedTranslationText {
+  locale: Locale;
+}
+export interface FeedTranslationUpsert {
+  post_id: string;
+  /** Optimistic guard: rejects with stale_content_version unless it is still current. */
+  content_version?: number;
+  translations: FeedTranslationInput[];
 }
 export interface FeedListOptions {
   channel: FeedChannel;
   viewer?: FeedViewer | null;
+  locale?: Locale | null;
   cursor?: string;
   limit?: number;
 }
 export interface FeedPageOptions {
   viewer?: FeedViewer | null;
+  locale?: Locale | null;
   cursor?: string;
   limit?: number;
 }
@@ -177,13 +210,15 @@ export interface FeedMediaAsset extends MediaRegistration {
 }
 export type FeedQuotaOperation = "publish" | "interact" | "view" | "upload";
 export interface SocialFeedRepository {
-  getPost(id: string, viewer?: FeedViewer | null): Promise<FeedPost | null>;
+  getPost(id: string, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPost | null>;
   listPosts(options: FeedListOptions): Promise<FeedPage>;
   listReplies(parentId: string, options?: FeedPageOptions): Promise<FeedPage>;
-  listAncestors(id: string, viewer?: FeedViewer | null): Promise<FeedPost[]>;
+  listAncestors(id: string, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPost[]>;
   createNativePost(input: NativePostInput): Promise<FeedPost>;
   findPublication(userId: string, key: string, payloadHash: string, viewer?: FeedViewer | null): Promise<FeedPost | null>;
   ingestXPost(input: XPostInput): Promise<FeedPost>;
+  /** Returns the content_version the translations were stored under. */
+  upsertPostTranslations(input: FeedTranslationUpsert): Promise<{ post_id: string; content_version: number; locales: Locale[] }>;
   deleteNativePost(id: string, actor: FeedActor): Promise<FeedPost>;
   setReaction(id: string, actor: FeedActor, value: FeedReaction | null): Promise<FeedPost>;
   setBookmark(id: string, actor: FeedActor, enabled: boolean): Promise<FeedPost>;

@@ -14,7 +14,7 @@ import { getAuthorSummary, createPost, deletePost, getPost, ingestX, listPosts, 
 import * as postsRoute from "@/app/api/feed/posts/route";
 
 const origin = "http://127.0.0.1:4321";
-const post: FeedPost = { id: "p1", origin: "ghfind", kind: "original", author: { id: "a1", github_login: "octocat", name: "octocat", avatar_url: null }, text: "hello", media: [],
+const post: FeedPost = { id: "p1", origin: "ghfind", kind: "original", author: { id: "a1", github_login: "octocat", name: "octocat", avatar_url: null }, text: "hello", source_lang: null, translation: null, media: [],
   published_at: "2026-10-25T00:00:00.000Z", content_version: 1, conversation_id: "p1", parent_post_id: null, original_url: null, status: "published",
   metrics: { origin: "ghfind", likes: 0, reposts: 0, direct_replies: 0, conversation_replies: 0, views: 0 }, viewer: null };
 const params = { params: Promise.resolve({ id: "p1" }) };
@@ -201,6 +201,36 @@ describe("content-only X import", () => {
     expect((await ingestX(machine(imported()))).status).toBe(201);
     expect(mocks.repository.ingestXPost.mock.calls[0][0].publication.score_record_id).toBe("saved-score");
     expect(mocks.xIngestPublication).toHaveBeenCalledWith("octocat", "7");
+  });
+  it("accepts a translations map with the post and rejects unknown locales before writing", async () => {
+    const translations = { zh: { text: "原帖", source_lang: "en", model: "deepseek-chat", provider: "deepseek" }, ja: { text: "元の投稿" } };
+    expect((await ingestX(machine({ ...imported(), source_lang: "en-US", translations }))).status).toBe(201);
+    expect(mocks.repository.ingestXPost.mock.calls[0][0]).toMatchObject({ source_lang: "en-us",
+      translations: { zh: { text: "原帖", source_lang: "en", model: "deepseek-chat", provider: "deepseek" }, ja: { text: "元の投稿", source_lang: null } } });
+    for (const bad of [{ fr: { text: "Bonjour" } }, { ja: { text: "x", score: 1 } }, { ja: "x" }, []]) {
+      expect((await ingestX(machine({ ...imported(), translations: bad }))).status).toBe(400);
+    }
+    expect((await (await ingestX(machine({ ...imported(), translations: { "zh-TW": { text: "x" } } }))).json()).error).toBe("invalid_locale");
+    expect(mocks.repository.ingestXPost).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("localized reads", () => {
+  it("passes the page locale to timeline and detail reads and returns original plus translation", async () => {
+    const translated = { ...post, source_lang: "en", translation: { locale: "ja", text: "こんにちは", source_lang: "en" } };
+    mocks.repository.listPosts.mockResolvedValue({ items: [translated], next_cursor: null, algorithm_version: "chronological-v1" });
+    const response = await listPosts(request("GET", undefined, { path: "/api/feed/posts?locale=ja" }));
+    expect(mocks.repository.listPosts.mock.calls[0][0]).toMatchObject({ channel: "recommended", locale: "ja" });
+    expect((await response.json()).items[0]).toMatchObject({ text: "hello", translation: { locale: "ja", text: "こんにちは" } });
+    await getPost(request("GET", undefined, { path: "/api/feed/posts/p1?locale=ar" }), params);
+    expect(mocks.repository.getPost.mock.calls[0][2]).toBe("ar");
+  });
+  it("reads without a locale as original-only and rejects unknown locales", async () => {
+    await listPosts(request("GET"));
+    expect(mocks.repository.listPosts.mock.calls[0][0].locale).toBeNull();
+    const response = await listPosts(request("GET", undefined, { path: "/api/feed/posts?locale=fr" }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("invalid_locale");
   });
 });
 
