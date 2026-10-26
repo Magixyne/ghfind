@@ -37,7 +37,7 @@ Astro 页面读取的本地数据位于 `apps/web/.wrangler/state`，与上述 A
 
 媒体使用独立 `SOCIAL_FEED_MEDIA` R2 绑定；配置桶名为 dev 的 `ghfind-social-media-dev` 和生产的 `ghfind-social-media`，部署前须创建对应桶。它们不是 Next 页面缓存桶。本轮仅用本地模拟桶验证，未创建远程桶、执行远程迁移或部署。R2 私有，图片由 API 检查归属/帖子可见性后读取。未发布草稿媒体仅上传者可读，取消草稿后的孤立媒体清理任务尚未接入。
 
-发布资格还核对评分对应完整扫描快照中的 GitHub 固定账号 ID，并验证快照 hash，避免用户名被重新注册后继承他人评分。旧快照没有固定 ID 时返回 `score_identity_required`，需本人重新扫描；浏览和普通互动不受影响。TS 与 Go 采集器均已补充该事实字段，不改变评分公式。发布资格接受当前 Node collection v6 与 Go 独立 collection v5（版本关系见 [采集发布说明](../releases/v13-v12-v6-rollout.md)），两者均要求当前评分版本、完整扫描和匹配的固定 ID；旧历史记录不会因 v5 标签被当成有效发布资格。
+发布资格还核对评分对应完整扫描快照中的 GitHub 固定账号 ID，并验证快照 hash，避免用户名被重新注册后继承他人评分。旧快照没有固定 ID 时返回 `score_identity_required`，需本人重新扫描；浏览和普通互动不受影响，已导入 X 帖子的展示也不受影响。TS 与 Go 采集器均已补充该事实字段，不改变评分公式。发布资格接受当前 Node collection v6 与 Go 独立 collection v5（版本关系见 [采集发布说明](../releases/v13-v12-v6-rollout.md)），两者均要求当前评分版本、完整扫描和匹配的固定 ID；旧历史记录不会因 v5 标签被当成有效发布资格。
 
 X 导入需要独立的 `SOCIAL_FEED_INGEST_SECRET`（至少 32 字符）。生产页面和 API 请求同源；如开发代理改变目标 origin，可显式设置唯一可信页面 origin `SOCIAL_FEED_PUBLIC_ORIGIN`，不能用请求头任意扩展许可域。
 
@@ -70,7 +70,7 @@ X 导入需要独立的 `SOCIAL_FEED_INGEST_SECRET`（至少 32 字符）。生�
 }
 ```
 
-采集器必须先审核不可变 X/GitHub 账号 ID 的归属证据，`evidence_method` 可为 `editorial_review` 或 `reciprocal_links`；资料中单向写一个 GitHub 用户名不是自动认证。API 存储证据、检查绑定一致性、从核心库复核当前评分，拒绝低分/无来源/旧评分版本。此接口本身不联网抓取个人简介；真实账号名单、X 数据获取渠道、定时采集与原帖删除核对属于后续采集器接入工作，当前没有自动同步承诺。
+采集器必须先审核不可变 X/GitHub 账号 ID 的归属证据，`evidence_method` 可为 `editorial_review` 或 `reciprocal_links`；资料中单向写一个 GitHub 用户名不是自动认证。API 存储证据并检查绑定一致性。X 来源账号由人工/采集器策展，评分只作溯源、不作写入门槛：作者有当前合格评分时记录真实评分证据；没有评分、评分低于 60、评分版本或扫描过旧、快照缺少 `github_user_id`，或核心评分库暂不可用时，仍写入并标记为 `policy_version=social-feed-x-curated-v1`、`score_version=unscored`、`score_record_id=x-curated:<login>`（`publication_score` 仅因表约束填 60 占位，不代表真实分数，也不授予本站发帖资格）。此接口本身不联网抓取个人简介；真实账号名单、X 数据获取渠道、定时采集与原帖删除核对属于后续采集器接入工作，当前没有自动同步承诺。
 
 ## API
 
@@ -90,7 +90,7 @@ X 导入需要独立的 `SOCIAL_FEED_INGEST_SECRET`（至少 32 字符）。生�
 | `POST /api/feed/media` | multipart `file` 与可选 `alt_text` |
 | `GET /api/feed/media/:id` | 带可见性检查的媒体读取 |
 
-发帖/回复的 JSON 是 `{text, media_ids?}`，请求必须带 `Idempotency-Key`；身份、来源、根帖、评分均由服务端决定。相同调用者与 key 重试返回同一帖，不同内容返回冲突。推荐和关注首次读取固定最多 1000 个候选的顺序快照，有效期 30 分钟。签名 cursor 绑定频道与用户/匿名访客；后续翻页重新检查帖子可见性、X 作者资格和转发是否仍有效。期间新帖或新转发需要刷新才能进入，不会插入已有分页。收藏与直接子回复使用有作用域的游标分页。
+发帖/回复的 JSON 是 `{text, media_ids?}`，请求必须带 `Idempotency-Key`；身份、来源、根帖、评分均由服务端决定。相同调用者与 key 重试返回同一帖，不同内容返回冲突。推荐和关注首次读取固定最多 1000 个候选的顺序快照，有效期 30 分钟。签名 cursor 绑定频道与用户/匿名访客；后续翻页重新检查帖子可见性和转发是否仍有效。时间线读取不再按作者评分过滤 X 帖子：已入库且 `status=published`（未删除/隐藏、`source_eligible` 人工开关未关闭）的 X 帖子都会显示；作者资料缺失时回退为帖子上保存的 X 名称、头像与原帖链接中的 handle。期间新帖或新转发需要刷新才能进入，不会插入已有分页。收藏与直接子回复使用有作用域的游标分页。
 
 
 ## 本轮本地验证（2026-10-26）

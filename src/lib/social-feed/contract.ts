@@ -6,6 +6,7 @@ export const FEED_MAX_MEDIA = 4;
 export const FEED_DEFAULT_PAGE_SIZE = 20;
 export const FEED_MAX_PAGE_SIZE = 50;
 export const FEED_PUBLICATION_POLICY_VERSION = "social-feed-v1";
+export const FEED_X_CURATED_POLICY_VERSION = "social-feed-x-curated-v1";
 
 export type FeedOrigin = "x" | "ghfind";
 export type FeedPostKind = "original" | "reply";
@@ -120,7 +121,7 @@ export interface XSourceInput {
   evidence_method: "editorial_review" | "reciprocal_links";
   evidence_checked_at: string;
 }
-/** Internal ingest only. Author identity and eligibility must already be verified by its caller. */
+/** Internal ingest only. Author identity must already be verified by its caller; score is provenance only. */
 export interface XPostInput {
   author: FeedAuthorInput;
   publication: PublicationEvidence;

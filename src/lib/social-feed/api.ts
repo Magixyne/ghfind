@@ -3,7 +3,7 @@ import { OAUTH_SESSION_COOKIE, readGitHubSession } from "@/lib/oauth-session";
 import { readBoundedBody } from "@/lib/feed-gateway";
 import { SocialFeedError, FEED_MAX_MEDIA, type FeedActor, type FeedMedia, type FeedPage, type FeedPost, type FeedQuotaOperation, type FeedViewer, type QualifiedViewInput, type PostInput, type XPostInput } from "./contract";
 import { getSocialFeedRepository, nativePublicationHash } from "./repository";
-import { filterEligibleFeedCandidates, publicationFromScore, publishingCapabilities, readPublishingScore, requirePublication } from "./eligibility";
+import { publishingCapabilities, requirePublication, xIngestPublication } from "./eligibility";
 
 const MAX_NATIVE_TEXT = 5_000;
 const VISITOR_COOKIE = "ghfind_feed_visitor";
@@ -210,7 +210,7 @@ export function createFeedReadHandler(provider: SocialFeedProvider): (request: R
     if (channel !== "recommended" && channel !== "following") throw new SocialFeedError("invalid_channel", 400);
     if (channel === "following" && !context.actor) throw new SocialFeedError("authentication_required", 401);
     const page = await provider.readPage({ request_id: randomUUID(), channel, viewer: context.viewer, ...pagination(request, context, channel) });
-    return pageResponse({ ...page, items: await filterEligibleFeedCandidates(page.items) }, context, channel);
+    return pageResponse(page, context, channel);
   });
 }
 export const listPosts = createFeedReadHandler(chronologicalFeedProvider);
@@ -404,7 +404,7 @@ export function ingestX(request: Request): Promise<Response> {
     if (typeof input.text !== "string" || [...input.text].length > 100_000 || (!input.text.trim() && media.length === 0)) {
       throw new SocialFeedError("invalid_text", 400);
     }
-    const publication = publicationFromScore(login, await readPublishingScore(login), sourceId(author.github_user_id));
+    const publication = await xIngestPublication(login, sourceId(author.github_user_id));
     const post: XPostInput = {
       author: { github_user_id: sourceId(author.github_user_id), github_login: login, name: requiredText(author.name, 200), avatar_url: nullableAvatar(author.avatar_url) },
       publication,

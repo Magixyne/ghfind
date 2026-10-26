@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { SCORE_CACHE_VERSION } from "@/lib/cache-version";
 import { PUBLIC_SCAN_COLLECTION_VERSION } from "@/lib/scan-run-types";
-import { publicationFromScore, publishingCapabilities, githubIdentityFromSnapshot, type PublishingScoreRecord } from "./eligibility";
+import { publicationFromScore, publishingCapabilities, githubIdentityFromSnapshot, xIngestPublication, type PublishingScoreRecord } from "./eligibility";
 import { SocialFeedError, type FeedActor } from "./contract";
 
 const actor: FeedActor = { user_id: "github:7", github_user_id: "7", github_login: "octocat", name: "Octocat", avatar_url: null };
@@ -56,5 +56,17 @@ describe("score ownership from immutable snapshots", () => {
   it("cannot inherit a previous owner's score by reusing their GitHub handle", () => {
     expect(() => publicationFromScore("octocat", score(90), "8")).toThrowError("score_identity_mismatch");
     expect(() => publicationFromScore("octocat", { ...score(90), github_user_id: null }, "7")).toThrowError("score_identity_required");
+  });
+});
+
+describe("curated X ingest provenance", () => {
+  it("records a current score when present and never rejects curated authors because of score", async () => {
+    expect((await xIngestPublication("octocat", "7", async () => score(70))).score_record_id).toContain("a".repeat(64));
+    const unscored = [async () => null, async () => score(10), async () => ({ ...score(90), score_version: "v15" }),
+      async () => ({ ...score(90), github_user_id: null }), async () => { throw new SocialFeedError("score_unavailable", 503); }];
+    for (const read of unscored) {
+      expect(await xIngestPublication("OctoCat", "7", read)).toEqual({ score: 60, score_record_id: "x-curated:octocat",
+        score_version: "unscored", policy_version: "social-feed-x-curated-v1" });
+    }
   });
 });

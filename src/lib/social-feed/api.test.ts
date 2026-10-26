@@ -5,11 +5,11 @@ import { SocialFeedError, type FeedPost } from "./contract";
 const mocks = vi.hoisted(() => ({
   repository: { getPost: vi.fn(), listPosts: vi.fn(), listReplies: vi.fn(), listAncestors: vi.fn(), createNativePost: vi.fn(), findPublication: vi.fn(), deleteNativePost: vi.fn(),
     setReaction: vi.fn(), setBookmark: vi.fn(), setRepost: vi.fn(), setFollow: vi.fn(), recordQualifiedView: vi.fn(), consumeQuota: vi.fn(), ingestXPost: vi.fn() },
-  requirePublication: vi.fn(), publishingCapabilities: vi.fn(), readPublishingScore: vi.fn(), publicationFromScore: vi.fn(), filterCandidates: vi.fn(),
+  requirePublication: vi.fn(), publishingCapabilities: vi.fn(), xIngestPublication: vi.fn(),
 }));
 vi.mock("./repository", () => ({ getSocialFeedRepository: () => mocks.repository, nativePublicationHash: async (input: unknown, parent?: string) => JSON.stringify({ input, parent }) }));
 vi.mock("./eligibility", () => ({ requirePublication: mocks.requirePublication, publishingCapabilities: mocks.publishingCapabilities,
-  readPublishingScore: mocks.readPublishingScore, publicationFromScore: mocks.publicationFromScore, filterEligibleFeedCandidates: mocks.filterCandidates }));
+  xIngestPublication: mocks.xIngestPublication }));
 import { createPost, deletePost, getPost, ingestX, listPosts, recordView, setReaction } from "./api";
 import * as postsRoute from "@/app/api/feed/posts/route";
 
@@ -42,8 +42,7 @@ beforeEach(() => {
   mocks.repository.recordQualifiedView.mockResolvedValue(true);
   mocks.repository.ingestXPost.mockResolvedValue({ ...post, origin: "x" });
   mocks.requirePublication.mockResolvedValue({ score: 60, score_record_id: "saved-score", score_version: "v16", policy_version: "social-feed-v1" });
-  mocks.publicationFromScore.mockReturnValue({ score: 60, score_record_id: "saved-score", score_version: "v16", policy_version: "social-feed-v1" });
-  mocks.filterCandidates.mockImplementation(async (items: FeedPost[]) => items);
+  mocks.xIngestPublication.mockResolvedValue({ score: 60, score_record_id: "saved-score", score_version: "v16", policy_version: "social-feed-v1" });
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
 
@@ -53,8 +52,15 @@ describe("public and private feed boundaries", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).items[0].id).toBe("p1");
     expect(mocks.requirePublication).not.toHaveBeenCalled();
-    expect(mocks.readPublishingScore).not.toHaveBeenCalled();
+    expect(mocks.xIngestPublication).not.toHaveBeenCalled();
     expect(response.headers.get("Cache-Control")).toContain("no-store");
+  });
+  it("shows every published X post the repository returns without author score checks", async () => {
+    const mirrored = { ...post, id: "pst_x_1", origin: "x" as const, author: { ...post.author, id: "gha_404", github_login: "unscored" } };
+    mocks.repository.listPosts.mockResolvedValue({ items: [mirrored, post], next_cursor: null, algorithm_version: "chronological-v1" });
+    const response = await listPosts(request("GET"));
+    expect((await response.json()).items.map((item: FeedPost) => item.id)).toEqual(["pst_x_1", "p1"]);
+    expect(mocks.xIngestPublication).not.toHaveBeenCalled();
   });
   it("requires identity only for the private following feed", async () => {
     expect((await listPosts(request("GET", undefined, { path: "/api/feed/posts?channel=following" }))).status).toBe(401);
@@ -194,5 +200,6 @@ describe("content-only X import", () => {
     expect((await ingestX(machine({ ...invalid, source: { ...invalid.source, url: "https://x.com/octocat/status/999" } }))).status).toBe(400);
     expect((await ingestX(machine(imported()))).status).toBe(201);
     expect(mocks.repository.ingestXPost.mock.calls[0][0].publication.score_record_id).toBe("saved-score");
+    expect(mocks.xIngestPublication).toHaveBeenCalledWith("octocat", "7");
   });
 });
