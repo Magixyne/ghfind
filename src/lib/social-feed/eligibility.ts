@@ -3,7 +3,7 @@ import { createClient, type Client } from "@libsql/client/web";
 import { SCORE_CACHE_VERSION } from "@/lib/cache-version";
 import { d1AsLibsqlClient, getD1Binding } from "@/lib/d1-client";
 import { PUBLIC_SCAN_COLLECTION_VERSION } from "@/lib/scan-run-types";
-import { FEED_MINIMUM_SCORE, FEED_PUBLICATION_POLICY_VERSION, SocialFeedError, type FeedActor, type FeedPost, type PublicationEvidence, type PublishingCapabilities } from "./contract";
+import { FEED_MINIMUM_SCORE, FEED_PUBLICATION_POLICY_VERSION, FEED_X_CURATED_POLICY_VERSION, SocialFeedError, type FeedActor, type PublicationEvidence, type PublishingCapabilities } from "./contract";
 
 export interface PublishingScoreRecord {
   username: string;
@@ -110,25 +110,18 @@ export async function publishingCapabilities(actor: FeedActor | null, readScore:
   }
 }
 
-/** Read-time source eligibility: native posts retain their publication-time evidence. */
-export async function filterEligibleFeedCandidates(items: FeedPost[]): Promise<FeedPost[]> {
-  const handles = [...new Set(items.filter((post) => post.origin === "x").map((post) => post.author.github_login.toLowerCase()))];
-  if (handles.length === 0) return items;
-  const eligible = new Set<string>();
+/**
+ * X posts come from curated, identity-reviewed accounts, so their score is provenance only.
+ * A current eligible score is recorded when present; otherwise (no score, stale scan, missing
+ * snapshot identity, low score or score storage unavailable) the post is labelled curated.
+ * The placeholder score only satisfies the stored evidence shape and never authorizes native publishing.
+ */
+export async function xIngestPublication(login: string, githubUserId: string, readScore: ScoreReader = readPublishingScore): Promise<PublicationEvidence> {
   try {
-    const result = await coreDatabase().execute({
-      sql: `${SCORE_WITH_IDENTITY} WHERE s.username IN (${handles.map(() => "?").join(",")})`, args: handles,
-    });
-    for (const row of result.rows) {
-      const score = scoreRecord(row);
-      try {
-        publicationFromScore(score.username, score, score.github_user_id ?? "");
-        eligible.add(`${score.username.toLowerCase()}:gha_${score.github_user_id}`);
-      } catch { /* Invalid source identity or score cannot become a recommended X candidate. */ }
-    }
-  } catch {
-    // Unavailable score storage cannot authorize X candidates; existing native posts stay readable.
-    console.warn(JSON.stringify({ event: "social_feed.source_eligibility_unavailable", degraded: true }));
+    return publicationFromScore(login, await readScore(login), githubUserId);
+  } catch (error) {
+    if (!(error instanceof SocialFeedError)) throw error;
+    return { score: FEED_MINIMUM_SCORE, score_record_id: `x-curated:${login.toLowerCase()}`, score_version: "unscored",
+      policy_version: FEED_X_CURATED_POLICY_VERSION };
   }
-  return items.filter((post) => post.origin === "ghfind" || eligible.has(`${post.author.github_login.toLowerCase()}:${post.author.id}`));
 }

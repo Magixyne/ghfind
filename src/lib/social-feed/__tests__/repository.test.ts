@@ -137,6 +137,13 @@ describe("social post storage", () => {
     await expect(repository.ingestXPost({ ...input, author: bob })).rejects.toMatchObject({ code: "source_conflict" });
     await expect(repository.ingestXPost({ ...input, source: { ...input.source, url: "https://x.com/alice_x/status/999" } })).rejects.toMatchObject({ code: "invalid_x_source" });
   });
+  it("stores curated X posts without a talent score and shows them on the public timeline", async () => {
+    const curated: PublicationEvidence = { score: 60, score_record_id: "x-curated:alice", score_version: "unscored", policy_version: "social-feed-x-curated-v1" };
+    const mirror = await repository.ingestXPost({ ...mirrored(), publication: curated });
+    const page = await repository.listPosts({ channel: "recommended" });
+    expect(page.items.map((item) => item.id)).toEqual([mirror.id]);
+    expect(page.items[0]).toMatchObject({ origin: "x", author: { github_login: "alice", name: "Alice on X" } });
+  });
   it("persists one verified GitHub binding per X account and rejects cross-post impersonation", async () => {
     const first = mirrored();
     await repository.ingestXPost(first);

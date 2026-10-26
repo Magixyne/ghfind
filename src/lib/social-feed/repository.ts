@@ -46,6 +46,11 @@ const nullableText = (value: unknown): string | null => value == null ? null : S
 const numberValue = (value: unknown): number => Number(value ?? 0);
 const actorViewer = (actor: FeedActor): FeedViewer => ({ user_id: actor.user_id, can_reply: false });
 const authorId = (githubId: string): string => `gha_${githubId}`;
+/** Fallback author label for X posts whose author row is unavailable. */
+const xHandle = (url: unknown): string | null => {
+  const match = typeof url === "string" ? /^https:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/status\//.exec(url) : null;
+  return match && match[1] !== "i" ? match[1] : null;
+};
 const placeholders = (count: number): string => Array.from({ length: count }, () => "?").join(",");
 
 function validateAuthor(author: FeedAuthorInput): void {
@@ -166,7 +171,7 @@ export function createRepository(client: Client): SocialFeedRepository {
       EXISTS(SELECT 1 FROM social_feed_bookmarks b WHERE b.post_id=p.id AND b.user_id=?) AS viewer_bookmarked,
       EXISTS(SELECT 1 FROM social_feed_reposts r WHERE r.post_id=p.id AND r.user_id=?) AS viewer_reposted,
       EXISTS(SELECT 1 FROM social_feed_follows f WHERE f.author_id=p.author_id AND f.user_id=?) AS viewer_following
-      FROM social_feed_posts p JOIN social_feed_authors a ON a.id=p.author_id
+      FROM social_feed_posts p LEFT JOIN social_feed_authors a ON a.id=p.author_id
       JOIN social_feed_posts root ON root.id=p.conversation_id
       WHERE p.id IN (${placeholders(ids.length)}) AND p.status<>'hidden' AND root.status<>'hidden'`,
     [viewer?.user_id ?? null, viewer?.user_id ?? null, viewer?.user_id ?? null, viewer?.user_id ?? null, ...ids]);
@@ -185,8 +190,8 @@ export function createRepository(client: Client): SocialFeedRepository {
       const origin = String(row.origin) as FeedPost["origin"];
       const post: FeedPost = {
         id: String(row.id), origin, kind: String(row.kind) as FeedPost["kind"],
-        author: { id: String(row.author_id), github_login: String(row.github_login),
-          name: String(origin === "x" ? row.source_name : row.display_name),
+        author: { id: String(row.author_id), github_login: String(row.github_login ?? xHandle(row.source_url) ?? row.author_id),
+          name: String((origin === "x" ? row.source_name : null) ?? row.display_name ?? xHandle(row.source_url) ?? row.author_id),
           avatar_url: nullableText(origin === "x" ? (row.source_avatar_url ?? row.avatar_url) : row.avatar_url) },
         text: status === "published" ? String(row.text) : "",
         media: status !== "published" ? [] : origin === "x" ? JSON.parse(String(row.x_media_json)) as FeedMedia[] : mediaByPost.get(String(row.id)) ?? [],
