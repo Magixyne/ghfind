@@ -2056,7 +2056,19 @@
       "scoreBelowMinimum": "Skor tersimpan Anda di bawah 60. Anda belum dapat memposting atau membalas.",
       "scoreMissing": "Belum ada skor tersimpan. Periksa skor akun GitHub Anda terlebih dahulu.",
       "verifyScore": "Kepemilikan skor tersimpan belum dapat diverifikasi. Silakan coba lagi.",
-      "rescanAccount": "Pindai ulang dari profil saya"
+      "rescanAccount": "Pindai ulang dari profil saya",
+      "authorCard": {
+        "followingAction": "Following",
+        "follow": "Follow",
+        "followsYou": "Follows you",
+        "retry": "Could not load · Retry",
+        "loading": "Loading…",
+        "score": "ghfind score",
+        "unscored": "Not scored",
+        "following": "Following",
+        "followers": "Followers",
+        "source": "Follow counts from ghfind"
+      }
     }
   }
 }

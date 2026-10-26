@@ -2056,7 +2056,19 @@
       "scoreBelowMinimum": "Tu puntuación guardada es inferior a 60. No puedes publicar ni responder.",
       "scoreMissing": "No hay una puntuación guardada. Consulta primero la puntuación de tu cuenta de GitHub.",
       "verifyScore": "No pudimos verificar la titularidad de tu puntuación guardada. Inténtalo de nuevo.",
-      "rescanAccount": "Volver a analizar desde mi perfil"
+      "rescanAccount": "Volver a analizar desde mi perfil",
+      "authorCard": {
+        "followingAction": "Following",
+        "follow": "Follow",
+        "followsYou": "Follows you",
+        "retry": "Could not load · Retry",
+        "loading": "Loading…",
+        "score": "ghfind score",
+        "unscored": "Not scored",
+        "following": "Following",
+        "followers": "Followers",
+        "source": "Follow counts from ghfind"
+      }
     }
   }
 }

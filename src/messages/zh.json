@@ -2063,7 +2063,19 @@
       "scoreBelowMinimum": "你的已保存评分未达到 60 分，暂时无法发布主帖或回复。",
       "scoreMissing": "还没有你的评分记录，请先查询本人 GitHub 账号的评分。",
       "verifyScore": "暂时无法核验已保存评分的账号归属，请重试。",
-      "rescanAccount": "前往本人主页重新扫描"
+      "rescanAccount": "前往本人主页重新扫描",
+      "authorCard": {
+        "followingAction": "已关注",
+        "follow": "关注",
+        "followsYou": "关注了你",
+        "retry": "加载失败，点击重试",
+        "loading": "加载中…",
+        "score": "ghfind 评分",
+        "unscored": "暂无评分",
+        "following": "关注",
+        "followers": "粉丝",
+        "source": "关注数据来自 ghfind"
+      }
     }
   }
 }

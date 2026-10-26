@@ -2056,7 +2056,19 @@
       "scoreBelowMinimum": "Điểm đã lưu của bạn dưới 60. Bạn chưa thể đăng bài hoặc trả lời.",
       "scoreMissing": "Chưa có điểm đã lưu. Hãy tra cứu điểm tài khoản GitHub của bạn trước.",
       "verifyScore": "Không thể xác minh chủ sở hữu điểm đã lưu. Vui lòng thử lại.",
-      "rescanAccount": "Quét lại từ hồ sơ của tôi"
+      "rescanAccount": "Quét lại từ hồ sơ của tôi",
+      "authorCard": {
+        "followingAction": "Following",
+        "follow": "Follow",
+        "followsYou": "Follows you",
+        "retry": "Could not load · Retry",
+        "loading": "Loading…",
+        "score": "ghfind score",
+        "unscored": "Not scored",
+        "following": "Following",
+        "followers": "Followers",
+        "source": "Follow counts from ghfind"
+      }
     }
   }
 }

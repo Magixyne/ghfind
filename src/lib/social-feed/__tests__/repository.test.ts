@@ -33,6 +33,27 @@ async function count(table: string): Promise<number> {
 }
 
 describe("social post storage", () => {
+  it("reads only ghfind follows and verified X account links for author cards", async () => {
+    await repository.ingestXPost(mirrored());
+    await repository.upsertAuthor(bob);
+    await repository.setFollow("gha_22", alice, true);
+    await repository.setFollow("gha_11", bob, true);
+    expect(await repository.getAuthorSummary("gha_11", bob.user_id)).toMatchObject({ following: 1, followers: 1, follows_you: true, x_url: "https://x.com/i/user/555" });
+    expect(await repository.getAuthorSummary("gha_22")).toMatchObject({ following: 1, followers: 1, follows_you: false, x_url: null });
+    await repository.setFollow("gha_11", bob, false);
+    expect(await repository.getAuthorSummary("gha_11")).toMatchObject({ followers: 0 });
+    expect(await repository.getAuthorSummary("gha_unknown")).toBeNull();
+  });
+  it("exposes verified publication scores without presenting curated placeholders as ratings", async () => {
+    const local = await repository.createNativePost({ ...native(), publication: { ...publication, score: 69 } });
+    expect(local.author.publication_score).toBe(69);
+    expect((await repository.getPost(local.id))?.author.publication_score).toBe(69);
+    const imported = mirrored();
+    const mirror = await repository.ingestXPost({ ...imported, publication: { ...publication, score_version: "unscored" } });
+    expect(mirror.author.publication_score).toBeNull();
+    const reply = await repository.createNativePost(native(bob, "Reply", mirror.id));
+    expect(reply.author.publication_score).toBe(60);
+  });
   it("keeps native and mirrored source identities separate, including replies to mirrors", async () => {
     const local = await repository.createNativePost(native());
     const mirror = await repository.ingestXPost(mirrored());

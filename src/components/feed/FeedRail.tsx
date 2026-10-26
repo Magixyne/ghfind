@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { FeedPost } from "@/lib/social-feed/contract";
 import type { StreamProjectPick, StreamVoice } from "@/lib/stream/types";
-import { FeedAvatar } from "./FeedPostCard";
+import { FeedAvatar } from "./FeedAvatar";
 
 export function FeedRail({ projects, posts, voices }: { projects: StreamProjectPick[]; posts: FeedPost[]; voices: StreamVoice[] }) {
   const t = useTranslations("stream");

@@ -2056,7 +2056,19 @@
       "scoreBelowMinimum": "Sua pontuação salva é inferior a 60. Não é possível publicar ou responder.",
       "scoreMissing": "Nenhuma pontuação salva foi encontrada. Consulte primeiro a pontuação da sua conta GitHub.",
       "verifyScore": "Não foi possível verificar a titularidade da pontuação salva. Tente novamente.",
-      "rescanAccount": "Analisar novamente no meu perfil"
+      "rescanAccount": "Analisar novamente no meu perfil",
+      "authorCard": {
+        "followingAction": "Following",
+        "follow": "Follow",
+        "followsYou": "Follows you",
+        "retry": "Could not load · Retry",
+        "loading": "Loading…",
+        "score": "ghfind score",
+        "unscored": "Not scored",
+        "following": "Following",
+        "followers": "Followers",
+        "source": "Follow counts from ghfind"
+      }
     }
   }
 }

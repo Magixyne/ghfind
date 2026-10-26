@@ -1,4 +1,4 @@
-import type { FeedMedia, FeedPage, FeedPost, PublishingCapabilities } from "./contract";
+import type { FeedAuthorSummary, FeedMedia, FeedPage, FeedPost, PublishingCapabilities } from "./contract";
 
 export type FeedChannel = "recommended" | "following";
 export type FeedAction = "like" | "dislike" | "bookmark" | "repost" | "delete";
@@ -54,6 +54,7 @@ export const feedClient = {
     if (altText.trim()) data.set("alt_text", altText.trim());
     return request<FeedMedia>("/media", "POST", data);
   },
+  author: (id: string) => request<FeedAuthorSummary>(`/authors/${encodeURIComponent(id)}`),
   capabilities: () => request<PublishingCapabilities>("/publishing-capabilities"),
   list: (channel: FeedChannel, cursor: string | null = null) => request<FeedPage>(`/posts${pageQuery(cursor, channel)}`),
   bookmarks: (cursor: string | null = null) => request<FeedPage>(`/me/bookmarks${pageQuery(cursor)}`),

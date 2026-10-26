@@ -45,6 +45,7 @@ const REVIEWED_NEXT_API_ROUTES = new Set([
   "src/app/api/discover/covers/[owner]/[repo]/route.ts",
   // Social posts: shared handlers also mounted in the API Worker. Public reads;
   // same-origin, session-gated writes; publishing additionally requires score eligibility.
+  "src/app/api/feed/authors/[id]/route.ts",
   "src/app/api/feed/authors/[id]/follow/route.ts",
   "src/app/api/feed/me/bookmarks/route.ts",
   "src/app/api/feed/media/[id]/route.ts",

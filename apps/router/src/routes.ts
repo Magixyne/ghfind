@@ -20,6 +20,7 @@ const LEGACY_PREFIXES: readonly string[] = ["/_next/"];
  * /api/campaigns/:c/leaderboard/events are not migrated yet.
  */
 const API_ROUTES: readonly RegExp[] = [
+  /^\/api\/feed\/authors\/[^/]+$/,
   // New social posts are independent from the legacy project Feed routes.
   /^\/api\/feed\/posts$/,
   /^\/api\/feed\/posts\/[^/]+$/,
