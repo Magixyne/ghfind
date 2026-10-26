@@ -1,8 +1,6 @@
 import { createHash } from "node:crypto";
 import { createClient, type Client } from "@libsql/client/web";
-import { SCORE_CACHE_VERSION } from "@/lib/cache-version";
 import { d1AsLibsqlClient, getD1Binding } from "@/lib/d1-client";
-import { PUBLIC_SCAN_COLLECTION_VERSION } from "@/lib/scan-run-types";
 import { FEED_MINIMUM_SCORE, FEED_PUBLICATION_POLICY_VERSION, FEED_X_CURATED_POLICY_VERSION, SocialFeedError, type FeedActor, type PublicationEvidence, type PublishingCapabilities } from "./contract";
 
 export interface PublishingScoreRecord {
@@ -15,11 +13,6 @@ export interface PublishingScoreRecord {
   hidden: number;
 }
 export type ScoreReader = (login: string) => Promise<PublishingScoreRecord | null>;
-
-// Go's independent v5 collector is the current counterpart of Node v6.
-// Keep aligned with goCanonicalCollectionVersion and docs/releases/v13-v12-v6-rollout.md.
-// Both require an exact completed snapshot with a stable GitHub ID below; historical fallback is never sufficient.
-const CURRENT_PUBLISHING_COLLECTIONS = new Set([PUBLIC_SCAN_COLLECTION_VERSION, "v5"]);
 
 function coreDatabase(): Client {
   const binding = getD1Binding();
@@ -39,7 +32,10 @@ const SCORE_WITH_IDENTITY = `SELECT s.username, s.final_score, s.score_version, 
     ORDER BY source.completed_at DESC, source.id DESC LIMIT 1
   )`;
 
-/** An avatar URL or current handle does not prove who owned an earlier score snapshot. */
+/** Read identity only from the hash-verified, server-collected scoring snapshot.
+ * Older Go collectors stored the stable numeric ID in GitHub's avatar URL.
+ * Never substitute the current profile/session avatar or a handle-only lookup.
+ */
 export function githubIdentityFromSnapshot(snapshot: unknown, hash: unknown, login: string): string | null {
   if (typeof snapshot !== "string" || typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash) ||
       createHash("sha256").update(snapshot).digest("hex") !== hash) return null;
@@ -48,9 +44,14 @@ export function githubIdentityFromSnapshot(snapshot: unknown, hash: unknown, log
     if (!value || typeof value !== "object" || !("metrics" in value) ||
         !value.metrics || typeof value.metrics !== "object") return null;
     const metrics = value.metrics;
-    if (!("username" in metrics) || typeof metrics.username !== "string" || metrics.username.toLowerCase() !== login.toLowerCase() ||
-        !("github_user_id" in metrics) || typeof metrics.github_user_id !== "string" || !/^[1-9]\d*$/.test(metrics.github_user_id)) return null;
-    return metrics.github_user_id;
+    if (!("username" in metrics) || typeof metrics.username !== "string" || metrics.username.toLowerCase() !== login.toLowerCase()) return null;
+    if ("github_user_id" in metrics && metrics.github_user_id != null) {
+      return typeof metrics.github_user_id === "string" && /^[1-9]\d*$/.test(metrics.github_user_id) ? metrics.github_user_id : null;
+    }
+    if (!("avatar_url" in metrics) || typeof metrics.avatar_url !== "string") return null;
+    const avatar = new URL(metrics.avatar_url);
+    if (avatar.origin !== "https://avatars.githubusercontent.com" || avatar.username || avatar.password) return null;
+    return /^\/u\/([1-9]\d*)$/.exec(avatar.pathname)?.[1] ?? null;
   } catch { return null; }
 }
 function scoreRecord(row: Record<string, unknown>): PublishingScoreRecord {
@@ -78,8 +79,9 @@ export function publicationFromScore(login: string, score: PublishingScoreRecord
   if (!score || score.hidden !== 0 || score.username.toLowerCase() !== login.toLowerCase()) {
     throw new SocialFeedError("score_required", 403);
   }
-  if (score.score_version !== SCORE_CACHE_VERSION ||
-      (!score.score_source_collection_version || !CURRENT_PUBLISHING_COLLECTIONS.has(score.score_source_collection_version)) ||
+  // Publishing uses the last persisted score, not the scan cache freshness policy.
+  // Preserve its original version and provenance instead of triggering a new assessment.
+  if (!score.score_version || !score.score_source_collection_version ||
       !score.score_source_snapshot_hash || !/^[a-f0-9]{64}$/.test(score.score_source_snapshot_hash)) {
     throw new SocialFeedError("score_outdated", 403);
   }

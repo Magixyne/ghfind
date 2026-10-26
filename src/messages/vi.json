@@ -2050,7 +2050,9 @@
       "viewOnX": "Xem bài gốc trên X",
       "views": "Lượt xem trên ghfind",
       "viewReplies": "Xem phản hồi",
-      "verifyScore": "Quét lại tài khoản GitHub để xác minh điểm thuộc về bạn trước khi đăng.",
+      "scoreBelowMinimum": "Điểm đã lưu của bạn dưới 60. Bạn chưa thể đăng bài hoặc trả lời.",
+      "scoreMissing": "Chưa có điểm đã lưu. Hãy tra cứu điểm tài khoản GitHub của bạn trước.",
+      "verifyScore": "Không thể xác minh chủ sở hữu điểm đã lưu. Vui lòng thử lại.",
       "rescanAccount": "Quét lại từ hồ sơ của tôi"
     }
   }

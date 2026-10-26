@@ -2050,7 +2050,9 @@
       "viewOnX": "Ver publicación original en X",
       "views": "Visualizaciones en ghfind",
       "viewReplies": "Ver respuestas",
-      "verifyScore": "Vuelve a analizar tu cuenta de GitHub para verificar que la puntuación te pertenece antes de publicar.",
+      "scoreBelowMinimum": "Tu puntuación guardada es inferior a 60. No puedes publicar ni responder.",
+      "scoreMissing": "No hay una puntuación guardada. Consulta primero la puntuación de tu cuenta de GitHub.",
+      "verifyScore": "No pudimos verificar la titularidad de tu puntuación guardada. Inténtalo de nuevo.",
       "rescanAccount": "Volver a analizar desde mi perfil"
     }
   }

@@ -2050,7 +2050,9 @@
       "viewOnX": "View original post on X",
       "views": "Views on ghfind",
       "viewReplies": "View replies",
-      "verifyScore": "Scan your GitHub account again to verify score ownership before posting.",
+      "scoreBelowMinimum": "Your saved score is below 60. Posting and replying are unavailable.",
+      "scoreMissing": "No saved score was found. Check your GitHub account score first.",
+      "verifyScore": "We could not verify ownership of your saved score. Please retry.",
       "rescanAccount": "Rescan from my profile"
     }
   }

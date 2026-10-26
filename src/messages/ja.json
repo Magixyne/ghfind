@@ -2050,7 +2050,9 @@
       "viewOnX": "X で元の投稿を見る",
       "views": "ghfind での表示回数",
       "viewReplies": "返信を見る",
-      "verifyScore": "投稿する前に GitHub アカウントを再スキャンして、スコアの所有者を確認してください。",
+      "scoreBelowMinimum": "保存済みスコアが60点未満のため、投稿や返信はできません。",
+      "scoreMissing": "スコアの記録がありません。本人のGitHubアカウントのスコアを確認してください。",
+      "verifyScore": "保存済みスコアの所有者を確認できませんでした。再試行してください。",
       "rescanAccount": "自分のプロフィールで再スキャン"
     }
   }

@@ -47,7 +47,10 @@ function PublicationNotice({ store, parentId, open, onOpenChange }: ComposerProp
   const capabilities = useStore(store, (state) => state.capabilities);
   const capabilitiesError = useStore(store, (state) => state.capabilitiesError);
   const failed = capabilitiesError || Boolean(me?.loadFailed) || capabilities?.reason === "score_unavailable";
-  const needsIdentityScan = ["score_identity_required", "score_identity_mismatch"].includes(capabilities?.reason ?? "");
+  const reason = capabilities?.reason;
+  const needsScore = reason === "score_required";
+  const belowMinimum = reason === "score_below_minimum";
+  const identityUnavailable = ["score_identity_required", "score_identity_mismatch", "score_outdated"].includes(reason ?? "");
   const allowed = parentId ? capabilities?.can_reply : capabilities?.can_publish;
   return <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
     <DialogContent
@@ -61,11 +64,13 @@ function PublicationNotice({ store, parentId, open, onOpenChange }: ComposerProp
       <DialogDescription className="text-sm leading-6 text-muted-foreground">{t("feed.publishRequirement")}</DialogDescription>
       {failed ? <p role="status" className="text-xs text-muted-foreground">{t("feed.capabilitiesError")}</p>
         : !me || !capabilities ? <p role="status" className="text-xs text-muted-foreground">{t("feed.checking")}</p>
-        : needsIdentityScan ? <p className="text-xs text-muted-foreground">{t("feed.verifyScore")}</p> : null}
+        : belowMinimum ? <p className="text-xs text-muted-foreground">{t("feed.scoreBelowMinimum")}</p>
+        : needsScore ? <p className="text-xs text-muted-foreground">{t("feed.scoreMissing")}</p>
+        : identityUnavailable ? <p role="status" className="text-xs text-muted-foreground">{t("feed.verifyScore")}</p> : null}
       <div className="flex items-center justify-end gap-2">
         {me && !me.user ? <FeedLogin store={store} /> : null}
-        {failed ? <Button size="sm" variant="outline" onClick={() => void store.getState().refreshSession()}>{t("feed.retry")}</Button>
-          : me?.user && !allowed ? <Button asChild size="sm" shape="pill"><Link href={needsIdentityScan ? `/u/${me.user.login}` : "/"} prefetch={false}>{t(needsIdentityScan ? "feed.rescanAccount" : "railCtaButton")}</Link></Button> : null}
+        {failed || identityUnavailable ? <Button size="sm" variant="outline" onClick={() => void store.getState().refreshSession()}>{t("feed.retry")}</Button>
+          : me?.user && !allowed && needsScore ? <Button asChild size="sm" shape="pill"><Link href={`/u/${me.user.login}`} prefetch={false}>{t("railCtaButton")}</Link></Button> : null}
       </div>
     </DialogContent>
   </Dialog>;

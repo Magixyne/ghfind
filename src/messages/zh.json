@@ -2057,7 +2057,9 @@
       "viewOnX": "在 X 查看原帖",
       "views": "ghfind 浏览量",
       "viewReplies": "查看回复",
-      "verifyScore": "请重新扫描你的 GitHub 账号，验证评分归属后再发布。",
+      "scoreBelowMinimum": "你的已保存评分未达到 60 分，暂时无法发布主帖或回复。",
+      "scoreMissing": "还没有你的评分记录，请先查询本人 GitHub 账号的评分。",
+      "verifyScore": "暂时无法核验已保存评分的账号归属，请重试。",
       "rescanAccount": "前往本人主页重新扫描"
     }
   }

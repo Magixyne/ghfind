@@ -12,17 +12,21 @@ const scoreVersion=readFileSync(root+'/src/lib/cache-version.ts','utf8').match(/
 const collectionVersion=readFileSync(root+'/src/lib/scan-run-types.ts','utf8').match(/PUBLIC_SCAN_COLLECTION_VERSION\s*=\s*"([^"]+)"/)[1];
 const actors={writer:{github_id:91000001,login:'feed-local-dev'},boundary:{github_id:91000002,login:'feed-local-sixty'},low:{github_id:91000003,login:'feed-local-reader'},mirror:{github_id:91000004,login:'feed-local-mirror'}};
 function cookie(actor){const payload=Buffer.from(JSON.stringify({...actor,expires_at:Date.now()+3600_000})).toString('base64url');return 'ghfind_session='+payload+'.'+createHmac('sha256',vars.AUTH_SECRET).update('ghfind:oauth:session:'+payload).digest('base64url');}
-const scores={writer:86,boundary:60,low:59.96,mirror:90};
+const scores={writer:69,boundary:60,low:59.96,mirror:90};
 const quote=(value)=>"'"+String(value).replaceAll("'","''")+"'";
 const sql=Object.entries(actors).map(([key,actor])=>{
   // Minimal fictional provenance, deliberately confined to this isolated fixture database.
-  const snapshot=JSON.stringify({metrics:{username:actor.login,github_user_id:String(actor.github_id)}});
+  // Regression: pre-identity Go snapshots must authorize an existing 69-point score without rescanning.
+  const identity = key === 'writer' ? {avatar_url:`https://avatars.githubusercontent.com/u/${actor.github_id}?v=4`} : {github_user_id:String(actor.github_id)};
+  const snapshot=JSON.stringify({metrics:{username:actor.login,...identity}});
+  const savedScoreVersion = key === 'writer' ? 'v12' : scoreVersion;
+  const savedCollectionVersion = key === 'writer' ? 'v5' : collectionVersion;
   const hash=createHash('sha256').update(snapshot).digest('hex');
   const now=Date.now();
   return `INSERT OR REPLACE INTO public_scan_runs(id,username,score_version,collection_version,state,coverage,snapshot,snapshot_hash,started_at,completed_at,updated_at)
-    VALUES(${quote('social-fixture-'+key)},${quote(actor.login)},${quote(scoreVersion)},${quote(collectionVersion)},'complete_public','complete_public',${quote(snapshot)},${quote(hash)},${now},${now},${now});
+    VALUES(${quote('social-fixture-'+key)},${quote(actor.login)},${quote(savedScoreVersion)},${quote(savedCollectionVersion)},'complete_public','complete_public',${quote(snapshot)},${quote(hash)},${now},${now},${now});
     INSERT OR REPLACE INTO scores(username,final_score,tier,hidden,scanned_at,score_version,score_source_collection_version,score_source_snapshot_hash)
-    VALUES(${quote(actor.login)},${scores[key]},'NPC',0,${now},${quote(scoreVersion)},${quote(collectionVersion)},${quote(hash)});`;
+    VALUES(${quote(actor.login)},${scores[key]},'NPC',0,${now},${quote(savedScoreVersion)},${quote(savedCollectionVersion)},${quote(hash)});`;
 }).join('\n');
 writeFileSync(local+'/smoke-seed.sql',sql);
 const migration=spawnSync('pnpm',['exec','wrangler','d1','execute','social-feed-core-local','--local','--config',local+'/wrangler.json','--persist-to',local+'/state','--file',local+'/smoke-seed.sql'],{cwd:root+'/apps/api',encoding:'utf8'});
