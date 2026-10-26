@@ -22,7 +22,18 @@ export interface FeedMedia {
   width: number | null;
   height: number | null;
 }
+export interface FeedAuthorSummary {
+  author: FeedAuthor;
+  following: number;
+  followers: number;
+  follows_you: boolean;
+  x_url: string | null;
+  score: number | null;
+}
+
 export interface FeedAuthor {
+  /** Verified score captured at publication; absent for unscored imported authors. */
+  publication_score?: number | null;
   id: string;
   github_login: string;
   name: string;
@@ -69,6 +80,7 @@ export interface FeedPage {
   algorithm_version: string;
 }
 export interface PublishingCapabilities {
+  score?: number;
   can_publish: boolean;
   can_reply: boolean;
   minimum_score: 60;
@@ -179,6 +191,7 @@ export interface SocialFeedRepository {
   setFollow(authorId: string, actor: FeedActor, enabled: boolean): Promise<void>;
   recordQualifiedView(input: QualifiedViewInput): Promise<boolean>;
   consumeQuota(actorKey: string, operation: FeedQuotaOperation, now?: Date): Promise<boolean>;
+  getAuthorSummary(id: string, viewerId?: string): Promise<FeedAuthorSummary | null>;
   upsertAuthor(author: FeedAuthorInput): Promise<FeedAuthor>;
   registerMedia(input: MediaRegistration): Promise<FeedMedia>;
   getMediaAsset(id: string): Promise<FeedMediaAsset | null>;

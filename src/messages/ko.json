@@ -2053,7 +2053,19 @@
       "scoreBelowMinimum": "저장된 점수가 60점 미만이므로 게시하거나 답글을 달 수 없습니다.",
       "scoreMissing": "저장된 점수가 없습니다. 본인 GitHub 계정의 점수를 먼저 조회하세요.",
       "verifyScore": "저장된 점수의 소유자를 확인할 수 없습니다. 다시 시도하세요.",
-      "rescanAccount": "내 프로필에서 다시 스캔"
+      "rescanAccount": "내 프로필에서 다시 스캔",
+      "authorCard": {
+        "followingAction": "Following",
+        "follow": "Follow",
+        "followsYou": "Follows you",
+        "retry": "Could not load · Retry",
+        "loading": "Loading…",
+        "score": "ghfind score",
+        "unscored": "Not scored",
+        "following": "Following",
+        "followers": "Followers",
+        "source": "Follow counts from ghfind"
+      }
     }
   }
 }

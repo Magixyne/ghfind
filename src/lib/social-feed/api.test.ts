@@ -3,14 +3,14 @@ import { encodeSignedPayload } from "@/lib/oauth-session";
 import { SocialFeedError, type FeedPost } from "./contract";
 
 const mocks = vi.hoisted(() => ({
-  repository: { getPost: vi.fn(), listPosts: vi.fn(), listReplies: vi.fn(), listAncestors: vi.fn(), createNativePost: vi.fn(), findPublication: vi.fn(), deleteNativePost: vi.fn(),
+  repository: { getAuthorSummary: vi.fn(), getPost: vi.fn(), listPosts: vi.fn(), listReplies: vi.fn(), listAncestors: vi.fn(), createNativePost: vi.fn(), findPublication: vi.fn(), deleteNativePost: vi.fn(),
     setReaction: vi.fn(), setBookmark: vi.fn(), setRepost: vi.fn(), setFollow: vi.fn(), recordQualifiedView: vi.fn(), consumeQuota: vi.fn(), ingestXPost: vi.fn() },
-  requirePublication: vi.fn(), publishingCapabilities: vi.fn(), xIngestPublication: vi.fn(),
+  readPublishingScore: vi.fn(), requirePublication: vi.fn(), publishingCapabilities: vi.fn(), xIngestPublication: vi.fn(),
 }));
 vi.mock("./repository", () => ({ getSocialFeedRepository: () => mocks.repository, nativePublicationHash: async (input: unknown, parent?: string) => JSON.stringify({ input, parent }) }));
-vi.mock("./eligibility", () => ({ requirePublication: mocks.requirePublication, publishingCapabilities: mocks.publishingCapabilities,
+vi.mock("./eligibility", () => ({ readPublishingScore: mocks.readPublishingScore, requirePublication: mocks.requirePublication, publishingCapabilities: mocks.publishingCapabilities,
   xIngestPublication: mocks.xIngestPublication }));
-import { createPost, deletePost, getPost, ingestX, listPosts, recordView, setReaction } from "./api";
+import { getAuthorSummary, createPost, deletePost, getPost, ingestX, listPosts, recordView, setReaction } from "./api";
 import * as postsRoute from "@/app/api/feed/posts/route";
 
 const origin = "http://127.0.0.1:4321";
@@ -201,5 +201,20 @@ describe("content-only X import", () => {
     expect((await ingestX(machine(imported()))).status).toBe(201);
     expect(mocks.repository.ingestXPost.mock.calls[0][0].publication.score_record_id).toBe("saved-score");
     expect(mocks.xIngestPublication).toHaveBeenCalledWith("octocat", "7");
+  });
+});
+
+
+describe("author hover summary", () => {
+  it("shows saved scores only for the same verified GitHub identity without scanning", async () => {
+    const summary = { author: { ...post.author, id: "gha_7" }, following: 3, followers: 4, follows_you: false, x_url: null, score: null };
+    mocks.repository.getAuthorSummary.mockImplementation(async () => ({ ...summary }));
+    mocks.readPublishingScore.mockResolvedValue({ github_user_id: "7", final_score: 69, hidden: 0 });
+    expect(await (await getAuthorSummary(request("GET"), params)).json()).toMatchObject({ score: 69, following: 3, followers: 4 });
+    mocks.readPublishingScore.mockResolvedValue({ github_user_id: "8", final_score: 99, hidden: 0 });
+    expect(await (await getAuthorSummary(request("GET"), params)).json()).toMatchObject({ score: null });
+    mocks.readPublishingScore.mockResolvedValue({ github_user_id: "7", final_score: 69, hidden: 1 });
+    expect(await (await getAuthorSummary(request("GET"), params)).json()).toMatchObject({ score: null });
+    expect(mocks.requirePublication).not.toHaveBeenCalled();
   });
 });

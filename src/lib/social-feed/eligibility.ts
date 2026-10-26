@@ -105,8 +105,8 @@ export async function publishingCapabilities(actor: FeedActor | null, readScore:
   const denied = (reason: string): PublishingCapabilities => ({ can_publish: false, can_reply: false, minimum_score: 60, reason });
   if (!actor) return denied("authentication_required");
   try {
-    await requirePublication(actor, readScore);
-    return { can_publish: true, can_reply: true, minimum_score: 60, reason: null, policy_version: FEED_PUBLICATION_POLICY_VERSION };
+    const publication = await requirePublication(actor, readScore);
+    return { score: publication.score, can_publish: true, can_reply: true, minimum_score: 60, reason: null, policy_version: FEED_PUBLICATION_POLICY_VERSION };
   } catch (error) {
     return denied(error instanceof SocialFeedError ? error.code : "score_unavailable");
   }

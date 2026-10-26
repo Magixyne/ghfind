@@ -9,6 +9,7 @@ import {
   FEED_MINIMUM_SCORE,
   SocialFeedError,
   type FeedActor,
+  type FeedAuthorSummary,
   type FeedAuthor,
   type FeedAuthorInput,
   type FeedListOptions,
@@ -146,6 +147,18 @@ export function createRepository(client: Client): SocialFeedRepository {
       args: [actor.user_id, authorId(actor.github_user_id)],
     }];
   }
+  async function getAuthorSummary(id: string, viewerId?: string): Promise<FeedAuthorSummary | null> {
+    const [row] = await query(`SELECT a.*,
+      (SELECT x.x_user_id FROM social_feed_x_accounts x WHERE x.author_id=a.id ORDER BY x.updated_at DESC LIMIT 1) AS x_user_id,
+      (SELECT COUNT(*) FROM social_feed_follows f WHERE f.author_id=a.id) AS followers,
+      (SELECT COUNT(*) FROM social_feed_follows f WHERE f.user_id='github:'||a.github_user_id) AS following,
+      EXISTS(SELECT 1 FROM social_feed_follows f JOIN social_feed_accounts me ON me.author_id=f.author_id
+        WHERE f.user_id='github:'||a.github_user_id AND me.user_id=?) AS follows_you
+      FROM social_feed_authors a WHERE a.id=?`, [viewerId ?? null, id]);
+    if (!row) return null;
+    return { author: { id: String(row.id), github_login: String(row.github_login), name: String(row.display_name), avatar_url: nullableText(row.avatar_url) },
+      followers: Number(row.followers), following: Number(row.following), follows_you: Boolean(row.follows_you), x_url: row.x_user_id ? `https://x.com/i/user/${encodeURIComponent(String(row.x_user_id))}` : null, score: null };
+  }
   async function upsertAuthor(author: FeedAuthorInput): Promise<FeedAuthor> {
     await batch([authorStatement(author, nowIso())]);
     return { id: authorId(author.github_user_id), github_login: author.github_login, name: author.name, avatar_url: author.avatar_url };
@@ -190,7 +203,8 @@ export function createRepository(client: Client): SocialFeedRepository {
       const origin = String(row.origin) as FeedPost["origin"];
       const post: FeedPost = {
         id: String(row.id), origin, kind: String(row.kind) as FeedPost["kind"],
-        author: { id: String(row.author_id), github_login: String(row.github_login ?? xHandle(row.source_url) ?? row.author_id),
+        author: { publication_score: row.publication_score_version !== "unscored" ? Number(row.publication_score) : null,
+          id: String(row.author_id), github_login: String(row.github_login ?? xHandle(row.source_url) ?? row.author_id),
           name: String((origin === "x" ? row.source_name : null) ?? row.display_name ?? xHandle(row.source_url) ?? row.author_id),
           avatar_url: nullableText(origin === "x" ? (row.source_avatar_url ?? row.avatar_url) : row.avatar_url) },
         text: status === "published" ? String(row.text) : "",
@@ -537,6 +551,6 @@ export function createRepository(client: Client): SocialFeedRepository {
     getPost, listPosts, listReplies, listAncestors, createNativePost, findPublication, ingestXPost, deleteNativePost,
     setReaction, setBookmark: (id, actor, enabled) => setRelation("bookmarks", id, actor, enabled),
     setRepost: (id, actor, enabled) => setRelation("reposts", id, actor, enabled), setFollow, recordQualifiedView,
-    consumeQuota, upsertAuthor, registerMedia, getMediaAsset, canReadMedia, setXAuthorEligibility,
+    consumeQuota, getAuthorSummary, upsertAuthor, registerMedia, getMediaAsset, canReadMedia, setXAuthorEligibility,
   };
 }

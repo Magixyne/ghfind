@@ -3,7 +3,7 @@ import { OAUTH_SESSION_COOKIE, readGitHubSession } from "@/lib/oauth-session";
 import { readBoundedBody } from "@/lib/feed-gateway";
 import { SocialFeedError, FEED_MAX_MEDIA, type FeedActor, type FeedMedia, type FeedPage, type FeedPost, type FeedQuotaOperation, type FeedViewer, type QualifiedViewInput, type PostInput, type XPostInput } from "./contract";
 import { getSocialFeedRepository, nativePublicationHash } from "./repository";
-import { publishingCapabilities, requirePublication, xIngestPublication } from "./eligibility";
+import { publishingCapabilities, readPublishingScore, requirePublication, xIngestPublication } from "./eligibility";
 
 const MAX_NATIVE_TEXT = 5_000;
 const VISITOR_COOKIE = "ghfind_feed_visitor";
@@ -236,6 +236,16 @@ export function listAncestors(request: Request, params: RouteContext): Promise<R
     const context = await readContext(request);
     const items = await getSocialFeedRepository().listAncestors(await idFrom(params), context.viewer);
     return socialFeedJson({ items: items.map((post) => withView(post, context)) }, 200, context.cookie);
+  });
+}
+export function getAuthorSummary(request: Request, params: RouteContext): Promise<Response> {
+  return socialFeedRoute(async () => {
+    const summary = await getSocialFeedRepository().getAuthorSummary(await idFrom(params), feedActor(request)?.user_id);
+    if (!summary) throw new SocialFeedError("author_not_found", 404);
+    const score = await readPublishingScore(summary.author.github_login);
+    if (score && !score.hidden && score.github_user_id && summary.author.id === `gha_${score.github_user_id}` &&
+        Number.isFinite(score.final_score) && score.final_score >= 0 && score.final_score <= 100) summary.score = score.final_score;
+    return socialFeedJson(summary);
   });
 }
 export function getCapabilities(request: Request): Promise<Response> {

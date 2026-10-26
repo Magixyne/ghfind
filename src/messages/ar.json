@@ -2053,7 +2053,19 @@
       "scoreBelowMinimum": "تقييمك المحفوظ أقل من 60. لا يمكنك النشر أو الرد.",
       "scoreMissing": "لم يتم العثور على تقييم محفوظ. تحقق أولاً من تقييم حسابك على GitHub.",
       "verifyScore": "تعذر التحقق من ملكية التقييم المحفوظ. يرجى المحاولة مرة أخرى.",
-      "rescanAccount": "إعادة الفحص من ملفي الشخصي"
+      "rescanAccount": "إعادة الفحص من ملفي الشخصي",
+      "authorCard": {
+        "followingAction": "Following",
+        "follow": "Follow",
+        "followsYou": "Follows you",
+        "retry": "Could not load · Retry",
+        "loading": "Loading…",
+        "score": "ghfind score",
+        "unscored": "Not scored",
+        "following": "Following",
+        "followers": "Followers",
+        "source": "Follow counts from ghfind"
+      }
     }
   }
 }

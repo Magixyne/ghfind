@@ -11,6 +11,8 @@ import { feedClient, type FeedAction } from "@/lib/social-feed/client";
 import type { FeedPost } from "@/lib/social-feed/contract";
 import { useMountEffect } from "@/lib/use-mount-effect";
 import { cn } from "@/lib/utils";
+import { FeedAuthorHoverCard } from "./FeedAuthorHoverCard";
+import { FeedAvatar } from "./FeedAvatar";
 import { XMark } from "@/components/stream/StreamPost";
 import { relativeTime } from "@/components/stream/format";
 
@@ -27,14 +29,6 @@ interface FeedPostCardProps {
   connected?: boolean;
 }
 
-export function FeedAvatar({ name, src }: { name: string; src: string | null }) {
-  const [loaded, setLoaded] = useState(false);
-  return <span className="relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-sm font-semibold text-muted-foreground">
-    <span aria-hidden>{Array.from(name.trim())[0]?.toLocaleUpperCase() ?? "?"}</span>
-    {/* eslint-disable-next-line @next/next/no-img-element -- remote avatar in the shared Astro island, with deterministic local fallback */}
-    {src ? <img src={src} alt="" loading="lazy" onLoad={() => setLoaded(true)} onError={() => setLoaded(false)} className={cn("absolute inset-0 size-full object-cover", !loaded && "opacity-0")} /> : null}
-  </span>;
-}
 
 function PostText({ text }: { text: string }) {
   return text.split(/(https?:\/\/[^\s<>]+)/g).map((part, index) => /^https?:\/\//.test(part)
@@ -105,13 +99,13 @@ export function FeedPostCard({ post, now, pending, onOpen, onReply, onAction, on
       {post.reposted_by ? <p className="mb-2 flex items-center gap-2 ps-[50px] text-xs text-muted-foreground"><Repeat2 className="size-3.5" aria-hidden /><span>{t("feed.repostedBy", { name: post.reposted_by.name })}</span></p> : null}
       <div className={cn(focused ? "grid grid-cols-[40px_minmax(0,1fr)] gap-x-3" : "flex gap-2.5")}>
         <div className="relative shrink-0">
-          <Link href={`/u/${post.author.github_login}`} prefetch={false} aria-label={post.author.name}><FeedAvatar key={post.author.avatar_url} name={post.author.name} src={post.author.avatar_url} /></Link>
+          <FeedAuthorHoverCard author={post.author} following={Boolean(viewer?.following_author)} pending={pending} onFollow={onFollow}><Link href={`/u/${post.author.github_login}`} prefetch={false} aria-label={post.author.name}><FeedAvatar key={post.author.avatar_url} name={post.author.name} src={post.author.avatar_url} score={post.author.publication_score} /></Link></FeedAuthorHoverCard>
           {connected ? <div aria-hidden className="absolute inset-x-0 top-12 mx-auto h-[calc(100%-2rem)] w-px bg-border" /> : null}
         </div>
         <div className={focused ? "contents" : "min-w-0 flex-1"}>
           <div className={cn("flex min-w-0 items-start gap-1.5 leading-5", focused ? "text-[15px]" : "text-sm")}>
             <div className="min-w-0 flex-1">
-              <Link href={`/u/${post.author.github_login}`} prefetch={false} className={cn("font-semibold text-foreground hover:underline", focused && "block truncate font-bold")}>{post.author.name}</Link>{" "}
+              <FeedAuthorHoverCard author={post.author} following={Boolean(viewer?.following_author)} pending={pending} onFollow={onFollow}><Link href={`/u/${post.author.github_login}`} prefetch={false} className={cn("font-semibold text-foreground hover:underline", focused && "block truncate font-bold")}>{post.author.name}</Link></FeedAuthorHoverCard>{" "}
               <a href={`https://github.com/${post.author.github_login}`} target="_blank" rel="noopener noreferrer" className={cn("text-muted-foreground hover:underline", focused && "block truncate")}><bdi>@{post.author.github_login}</bdi></a>
               {!focused ? <>
               <span className="text-muted-foreground"> · </span>

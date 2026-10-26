@@ -14,7 +14,7 @@ import { FEED_MAX_TEXT_LENGTH, type FeedMedia } from "@/lib/social-feed/contract
 import { feedError, type FeedStore } from "@/lib/social-feed/client-store";
 import { useMountEffect } from "@/lib/use-mount-effect";
 import { cn } from "@/lib/utils";
-import { FeedAvatar } from "./FeedPostCard";
+import { FeedAvatar } from "./FeedAvatar";
 import { useFeedErrorMessage } from "./messages";
 
 interface Attachment {
@@ -244,7 +244,7 @@ function WritableComposer({ store, parentId }: ComposerProps) {
     aria-busy={pending}
   >
     <div className={cn("flex", parentId ? "gap-2.5" : "gap-3")}>
-      {me?.user || me?.account ? <FeedAvatar key={me.user?.image ?? me.account?.image} name={me.user?.login ?? me.account?.name ?? ""} src={me.user?.image ?? me.account?.image ?? null} />
+      {me?.user || me?.account ? <FeedAvatar key={me.user?.image ?? me.account?.image} name={me.user?.login ?? me.account?.name ?? ""} src={me.user?.image ?? me.account?.image ?? null} score={capabilities?.score} />
         : <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground" aria-hidden><UserRound className="size-5" /></span>}
       <div className={cn("min-w-0 flex-1", compactReply && "flex items-center gap-3")}>
         <Textarea
