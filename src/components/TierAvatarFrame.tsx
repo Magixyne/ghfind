@@ -69,7 +69,7 @@ export function TierAvatarFrame({
   return (
     <div
       className={`relative flex shrink-0 items-center justify-center rounded-full ${classes.shell} ${frame.bg} ring-2 ${frame.ring} ${className}`}
-      style={{ boxShadow: `0 0 34px -10px ${frame.glow}` }}
+      style={{ boxShadow: `var(--tw-ring-shadow, 0 0 #0000), 0 0 ${size === "feed" ? "18px -3px" : "34px -6px"} ${frame.glow}` }}
       aria-label={`${tier} avatar frame`}
     >
       <div className={`absolute ${size === "feed" ? "inset-1" : "inset-2"} rounded-full border border-white/10`} />

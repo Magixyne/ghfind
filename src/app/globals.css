@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Tier text utilities come from src/lib/tier.ts; retain them in every build. */
+/* Shared tier utilities live outside Astro's component scan paths. */
+@source "../lib/tier.ts";
 @source inline("text-amber-300 text-violet-300 text-emerald-300 text-sky-300 text-rose-400");
 
 :root {
