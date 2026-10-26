@@ -33,7 +33,7 @@ Astro 页面读取的本地数据位于 `apps/web/.wrangler/state`，与上述 A
 
 ## 数据与部署准备
 
-部署前需要在目标环境应用 `migrations-feed/0016_social_posts.sql`（通过现有 `migrations-feed` 迁移流），设置 API Worker 的 `GHFIND_FEED_D1`、核心评分库 `GHFIND_D1`、原有 OAuth 配置和 `AUTH_SECRET`。
+部署前需要在目标环境应用 `migrations-feed/0016_social_posts.sql` 与 `0017_social_post_translations.sql`（通过现有 `migrations-feed` 迁移流），设置 API Worker 的 `GHFIND_FEED_D1`、核心评分库 `GHFIND_D1`、原有 OAuth 配置和 `AUTH_SECRET`。
 
 媒体使用独立 `SOCIAL_FEED_MEDIA` R2 绑定；配置桶名为 dev 的 `ghfind-social-media-dev` 和生产的 `ghfind-social-media`，部署前须创建对应桶。它们不是 Next 页面缓存桶。本轮仅用本地模拟桶验证，未创建远程桶、执行远程迁移或部署。R2 私有，图片由 API 检查归属/帖子可见性后读取。未发布草稿媒体仅上传者可读，取消草稿后的孤立媒体清理任务尚未接入。
 
@@ -71,6 +71,98 @@ X 导入需要独立的 `SOCIAL_FEED_INGEST_SECRET`（至少 32 字符）。生�
 ```
 
 采集器必须先审核不可变 X/GitHub 账号 ID 的归属证据，`evidence_method` 可为 `editorial_review` 或 `reciprocal_links`；资料中单向写一个 GitHub 用户名不是自动认证。API 存储证据并检查绑定一致性。X 来源账号由人工/采集器策展，评分只作溯源、不作写入门槛：作者有当前合格评分时记录真实评分证据；没有评分、评分低于 60、评分版本或扫描过旧、快照缺少 `github_user_id`，或核心评分库暂不可用时，仍写入并标记为 `policy_version=social-feed-x-curated-v1`、`score_version=unscored`、`score_record_id=x-curated:<login>`（`publication_score` 仅因表约束填 60 占位，不代表真实分数，也不授予本站发帖资格）。此接口本身不联网抓取个人简介；真实账号名单、X 数据获取渠道、定时采集与原帖删除核对属于后续采集器接入工作，当前没有自动同步承诺。
+
+## 多语言正文（译文）
+
+X 帖子正文可以按站点 9 个语言（`zh en ja ko es pt id vi ar`）保存译文。译文在写入时生成（运营 agent 每小时写入 `ghfind-feed-dev` D1 时用 DeepSeek 翻译），读取时不调用任何模型。命名与 `job_translations`、`sponsorship_translations` 一致：`<实体>_translations` + `locale` 列 + 按页面语言 `LEFT JOIN`。
+
+### 表结构（`migrations-feed/0017_social_post_translations.sql`）
+
+```sql
+ALTER TABLE social_feed_posts ADD COLUMN source_lang TEXT;  -- 可空；原文语言，小写 BCP 47（如 en、zh-hans）
+CREATE TABLE social_feed_post_translations (
+  post_id TEXT NOT NULL REFERENCES social_feed_posts(id),
+  content_version INTEGER NOT NULL,           -- 对应 social_feed_posts.content_version
+  locale TEXT NOT NULL CHECK(locale IN ('zh','en','ja','ko','es','pt','id','vi','ar')),
+  text TEXT NOT NULL,                          -- 译文
+  source_lang TEXT,                            -- 翻译时识别的原文语言
+  model TEXT,                                  -- 如 deepseek-chat
+  provider TEXT,                               -- 如 deepseek
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(post_id, content_version, locale),
+  FOREIGN KEY(post_id, content_version) REFERENCES social_feed_post_versions(post_id, content_version)
+);
+```
+
+`content_version` 沿用帖子已有字段：X 正文或图片变化时自增，并在 `social_feed_post_versions` 留档。外键保证译文只能挂在真实存在的版本上。
+
+### 运营 agent 写入方式
+
+任选其一，推荐 1 或 2：
+
+1. **随帖子一起写**：`POST /api/internal/social-feed/x-posts` 增加可选字段 `source_lang` 与 `translations`（键必须是 9 个站点语言之一，未知键整单 400 `invalid_locale`，不会静默丢弃）。帖子与译文在同一个 D1 batch 中写入；译文只有在帖子当前正文仍等于本次 `text` 时才落库，乱序到达的旧版本不会把旧译文挂到新正文上。
+
+   ```json
+   { "...": "原有字段",
+     "source_lang": "en",
+     "translations": {
+       "zh": { "text": "译文", "source_lang": "en", "model": "deepseek-chat", "provider": "deepseek" },
+       "ja": { "text": "翻訳", "model": "deepseek-chat", "provider": "deepseek" } } }
+   ```
+
+2. **仓储调用**（服务端代码 / 本地脚本）：
+
+   ```ts
+   await getSocialFeedRepository().upsertPostTranslations({
+     post_id: "pst_x_2090000000000000001",
+     content_version: 3, // 可选：翻译时读到的版本；已被新编辑取代则抛 409 stale_content_version
+     translations: [{ locale: "zh", text: "译文", source_lang: "en", model: "deepseek-chat", provider: "deepseek" }],
+   }); // => { post_id, content_version, locales }
+   ```
+
+   `ingestXPost(input)` 同样接受 `source_lang` 与 `translations: { [locale]: { text, source_lang?, model?, provider? } }`。
+
+3. **直接写 D1**（每小时任务直接执行 SQL 时）。先找出缺译文的帖子，并记下读到的 `content_version` 与 `text` 去翻译：
+
+   ```sql
+   SELECT p.id, p.content_version, p.text, p.source_lang FROM social_feed_posts p
+   WHERE p.origin='x' AND p.status='published' AND NOT EXISTS (
+     SELECT 1 FROM social_feed_post_translations t
+     WHERE t.post_id=p.id AND t.content_version=p.content_version AND t.locale=?1);
+   ```
+
+   每个语言一条 upsert（用 D1 参数绑定，不要拼接字符串）。`?2` 必须是上一步读到的版本，从而在翻译期间帖子被编辑时自动写入 0 行：
+
+   ```sql
+   INSERT INTO social_feed_post_translations(post_id,content_version,locale,text,source_lang,model,provider,updated_at)
+   SELECT p.id, p.content_version, ?3, ?4, ?5, ?6, ?7, strftime('%Y-%m-%dT%H:%M:%fZ','now')
+   FROM social_feed_posts p WHERE p.id=?1 AND p.content_version=?2
+   ON CONFLICT(post_id,content_version,locale) DO UPDATE SET
+     text=excluded.text, source_lang=excluded.source_lang, model=excluded.model,
+     provider=excluded.provider, updated_at=excluded.updated_at;
+   -- 可选：记录原文语言
+   UPDATE social_feed_posts SET source_lang=?5 WHERE id=?1 AND source_lang IS NULL;
+   ```
+
+   upsert 影响行数为 0 表示版本已过期：重新读取正文再翻译。`locale` 不在 9 个语言内会被表的 `CHECK` 拒绝。只在开发库执行；生产库与远程迁移遵循正常发布流程。
+
+### 读取与回退规则
+
+- 读取接口（`GET /api/feed/posts`、`/posts/:id`、`/replies`、`/ancestors`、`/me/bookmarks` 及互动后的返回体）接受 `?locale=<站点语言>`；前端自动带上当前页面语言。未知语言返回 400 `invalid_locale`，不带参数则只返回原文。
+- 每个帖子返回 `text`（永远是原文）、`source_lang`、`translation: { locale, text, source_lang } | null`。
+- 只 `LEFT JOIN` `locale` 等于页面语言 **且** `content_version` 等于帖子当前版本的译文；没有则 `translation=null`，界面显示原文。
+- 原文语言（帖子 `source_lang`，为空时用译文行的 `source_lang`）的主语言标签等于页面语言（如 `zh-hans` 对 `zh`）、译文与原文相同、帖子已删除时，也返回 `null`。
+- 有译文时卡片默认显示译文，并在正文下方显示「原文 / 译文」小切换；`translation=null` 时不显示切换。
+
+### 编辑后的旧译文
+
+帖子编辑使 `content_version` 增加后，旧版本译文**保留不删**（与 `social_feed_post_versions` 一样作历史），但读取只匹配当前版本，因此立即停止展示，新版本在补译前回退到原文。图片变化也会增加版本，需要重新写译文。确需清理时可执行：
+
+```sql
+DELETE FROM social_feed_post_translations WHERE EXISTS (
+  SELECT 1 FROM social_feed_posts p WHERE p.id=social_feed_post_translations.post_id
+    AND p.content_version>social_feed_post_translations.content_version);
+```
 
 ## API
 

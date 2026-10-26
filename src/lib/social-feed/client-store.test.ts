@@ -6,7 +6,7 @@ import type { FeedPage, FeedPost } from "./contract";
 function post(id = "p1"): FeedPost {
   return {
     id, origin: "ghfind", kind: "original", author: { id: "author1", github_login: "developer", name: "Developer", avatar_url: null },
-    text: "A real post", media: [], published_at: "2026-10-26T00:00:00Z", content_version: 1, conversation_id: id, parent_post_id: null, original_url: null, status: "published",
+    text: "A real post", source_lang: null, translation: null, media: [], published_at: "2026-10-26T00:00:00Z", content_version: 1, conversation_id: id, parent_post_id: null, original_url: null, status: "published",
     metrics: { origin: "ghfind", likes: 0, reposts: 0, direct_replies: 0, conversation_replies: 0, views: 0 },
     viewer: { reaction: null, bookmarked: false, reposted: false, following_author: false, can_reply: true, can_delete: false },
   };

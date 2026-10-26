@@ -1,8 +1,10 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { isLocale, type Locale } from "@ghfind/i18n";
 import { OAUTH_SESSION_COOKIE, readGitHubSession } from "@/lib/oauth-session";
 import { readBoundedBody } from "@/lib/feed-gateway";
-import { SocialFeedError, FEED_MAX_MEDIA, type FeedActor, type FeedMedia, type FeedPage, type FeedPost, type FeedQuotaOperation, type FeedViewer, type QualifiedViewInput, type PostInput, type XPostInput } from "./contract";
+import { SocialFeedError, FEED_MAX_MEDIA, type FeedActor, type FeedMedia, type FeedPage, type FeedPost, type FeedQuotaOperation, type FeedViewer, type QualifiedViewInput, type PostInput, type XPostInput, type FeedTranslationText } from "./contract";
 import { getSocialFeedRepository, nativePublicationHash } from "./repository";
+import { normalizeSourceLang, validateTranslations } from "./translations";
 import { publishingCapabilities, requirePublication, xIngestPublication } from "./eligibility";
 
 const MAX_NATIVE_TEXT = 5_000;
@@ -12,7 +14,7 @@ const NATIVE_BODY_LIMIT = 64 * 1024;
 interface RouteContext { params: Promise<{ id: string }> }
 interface ViewClaims { actor_key: string; post_id: string; issued_at: number; expires_at: number }
 interface VisitorClaims { id: string; expires_at: number }
-interface ReadContext { actor: FeedActor | null; viewer: FeedViewer | null; actor_key: string | null; cookie?: string }
+interface ReadContext { actor: FeedActor | null; viewer: FeedViewer | null; actor_key: string | null; locale: Locale | null; cookie?: string }
 
 function cookies(request: Request): Map<string, string> {
   return new Map((request.headers.get("cookie") ?? "").split(";").flatMap((part) => {
@@ -95,7 +97,15 @@ function keys(value: Record<string, unknown>, allowed: readonly string[]): void 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
+/** Page locale for body translations; absent means original text only. */
+export function requestLocale(request: Request): Locale | null {
+  const value = new URL(request.url).searchParams.get("locale");
+  if (value === null) return null;
+  if (!isLocale(value)) throw new SocialFeedError("invalid_locale", 400);
+  return value;
+}
 async function readContext(request: Request, createVisitor = true, includeCapabilities = true): Promise<ReadContext> {
+  const locale = requestLocale(request);
   const actor = feedActor(request);
   if (actor) {
     let canReply = false;
@@ -103,19 +113,19 @@ async function readContext(request: Request, createVisitor = true, includeCapabi
       try { canReply = (await publishingCapabilities(actor)).can_reply; }
       catch { /* Optional UI capability must never prevent reading or ordinary interactions. */ }
     }
-    return { actor, viewer: { user_id: actor.user_id, can_reply: canReply }, actor_key: actor.user_id };
+    return { actor, viewer: { user_id: actor.user_id, can_reply: canReply }, actor_key: actor.user_id, locale };
   }
   const value = verify("visitor", cookies(request).get(VISITOR_COOKIE));
   if (isObject(value) && typeof value.id === "string" && /^[a-f0-9-]{36}$/.test(value.id) &&
       typeof value.expires_at === "number" && value.expires_at > Date.now()) {
-    return { actor: null, viewer: null, actor_key: `visitor:${value.id}` };
+    return { actor: null, viewer: null, actor_key: `visitor:${value.id}`, locale };
   }
-  if (!createVisitor) return { actor: null, viewer: null, actor_key: null };
+  if (!createVisitor) return { actor: null, viewer: null, actor_key: null, locale };
   const visitor: VisitorClaims = { id: randomUUID(), expires_at: Date.now() + 7 * 86_400_000 };
   const token = sign("visitor", visitor);
-  if (!token) return { actor: null, viewer: null, actor_key: null };
+  if (!token) return { actor: null, viewer: null, actor_key: null, locale };
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return { actor: null, viewer: null, actor_key: `visitor:${visitor.id}`,
+  return { actor: null, viewer: null, actor_key: `visitor:${visitor.id}`, locale,
     cookie: `${VISITOR_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}` };
 }
 function withView(post: FeedPost, context: ReadContext): FeedPost {
@@ -136,7 +146,7 @@ function pageResponse(page: FeedPage, context: ReadContext, scope: string): Resp
 
 async function mutationResponse(request: Request, post: FeedPost, status = 200): Promise<Response> {
   const context = await readContext(request);
-  const current = await getSocialFeedRepository().getPost(post.id, context.viewer);
+  const current = await getSocialFeedRepository().getPost(post.id, context.viewer, context.locale);
   if (!current) throw new SocialFeedError("post_not_found", 404);
   return socialFeedJson(withView(current, context), status, context.cookie);
 }
@@ -190,6 +200,7 @@ function pagination(request: Request, context: ReadContext, scope: string): { cu
 export interface FeedReadContext {
   request_id: string;
   viewer: FeedViewer | null;
+  locale?: Locale | null;
   channel: "recommended" | "following";
   cursor?: string;
   limit?: number;
@@ -209,7 +220,7 @@ export function createFeedReadHandler(provider: SocialFeedProvider): (request: R
     const channel = new URL(request.url).searchParams.get("channel") ?? "recommended";
     if (channel !== "recommended" && channel !== "following") throw new SocialFeedError("invalid_channel", 400);
     if (channel === "following" && !context.actor) throw new SocialFeedError("authentication_required", 401);
-    const page = await provider.readPage({ request_id: randomUUID(), channel, viewer: context.viewer, ...pagination(request, context, channel) });
+    const page = await provider.readPage({ request_id: randomUUID(), channel, viewer: context.viewer, locale: context.locale, ...pagination(request, context, channel) });
     return pageResponse(page, context, channel);
   });
 }
@@ -218,7 +229,7 @@ export const listPosts = createFeedReadHandler(chronologicalFeedProvider);
 export function getPost(request: Request, params: RouteContext): Promise<Response> {
   return socialFeedRoute(async () => {
     const context = await readContext(request);
-    const post = await getSocialFeedRepository().getPost(await idFrom(params), context.viewer);
+    const post = await getSocialFeedRepository().getPost(await idFrom(params), context.viewer, context.locale);
     if (!post) throw new SocialFeedError("post_not_found", 404);
     return socialFeedJson(withView(post, context), 200, context.cookie);
   });
@@ -228,13 +239,13 @@ export function listReplies(request: Request, params: RouteContext): Promise<Res
     const context = await readContext(request);
     const id = await idFrom(params);
     const scope = `replies:${id}`;
-    return pageResponse(await getSocialFeedRepository().listReplies(id, { viewer: context.viewer, ...pagination(request, context, scope) }), context, scope);
+    return pageResponse(await getSocialFeedRepository().listReplies(id, { viewer: context.viewer, locale: context.locale, ...pagination(request, context, scope) }), context, scope);
   });
 }
 export function listAncestors(request: Request, params: RouteContext): Promise<Response> {
   return socialFeedRoute(async () => {
     const context = await readContext(request);
-    const items = await getSocialFeedRepository().listAncestors(await idFrom(params), context.viewer);
+    const items = await getSocialFeedRepository().listAncestors(await idFrom(params), context.viewer, context.locale);
     return socialFeedJson({ items: items.map((post) => withView(post, context)) }, 200, context.cookie);
   });
 }
@@ -245,7 +256,7 @@ export function listBookmarks(request: Request): Promise<Response> {
   return socialFeedRoute(async () => {
     requireFeedActor(request);
     const context = await readContext(request);
-    return pageResponse(await getSocialFeedRepository().listPosts({ channel: "bookmarks", viewer: context.viewer, ...pagination(request, context, "bookmarks") }), context, "bookmarks");
+    return pageResponse(await getSocialFeedRepository().listPosts({ channel: "bookmarks", viewer: context.viewer, locale: context.locale, ...pagination(request, context, "bookmarks") }), context, "bookmarks");
   });
 }
 export function createPost(request: Request, params?: RouteContext): Promise<Response> {
@@ -374,14 +385,21 @@ function ingestMedia(value: unknown): FeedMedia[] {
       width: dimension(media.width), height: dimension(media.height) };
   });
 }
+/** `{ "<locale>": { text, source_lang?, model?, provider? } }`; unknown locales are rejected, never dropped. */
+function ingestTranslations(value: unknown): XPostInput["translations"] {
+  if (value === undefined) return undefined;
+  const map = object(value);
+  const items = validateTranslations(Object.entries(map).map(([locale, raw]) => ({ ...object(raw), locale }) as never));
+  return Object.fromEntries(items.map(({ locale, ...rest }) => [locale, rest])) as Partial<Record<Locale, FeedTranslationText>>;
+}
 export function ingestX(request: Request): Promise<Response> {
   return socialFeedRoute(async () => {
     const secret = process.env.SOCIAL_FEED_INGEST_SECRET;
     const presented = request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1];
     if (!secret || secret.length < 32 || !presented || Buffer.byteLength(presented) !== Buffer.byteLength(secret) ||
         !timingSafeEqual(Buffer.from(presented), Buffer.from(secret))) throw new SocialFeedError("authentication_required", 401);
-    const input = await body(request, 512 * 1024);
-    keys(input, ["author", "source", "text", "media", "published_at", "parent_post_id"]);
+    const input = await body(request, 2 * 1024 * 1024);
+    keys(input, ["author", "source", "text", "media", "published_at", "parent_post_id", "source_lang", "translations"]);
     const author = object(input.author);
     keys(author, ["github_user_id", "github_login", "name", "avatar_url"]);
     const login = requiredText(author.github_login, 39).toLowerCase();
@@ -413,6 +431,8 @@ export function ingestX(request: Request): Promise<Response> {
         evidence_url: evidenceUrl, evidence_method: source.evidence_method, evidence_checked_at: new Date(checkedAt).toISOString() },
       text: input.text, media, published_at: new Date(published).toISOString(),
       parent_post_id: input.parent_post_id === undefined ? undefined : identifier(input.parent_post_id),
+      source_lang: normalizeSourceLang(input.source_lang),
+      translations: ingestTranslations(input.translations),
     };
     return socialFeedJson(await getSocialFeedRepository().ingestXPost(post), 201);
   });

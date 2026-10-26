@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRepository, nativePublicationHash } from "../repository";
 import type { FeedActor, NativePostInput, PublicationEvidence, SocialFeedRepository, XPostInput } from "../contract";
 
-const migration = readFileSync(new URL("../../../../migrations-feed/0016_social_posts.sql", import.meta.url), "utf8");
+const migration = ["0016_social_posts.sql", "0017_social_post_translations.sql"]
+  .map((name) => readFileSync(new URL(`../../../../migrations-feed/${name}`, import.meta.url), "utf8")).join("\n");
 const alice: FeedActor = { user_id: "github:11", github_user_id: "11", github_login: "alice", name: "Alice", avatar_url: null };
 const bob: FeedActor = { user_id: "github:22", github_user_id: "22", github_login: "bob", name: "Bob", avatar_url: null };
 const carol: FeedActor = { user_id: "github:33", github_user_id: "33", github_login: "carol", name: "Carol", avatar_url: null };
@@ -254,4 +255,90 @@ describe("social post storage", () => {
     queries.mockRestore();
   });
 
+});
+
+describe("social post translations", () => {
+  const edit = (input: XPostInput, text: string): XPostInput => ({ ...input, text,
+    source: { ...input.source, post_id: "100002", url: "https://x.com/alice_x/status/100002", edit_history_post_ids: ["100001", "100002"] } });
+  it("migration adds nullable source_lang and a locale-restricted, version-keyed translation table", async () => {
+    const columns = (await client.execute("PRAGMA table_info(social_feed_posts)")).rows;
+    expect(columns.find((column) => column.name === "source_lang")).toMatchObject({ notnull: 0, dflt_value: null });
+    const keys = (await client.execute("PRAGMA table_info(social_feed_post_translations)")).rows
+      .filter((column) => Number(column.pk) > 0).sort((a, b) => Number(a.pk) - Number(b.pk)).map((column) => column.name);
+    expect(keys).toEqual(["post_id", "content_version", "locale"]);
+    const post = await repository.ingestXPost(mirrored());
+    await expect(client.execute({ sql: "INSERT INTO social_feed_post_translations(post_id,content_version,locale,text,updated_at) VALUES(?,1,'fr','Bonjour','t')", args: [post.id] }))
+      .rejects.toThrow(/CHECK/);
+    await expect(client.execute({ sql: "INSERT INTO social_feed_post_translations(post_id,content_version,locale,text,updated_at) VALUES(?,9,'ja','x','t')", args: [post.id] }))
+      .rejects.toThrow(/FOREIGN KEY/);
+  });
+  it("falls back to the original text when the page locale has no translation", async () => {
+    const post = await repository.ingestXPost({ ...mirrored(), source_lang: "en", translations: { zh: { text: "X 内容", model: "deepseek-chat", provider: "deepseek" } } });
+    expect(post).toMatchObject({ text: "X content", source_lang: "en", translation: null });
+    const ja = (await repository.listPosts({ channel: "recommended", locale: "ja" })).items[0];
+    expect(ja).toMatchObject({ text: "X content", translation: null });
+    const zh = (await repository.listPosts({ channel: "recommended", locale: "zh" })).items[0];
+    expect(zh).toMatchObject({ text: "X content", source_lang: "en", translation: { locale: "zh", text: "X 内容", source_lang: "en" } });
+    expect((await repository.getPost(post.id, null, "zh"))?.translation?.text).toBe("X 内容");
+  });
+  it("omits the translation when the source language is the page locale", async () => {
+    const post = await repository.ingestXPost({ ...mirrored(), source_lang: "zh-Hans" });
+    await repository.upsertPostTranslations({ post_id: post.id, translations: [{ locale: "zh", text: "重复" }, { locale: "en", text: "English copy" }] });
+    expect((await repository.getPost(post.id, null, "zh"))).toMatchObject({ source_lang: "zh-hans", translation: null });
+    expect((await repository.getPost(post.id, null, "en"))?.translation).toMatchObject({ locale: "en", text: "English copy", source_lang: "zh-hans" });
+  });
+  it("upserts one or many locales against the current content_version and records provenance", async () => {
+    const post = await repository.ingestXPost(mirrored());
+    expect(await repository.upsertPostTranslations({ post_id: post.id, translations: [{ locale: "ja", text: "旧訳" }] }))
+      .toEqual({ post_id: post.id, content_version: 1, locales: ["ja"] });
+    const result = await repository.upsertPostTranslations({ post_id: post.id, content_version: 1, translations: [
+      { locale: "ja", text: "X の内容", source_lang: "en", model: "deepseek-chat", provider: "deepseek" },
+      { locale: "ko", text: "X 콘텐츠", source_lang: "en", model: "deepseek-chat", provider: "deepseek" },
+    ] });
+    expect(result.locales).toEqual(["ja", "ko"]);
+    expect(await count("social_feed_post_translations")).toBe(2);
+    const row = (await client.execute("SELECT * FROM social_feed_post_translations WHERE locale='ja'")).rows[0];
+    expect(row).toMatchObject({ content_version: 1, text: "X の内容", source_lang: "en", model: "deepseek-chat", provider: "deepseek" });
+  });
+  it("validates locales and rejects the whole write", async () => {
+    const post = await repository.ingestXPost(mirrored());
+    await expect(repository.upsertPostTranslations({ post_id: post.id, translations: [{ locale: "ja", text: "ok" }, { locale: "fr" as never, text: "Bonjour" }] }))
+      .rejects.toMatchObject({ code: "invalid_locale" });
+    await expect(repository.upsertPostTranslations({ post_id: post.id, translations: [{ locale: "ja", text: "a" }, { locale: "ja", text: "b" }] }))
+      .rejects.toMatchObject({ code: "duplicate_locale" });
+    await expect(repository.upsertPostTranslations({ post_id: post.id, translations: [{ locale: "ja", text: " " }] })).rejects.toMatchObject({ code: "invalid_translation" });
+    await expect(repository.upsertPostTranslations({ post_id: post.id, translations: [] })).rejects.toMatchObject({ code: "invalid_translation" });
+    await expect(repository.upsertPostTranslations({ post_id: "missing", translations: [{ locale: "ja", text: "x" }] })).rejects.toMatchObject({ code: "post_not_found" });
+    await expect(repository.ingestXPost({ ...mirrored(), source: { ...mirrored().source, post_id: "100009", url: "https://x.com/alice_x/status/100009" },
+      translations: { de: { text: "Hallo" } } as never })).rejects.toMatchObject({ code: "invalid_locale" });
+    await expect(repository.ingestXPost({ ...mirrored(), source_lang: "not a tag" })).rejects.toMatchObject({ code: "invalid_source_lang" });
+    expect(await count("social_feed_post_translations")).toBe(0);
+    expect(await count("social_feed_posts")).toBe(1);
+  });
+  it("stops serving translations of an older content_version after an edit and rejects stale writes", async () => {
+    const input = { ...mirrored(), source_lang: "en", translations: { zh: { text: "旧内容" } } };
+    const first = await repository.ingestXPost(input);
+    expect((await repository.getPost(first.id, null, "zh"))?.translation?.text).toBe("旧内容");
+    const edited = await repository.ingestXPost(edit({ ...mirrored(), source_lang: "en" }, "Edited X content"));
+    expect(edited.content_version).toBe(2);
+    expect(await repository.getPost(first.id, null, "zh")).toMatchObject({ text: "Edited X content", translation: null });
+    // Stale rows stay as history but are never joined.
+    expect(await count("social_feed_post_translations")).toBe(1);
+    await expect(repository.upsertPostTranslations({ post_id: first.id, content_version: 1, translations: [{ locale: "zh", text: "迟到的旧译文" }] }))
+      .rejects.toMatchObject({ code: "stale_content_version" });
+    // An out-of-order replay of the old version cannot attach its translations to the new text.
+    await repository.ingestXPost({ ...input, translations: { zh: { text: "旧内容 2" }, ja: { text: "古い" } } });
+    expect(await repository.getPost(first.id, null, "ja")).toMatchObject({ content_version: 2, translation: null });
+    await repository.upsertPostTranslations({ post_id: first.id, content_version: 2, translations: [{ locale: "zh", text: "编辑后的内容" }] });
+    expect((await repository.getPost(first.id, null, "zh"))?.translation).toMatchObject({ locale: "zh", text: "编辑后的内容" });
+    const versions = (await client.execute({ sql: "SELECT content_version,text FROM social_feed_post_translations WHERE post_id=? AND locale='zh' ORDER BY content_version", args: [first.id] })).rows;
+    expect(versions.map((row) => [row.content_version, row.text])).toEqual([[1, "旧内容"], [2, "编辑后的内容"]]);
+  });
+  it("writes a post and its translations together and keeps native posts translation-free", async () => {
+    const post = await repository.ingestXPost({ ...mirrored(), source_lang: "en", translations: { ja: { text: "X の内容" }, ar: { text: "محتوى X" } } });
+    expect(await count("social_feed_post_translations")).toBe(2);
+    expect((await repository.getPost(post.id, null, "ar"))?.translation?.text).toBe("محتوى X");
+    const local = await repository.createNativePost(native());
+    expect(await repository.getPost(local.id, null, "ja")).toMatchObject({ source_lang: null, translation: null });
+  });
 });

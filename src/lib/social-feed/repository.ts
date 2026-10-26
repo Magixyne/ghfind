@@ -1,4 +1,5 @@
 import type { Client, InStatement, InValue } from "@libsql/client/web";
+import type { Locale } from "@ghfind/i18n";
 import { d1AsLibsqlClient, getFeedD1Binding } from "@/lib/d1-client";
 import {
   FEED_DEFAULT_PAGE_SIZE,
@@ -19,6 +20,8 @@ import {
   type FeedPost,
   type FeedQuotaOperation,
   type FeedReaction,
+  type FeedTranslationInput,
+  type FeedTranslationUpsert,
   type FeedViewer,
   type MediaRegistration,
   type NativePostInput,
@@ -28,6 +31,7 @@ import {
   type SocialFeedRepository,
   type XPostInput,
 } from "./contract";
+import { normalizeSourceLang, sameLanguage, validateTranslations } from "./translations";
 
 type DbRow = Record<string, unknown>;
 interface Cursor {
@@ -117,6 +121,15 @@ function pageSize(limit?: number): number {
   return limit;
 }
 
+/** Binds each row to the post's current version; `guard` adds extra WHERE conditions on `p`. */
+function translationStatements(postId: string, items: readonly FeedTranslationInput[], at: string, guard: string, guardArgs: InValue[]): InStatement[] {
+  return items.map((item) => ({ sql: `INSERT INTO social_feed_post_translations(post_id,content_version,locale,text,source_lang,model,provider,updated_at)
+    SELECT p.id,p.content_version,?,?,?,?,?,? FROM social_feed_posts p WHERE p.id=? ${guard}
+    ON CONFLICT(post_id,content_version,locale) DO UPDATE SET text=excluded.text,source_lang=excluded.source_lang,
+      model=excluded.model,provider=excluded.provider,updated_at=excluded.updated_at`,
+  args: [item.locale, item.text, item.source_lang ?? null, item.model ?? null, item.provider ?? null, at, postId, ...guardArgs] }));
+}
+
 /** No schema creation here: production uses the dedicated Feed D1 migration stream. */
 export function getSocialFeedRepository(): SocialFeedRepository {
   const binding = getFeedD1Binding();
@@ -150,18 +163,18 @@ export function createRepository(client: Client): SocialFeedRepository {
     await batch([authorStatement(author, nowIso())]);
     return { id: authorId(author.github_user_id), github_login: author.github_login, name: author.name, avatar_url: author.avatar_url };
   }
-  async function hydrate(ids: string[], viewer?: FeedViewer | null): Promise<FeedPost[]> {
+  async function hydrate(ids: string[], viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPost[]> {
     if (!ids.length) return [];
     if (ids.length > FEED_MAX_PAGE_SIZE) {
       // Long reply ancestry must not exceed D1's bound-parameter limit.
       const posts: FeedPost[] = [];
       for (let offset = 0; offset < ids.length; offset += FEED_MAX_PAGE_SIZE) {
-        posts.push(...await hydrate(ids.slice(offset, offset + FEED_MAX_PAGE_SIZE), viewer));
+        posts.push(...await hydrate(ids.slice(offset, offset + FEED_MAX_PAGE_SIZE), viewer, locale));
       }
       return posts;
     }
     const rows = await query(`SELECT p.*,a.github_login,a.display_name,a.avatar_url,
-      root.status AS root_status,
+      root.status AS root_status,tr.locale AS translation_locale,tr.text AS translation_text,tr.source_lang AS translation_source_lang,
       (SELECT COUNT(*) FROM social_feed_reactions r WHERE r.post_id=p.id AND r.value='like') AS likes,
       (SELECT COUNT(*) FROM social_feed_reposts r WHERE r.post_id=p.id) AS reposts,
       (SELECT COUNT(*) FROM social_feed_posts r WHERE r.parent_post_id=p.id AND r.origin='ghfind' AND r.status='published') AS direct_replies,
@@ -173,8 +186,9 @@ export function createRepository(client: Client): SocialFeedRepository {
       EXISTS(SELECT 1 FROM social_feed_follows f WHERE f.author_id=p.author_id AND f.user_id=?) AS viewer_following
       FROM social_feed_posts p LEFT JOIN social_feed_authors a ON a.id=p.author_id
       JOIN social_feed_posts root ON root.id=p.conversation_id
+      LEFT JOIN social_feed_post_translations tr ON tr.post_id=p.id AND tr.content_version=p.content_version AND tr.locale=?
       WHERE p.id IN (${placeholders(ids.length)}) AND p.status<>'hidden' AND root.status<>'hidden'`,
-    [viewer?.user_id ?? null, viewer?.user_id ?? null, viewer?.user_id ?? null, viewer?.user_id ?? null, ...ids]);
+    [viewer?.user_id ?? null, viewer?.user_id ?? null, viewer?.user_id ?? null, viewer?.user_id ?? null, locale ?? null, ...ids]);
     const mediaRows = await query(`SELECT pm.post_id,m.*,pm.position FROM social_feed_post_media pm
       JOIN social_feed_media_assets m ON m.id=pm.media_id WHERE pm.post_id IN (${placeholders(ids.length)}) AND m.status='ready'
       ORDER BY pm.position`, ids);
@@ -188,12 +202,17 @@ export function createRepository(client: Client): SocialFeedRepository {
     for (const row of rows) {
       const status = String(row.status) as FeedPost["status"];
       const origin = String(row.origin) as FeedPost["origin"];
+      const sourceLang = nullableText(row.source_lang);
+      // Only the current version joins; a translation into the source language is never offered.
+      const translated = status === "published" && locale && row.translation_locale === locale &&
+        !sameLanguage(sourceLang ?? nullableText(row.translation_source_lang), locale) && row.translation_text !== row.text;
       const post: FeedPost = {
         id: String(row.id), origin, kind: String(row.kind) as FeedPost["kind"],
         author: { id: String(row.author_id), github_login: String(row.github_login ?? xHandle(row.source_url) ?? row.author_id),
           name: String((origin === "x" ? row.source_name : null) ?? row.display_name ?? xHandle(row.source_url) ?? row.author_id),
           avatar_url: nullableText(origin === "x" ? (row.source_avatar_url ?? row.avatar_url) : row.avatar_url) },
-        text: status === "published" ? String(row.text) : "",
+        text: status === "published" ? String(row.text) : "", source_lang: sourceLang,
+        translation: translated ? { locale, text: String(row.translation_text), source_lang: nullableText(row.translation_source_lang) ?? sourceLang } : null,
         media: status !== "published" ? [] : origin === "x" ? JSON.parse(String(row.x_media_json)) as FeedMedia[] : mediaByPost.get(String(row.id)) ?? [],
         published_at: String(row.published_at), content_version: numberValue(row.content_version),
         conversation_id: String(row.conversation_id), parent_post_id: nullableText(row.parent_post_id),
@@ -209,17 +228,17 @@ export function createRepository(client: Client): SocialFeedRepository {
     }
     return ids.flatMap((id) => { const post = mapped.get(id); return post ? [post] : []; });
   }
-  async function getPost(id: string, viewer?: FeedViewer | null): Promise<FeedPost | null> {
-    return (await hydrate([id], viewer))[0] ?? null;
+  async function getPost(id: string, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPost | null> {
+    return (await hydrate([id], viewer, locale))[0] ?? null;
   }
-  async function requiredPost(id: string, viewer?: FeedViewer | null): Promise<FeedPost> {
-    const post = await getPost(id, viewer);
+  async function requiredPost(id: string, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPost> {
+    const post = await getPost(id, viewer, locale);
     if (!post) throw new SocialFeedError("post_not_found", 404);
     return post;
   }
-  async function buildPage(rows: DbRow[], limit: number, scope: string, asOf: string, viewer?: FeedViewer | null): Promise<FeedPage> {
+  async function buildPage(rows: DbRow[], limit: number, scope: string, asOf: string, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPage> {
     const selected = rows.slice(0, limit);
-    const items = await hydrate(selected.map((row) => String(row.post_id)), viewer);
+    const items = await hydrate(selected.map((row) => String(row.post_id)), viewer, locale);
     const activityByPost = new Map(selected.map((row) => [String(row.post_id), row]));
     for (const post of items) {
       const row = activityByPost.get(post.id);
@@ -233,7 +252,7 @@ export function createRepository(client: Client): SocialFeedRepository {
     return { items, algorithm_version: "chronological-v1", next_cursor: rows.length > limit && last
       ? encodeCursor({ version: 1, scope, time: String(last.sort_time), id: String(last.sort_id), as_of: asOf }) : null };
   }
-  async function timelinePage(sessionId: string, afterPosition: number, scope: string, channel: "recommended" | "following", limit: number, viewer?: FeedViewer | null): Promise<FeedPage> {
+  async function timelinePage(sessionId: string, afterPosition: number, scope: string, channel: "recommended" | "following", limit: number, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPage> {
     const session = (await query("SELECT * FROM social_feed_sessions WHERE id=? AND scope=? AND expires_at>?", [sessionId, scope, nowIso()]))[0];
     if (!session) throw new SocialFeedError("cursor_expired", 410);
     const rows = await query(`SELECT item.*,a.github_login AS reposter_login,a.display_name AS reposter_name,a.avatar_url AS reposter_avatar
@@ -245,13 +264,13 @@ export function createRepository(client: Client): SocialFeedRepository {
           WHERE r.post_id=p.id AND account.author_id=item.reposter_author_id AND r.created_at=item.sort_time))
         ${channel === "following" ? "AND EXISTS(SELECT 1 FROM social_feed_follows f WHERE f.user_id=? AND f.author_id=COALESCE(item.reposter_author_id,p.author_id))" : ""}
       ORDER BY item.position LIMIT ?`, [sessionId, afterPosition, ...(channel === "following" ? [viewer!.user_id] : []), limit + 1]);
-    const page = await buildPage(rows, limit, scope, String(session.created_at), viewer);
+    const page = await buildPage(rows, limit, scope, String(session.created_at), viewer, locale);
     const last = rows.slice(0, limit).at(-1);
     page.next_cursor = rows.length > limit && last ? encodeCursor({ version: 1, scope, time: String(last.sort_time),
       id: String(last.sort_id), as_of: String(session.created_at), session_id: sessionId, position: numberValue(last.position) }) : null;
     return page;
   }
-  async function createTimelineSnapshot(rows: DbRow[], scope: string, channel: "recommended" | "following", limit: number, viewer?: FeedViewer | null): Promise<FeedPage> {
+  async function createTimelineSnapshot(rows: DbRow[], scope: string, channel: "recommended" | "following", limit: number, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPage> {
     const id = crypto.randomUUID();
     const at = nowIso();
     const expiresAt = new Date(Date.parse(at) + TIMELINE_SNAPSHOT_LIFETIME_MS).toISOString();
@@ -265,10 +284,10 @@ export function createRepository(client: Client): SocialFeedRepository {
         SELECT ?,CAST(key AS INTEGER),json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]') FROM json_each(?)`,
         args: [id, JSON.stringify(snapshot)] },
     ]);
-    return timelinePage(id, -1, scope, channel, limit, viewer);
+    return timelinePage(id, -1, scope, channel, limit, viewer, locale);
   }
   async function listPosts(options: FeedListOptions): Promise<FeedPage> {
-    const { channel, viewer } = options;
+    const { channel, viewer, locale } = options;
     if (!["recommended", "following", "bookmarks"].includes(channel)) throw new SocialFeedError("invalid_channel", 400);
     if (channel !== "recommended" && !viewer) throw new SocialFeedError("authentication_required", 401);
     const limit = pageSize(options.limit);
@@ -277,7 +296,7 @@ export function createRepository(client: Client): SocialFeedRepository {
     const asOf = cursor?.as_of ?? nowIso();
     if (channel !== "bookmarks" && cursor) {
       if (!cursor.session_id || cursor.position === undefined) throw new SocialFeedError("invalid_cursor", 400);
-      return timelinePage(cursor.session_id, cursor.position, scope, channel, limit, viewer);
+      return timelinePage(cursor.session_id, cursor.position, scope, channel, limit, viewer, locale);
     }
     const after = cursor ? "AND (sort_time < ? OR (sort_time = ? AND sort_id < ?))" : "";
     const afterArgs: InValue[] = cursor ? [cursor.time, cursor.time, cursor.id] : [];
@@ -287,7 +306,7 @@ export function createRepository(client: Client): SocialFeedRepository {
         JOIN social_feed_posts root ON root.id=p.conversation_id
         WHERE b.user_id=? AND p.status<>'hidden' AND root.status<>'hidden' AND b.created_at<=?
         ${after} ORDER BY sort_time DESC,sort_id DESC LIMIT ?`, [viewer!.user_id, asOf, ...afterArgs, limit + 1]);
-      return buildPage(rows, limit, scope, asOf, viewer);
+      return buildPage(rows, limit, scope, asOf, viewer, locale);
     }
     const followingOriginal = channel === "following" ? "AND EXISTS(SELECT 1 FROM social_feed_follows f WHERE f.user_id=? AND f.author_id=p.author_id)" : "";
     const followingRepost = channel === "following" ? "AND EXISTS(SELECT 1 FROM social_feed_follows f WHERE f.user_id=? AND f.author_id=account.author_id)" : "";
@@ -309,10 +328,10 @@ export function createRepository(client: Client): SocialFeedRepository {
     ), chosen AS (
       SELECT *,ROW_NUMBER() OVER(PARTITION BY post_id ORDER BY sort_time DESC,sort_id DESC) AS position FROM activities
     ) SELECT * FROM chosen WHERE position=1 ${after} ORDER BY sort_time DESC,sort_id DESC LIMIT ?`, [...args, ...afterArgs, TIMELINE_SNAPSHOT_LIMIT]);
-    return createTimelineSnapshot(rows, scope, channel, limit, viewer);
+    return createTimelineSnapshot(rows, scope, channel, limit, viewer, locale);
   }
   async function listReplies(parentId: string, options: FeedPageOptions = {}): Promise<FeedPage> {
-    await requiredPost(parentId, options.viewer);
+    await requiredPost(parentId, options.viewer, options.locale);
     const limit = pageSize(options.limit);
     const scope = `replies:${parentId}:${options.viewer?.user_id ?? "public"}`;
     const cursor = decodeCursor(options.cursor, scope);
@@ -321,16 +340,16 @@ export function createRepository(client: Client): SocialFeedRepository {
       WHERE parent_post_id=? AND status<>'hidden' AND published_at<=?
       ${cursor ? "AND (published_at < ? OR (published_at = ? AND id < ?))" : ""}
       ORDER BY published_at DESC,id DESC LIMIT ?`, [parentId, asOf, ...(cursor ? [cursor.time, cursor.time, cursor.id] : []), limit + 1]);
-    return buildPage(rows, limit, scope, asOf, options.viewer);
+    return buildPage(rows, limit, scope, asOf, options.viewer, options.locale);
   }
-  async function listAncestors(id: string, viewer?: FeedViewer | null): Promise<FeedPost[]> {
-    await requiredPost(id, viewer);
+  async function listAncestors(id: string, viewer?: FeedViewer | null, locale?: Locale | null): Promise<FeedPost[]> {
+    await requiredPost(id, viewer, locale);
     const rows = await query(`WITH RECURSIVE ancestors(id,parent_post_id,depth) AS (
       SELECT parent.id,parent.parent_post_id,1 FROM social_feed_posts p JOIN social_feed_posts parent ON parent.id=p.parent_post_id WHERE p.id=?
       UNION ALL SELECT parent.id,parent.parent_post_id,ancestors.depth+1 FROM social_feed_posts parent
         JOIN ancestors ON parent.id=ancestors.parent_post_id
     ) SELECT id FROM ancestors ORDER BY depth DESC`, [id]);
-    return hydrate(rows.map((row) => String(row.id)), viewer);
+    return hydrate(rows.map((row) => String(row.id)), viewer, locale);
   }
   async function findPublication(userId: string, key: string, payloadHash: string, viewer?: FeedViewer | null): Promise<FeedPost | null> {
     const rows = await query("SELECT payload_hash,post_id FROM social_feed_commands WHERE user_id=? AND idempotency_key=?", [userId, key]);
@@ -369,7 +388,7 @@ export function createRepository(client: Client): SocialFeedRepository {
   }
   async function ingestXPost(input: XPostInput): Promise<FeedPost> {
     validateAuthor(input.author); validateEvidence(input.publication);
-    if (Object.keys(input).some((key) => !["author", "publication", "source", "text", "media", "published_at", "parent_post_id"].includes(key))) {
+    if (Object.keys(input).some((key) => !["author", "publication", "source", "text", "media", "published_at", "parent_post_id", "source_lang", "translations"].includes(key))) {
       throw new SocialFeedError("invalid_x_fields", 400);
     }
     const source = input.source;
@@ -389,6 +408,10 @@ export function createRepository(client: Client): SocialFeedRepository {
     if (typeof input.text !== "string" || [...input.text].length > FEED_MAX_X_TEXT_LENGTH || !Number.isFinite(Date.parse(input.published_at))) {
       throw new SocialFeedError("invalid_text", 400);
     }
+    const sourceLang = normalizeSourceLang(input.source_lang);
+    const translationMap = input.translations ?? {};
+    if (!translationMap || typeof translationMap !== "object" || Array.isArray(translationMap)) throw new SocialFeedError("invalid_translation", 400);
+    const translations = validateTranslations(Object.entries(translationMap).map(([locale, value]) => ({ ...value, locale: locale as Locale })));
     const media = input.media ?? [];
     if (media.length > FEED_MAX_MEDIA || (!input.text.trim() && !media.length)) throw new SocialFeedError("invalid_media", 400);
     for (const item of media) {
@@ -419,8 +442,8 @@ export function createRepository(client: Client): SocialFeedRepository {
       sql: `INSERT INTO social_feed_posts(id,author_id,origin,kind,conversation_id,parent_post_id,text,x_media_json,
         published_at,created_at,updated_at,source_x_post_id,source_x_user_id,source_url,source_name,source_avatar_url,
         source_evidence_url,source_evidence_method,source_evidence_checked_at,
-        publication_score,publication_score_record_id,publication_score_version,publication_policy_version)
-        VALUES(?,?,'x',?,${parentId ? "COALESCE((SELECT conversation_id FROM social_feed_posts WHERE id=?),'missing')" : "?"},?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        publication_score,publication_score_record_id,publication_score_version,publication_policy_version,source_lang)
+        VALUES(?,?,'x',?,${parentId ? "COALESCE((SELECT conversation_id FROM social_feed_posts WHERE id=?),'missing')" : "?"},?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET text=excluded.text,x_media_json=excluded.x_media_json,
           content_version=social_feed_posts.content_version + CASE WHEN social_feed_posts.text<>excluded.text OR social_feed_posts.x_media_json<>excluded.x_media_json THEN 1 ELSE 0 END,
           source_x_post_id=excluded.source_x_post_id,source_url=excluded.source_url,source_name=excluded.source_name,
@@ -428,19 +451,42 @@ export function createRepository(client: Client): SocialFeedRepository {
           source_evidence_method=excluded.source_evidence_method,source_evidence_checked_at=excluded.source_evidence_checked_at,
           publication_score=excluded.publication_score,publication_score_record_id=excluded.publication_score_record_id,
           publication_score_version=excluded.publication_score_version,publication_policy_version=excluded.publication_policy_version,
-          source_eligible=1,updated_at=excluded.updated_at
+          source_lang=COALESCE(excluded.source_lang,social_feed_posts.source_lang),source_eligible=1,updated_at=excluded.updated_at
         WHERE length(excluded.source_x_post_id)>length(social_feed_posts.source_x_post_id)
           OR (length(excluded.source_x_post_id)=length(social_feed_posts.source_x_post_id)
             AND excluded.source_x_post_id>=social_feed_posts.source_x_post_id)`,
       args: [id, authorId(input.author.github_user_id), parentId ? "reply" : "original", parentId ?? id, parentId ?? null,
         input.text, JSON.stringify(media), new Date(input.published_at).toISOString(), at, at, source.post_id, source.author_id, sourceUrl.toString(),
         source.display_name, source.avatar_url, source.evidence_url, source.evidence_method, new Date(source.evidence_checked_at).toISOString(),
-        evidence.score, evidence.score_record_id, evidence.score_version, evidence.policy_version],
+        evidence.score, evidence.score_record_id, evidence.score_version, evidence.policy_version, sourceLang],
     }];
     for (const alias of aliases) statements.push({ sql: `INSERT INTO social_feed_x_versions(x_post_id,post_id,observed_at)
       VALUES(?,?,?) ON CONFLICT(x_post_id) DO UPDATE SET post_id=excluded.post_id,observed_at=excluded.observed_at`, args: [alias, id, at] });
+    // Same batch as the post: rows bind to the resulting version only while it still carries this text,
+    // so an out-of-order older edit cannot attach its translations to newer content.
+    statements.push(...translationStatements(id, translations, at, "AND p.text=?", [input.text]));
     await batch(statements);
     return requiredPost(id);
+  }
+  async function upsertPostTranslations(input: FeedTranslationUpsert): Promise<{ post_id: string; content_version: number; locales: Locale[] }> {
+    if (!input || typeof input.post_id !== "string" || !input.post_id ||
+      (input.content_version !== undefined && (!Number.isInteger(input.content_version) || input.content_version < 1))) {
+      throw new SocialFeedError("invalid_translation", 400);
+    }
+    const translations = validateTranslations(input.translations);
+    if (!translations.length) throw new SocialFeedError("invalid_translation", 400);
+    const current = (await query("SELECT content_version FROM social_feed_posts WHERE id=?", [input.post_id]))[0];
+    if (!current) throw new SocialFeedError("post_not_found", 404);
+    const version = input.content_version ?? numberValue(current.content_version);
+    // The version guard is re-checked inside the write, so a concurrent edit cannot be translated with old text.
+    await batch(translationStatements(input.post_id, translations, nowIso(), "AND p.content_version=?", [version]));
+    const after = (await query("SELECT COUNT(*) AS stored FROM social_feed_post_translations WHERE post_id=? AND content_version=? AND locale IN (" +
+      placeholders(translations.length) + ")", [input.post_id, version, ...translations.map((item) => item.locale)]))[0];
+    const latest = (await query("SELECT content_version FROM social_feed_posts WHERE id=?", [input.post_id]))[0];
+    if (numberValue(latest?.content_version) !== version || numberValue(after?.stored) !== translations.length) {
+      throw new SocialFeedError("stale_content_version", 409);
+    }
+    return { post_id: input.post_id, content_version: version, locales: translations.map((item) => item.locale) };
   }
   async function deleteNativePost(id: string, actor: FeedActor): Promise<FeedPost> {
     const post = await requiredPost(id, actorViewer(actor));
@@ -534,7 +580,7 @@ export function createRepository(client: Client): SocialFeedRepository {
     await batch([{ sql: "UPDATE social_feed_posts SET source_eligible=? WHERE author_id=? AND origin='x'", args: [eligible ? 1 : 0, authorId(githubUserId)] }]);
   }
   return {
-    getPost, listPosts, listReplies, listAncestors, createNativePost, findPublication, ingestXPost, deleteNativePost,
+    getPost, listPosts, listReplies, listAncestors, createNativePost, findPublication, ingestXPost, upsertPostTranslations, deleteNativePost,
     setReaction, setBookmark: (id, actor, enabled) => setRelation("bookmarks", id, actor, enabled),
     setRepost: (id, actor, enabled) => setRelation("reposts", id, actor, enabled), setFollow, recordQualifiedView,
     consumeQuota, upsertAuthor, registerMedia, getMediaAsset, canReadMedia, setXAuthorEligibility,

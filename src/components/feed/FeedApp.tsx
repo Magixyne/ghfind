@@ -2,12 +2,12 @@
 
 import { useRef, useState } from "react";
 import { ArrowLeft, Bookmark, LoaderCircle, RefreshCw, X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { FeedPage, FeedPost } from "@/lib/social-feed/contract";
-import type { FeedAction, FeedChannel } from "@/lib/social-feed/client";
+import { setFeedLocale, type FeedAction, type FeedChannel } from "@/lib/social-feed/client";
 import { createFeedStore, type FeedStore } from "@/lib/social-feed/client-store";
 import type { StreamProjectPick, StreamVoice } from "@/lib/stream/types";
 import { useMountEffect } from "@/lib/use-mount-effect";
@@ -35,6 +35,8 @@ interface PostHandlers {
 
 export function FeedApp({ initialPage, projects, voices, generatedAt, initialError }: FeedAppProps) {
   const t = useTranslations("stream");
+  // Idempotent and set before any mount effect fetches, so every read is localized.
+  setFeedLocale(useLocale());
   const errorMessage = useFeedErrorMessage();
   const [store] = useState(() => createFeedStore(initialPage, initialError));
   const state = useStore(store);

@@ -10,10 +10,15 @@ export class FeedRequestError extends Error {
   }
 }
 
+let feedLocale: string | null = null;
+/** Page locale sent with every call so returned posts carry their body translation. */
+export function setFeedLocale(locale: string | null): void { feedLocale = locale; }
+
 async function request<T>(path: string, method = "GET", body?: unknown, idempotencyKey?: string): Promise<T> {
+  const localized = feedLocale ? `${path}${path.includes("?") ? "&" : "?"}locale=${encodeURIComponent(feedLocale)}` : path;
   let response: Response;
   try {
-    response = await fetch(`/api/feed${path}`, {
+    response = await fetch(`/api/feed${localized}`, {
       method,
       credentials: "same-origin",
       cache: "no-store",
