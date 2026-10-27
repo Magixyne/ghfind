@@ -5,8 +5,9 @@ import { SocialFeedError, type FeedPost } from "./contract";
 const mocks = vi.hoisted(() => ({
   repository: { getAuthorSummary: vi.fn(), getPost: vi.fn(), listPosts: vi.fn(), listReplies: vi.fn(), listAncestors: vi.fn(), createNativePost: vi.fn(), findPublication: vi.fn(), deleteNativePost: vi.fn(),
     setReaction: vi.fn(), setBookmark: vi.fn(), setRepost: vi.fn(), setFollow: vi.fn(), recordQualifiedView: vi.fn(), consumeQuota: vi.fn(), ingestXPost: vi.fn() },
-  readPublishingScore: vi.fn(), requirePublication: vi.fn(), publishingCapabilities: vi.fn(), xIngestPublication: vi.fn(),
+  githubProfileXUrl: vi.fn(), readPublishingScore: vi.fn(), requirePublication: vi.fn(), publishingCapabilities: vi.fn(), xIngestPublication: vi.fn(),
 }));
+vi.mock("./github-profile", () => ({ githubProfileXUrl: mocks.githubProfileXUrl }));
 vi.mock("./repository", () => ({ getSocialFeedRepository: () => mocks.repository, nativePublicationHash: async (input: unknown, parent?: string) => JSON.stringify({ input, parent }) }));
 vi.mock("./eligibility", () => ({ readPublishingScore: mocks.readPublishingScore, requirePublication: mocks.requirePublication, publishingCapabilities: mocks.publishingCapabilities,
   xIngestPublication: mocks.xIngestPublication }));
@@ -236,6 +237,16 @@ describe("localized reads", () => {
 
 
 describe("author hover summary", () => {
+  it("keeps bound X identities and only falls back for missing links", async () => {
+    const summary = { author: { ...post.author, id: "gha_7" }, following: 0, followers: 0, follows_you: false, x_url: "https://x.com/i/user/123", score: null };
+    mocks.repository.getAuthorSummary.mockResolvedValue(summary);
+    await getAuthorSummary(request("GET"), params);
+    expect(mocks.githubProfileXUrl).not.toHaveBeenCalled();
+    mocks.repository.getAuthorSummary.mockResolvedValue({ ...summary, x_url: null });
+    mocks.githubProfileXUrl.mockResolvedValue("https://x.com/example");
+    expect(await (await getAuthorSummary(request("GET"), params)).json()).toMatchObject({ x_url: "https://x.com/example" });
+    expect(mocks.githubProfileXUrl).toHaveBeenCalledWith("7");
+  });
   it("shows saved scores only for the same verified GitHub identity without scanning", async () => {
     const summary = { author: { ...post.author, id: "gha_7" }, following: 3, followers: 4, follows_you: false, x_url: null, score: null };
     mocks.repository.getAuthorSummary.mockImplementation(async () => ({ ...summary }));

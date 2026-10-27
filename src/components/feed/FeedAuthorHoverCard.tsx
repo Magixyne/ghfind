@@ -35,11 +35,12 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
   return <HoverCard openDelay={250} closeDelay={180} onOpenChange={load}>
     <HoverCardTrigger asChild>{children}</HoverCardTrigger>
     <HoverCardContent align="start" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center gap-3">
         <Link href={`/u/${author.github_login}`} prefetch={false} aria-label={author.name}>
           <FeedAvatar key={author.avatar_url} name={author.name} src={author.avatar_url} score={score} size="sm" />
         </Link>
-        <Button variant="outline" size="sm" disabled={pending} onClick={() => onFollow(author.id, !following)}>{t(following ? "followingAction" : "follow")}</Button>
+        {score != null && tier ? <strong aria-label={`${t("score")} ${score.toFixed(1)}`} className={`text-2xl font-bold tabular-nums ${tierStyle(tier).text}`}>{score.toFixed(1)}</strong> : null}
+        <Button className="ms-auto" variant="outline" size="sm" disabled={pending} onClick={() => onFollow(author.id, !following)}>{t(following ? "followingAction" : "follow")}</Button>
       </div>
       <Link href={`/u/${author.github_login}`} prefetch={false} className="mt-3 block truncate font-semibold hover:underline">{author.name}</Link>
       <p className="truncate text-sm text-muted-foreground">@{author.github_login}</p>
@@ -48,7 +49,7 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
         {failed ? <Button variant="ghost" size="sm" onClick={() => void load(true)}>{t("retry")}</Button>
           : !summary ? <p role="status" className="text-muted-foreground">{t("loading")}</p>
           : <>
-            <p>{t("score")} <strong className={tier ? tierStyle(tier).text : "text-muted-foreground"}>{score != null ? `${score.toFixed(1)} / 100` : t("unscored")}</strong></p>
+            {score == null ? <p className="text-muted-foreground">{t("unscored")}</p> : null}
             <div className="mt-2 flex gap-4"><span><strong>{summary.following}</strong> {t("following")}</span><span><strong>{summary.followers}</strong> {t("followers")}</span></div>
             <p className="mt-1 text-xs text-muted-foreground">{t("source")}</p>
           </>}

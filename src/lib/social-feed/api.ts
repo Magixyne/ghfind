@@ -5,6 +5,7 @@ import { readBoundedBody } from "@/lib/feed-gateway";
 import { SocialFeedError, FEED_MAX_MEDIA, type FeedActor, type FeedMedia, type FeedPage, type FeedPost, type FeedQuotaOperation, type FeedViewer, type QualifiedViewInput, type PostInput, type XPostInput, type FeedTranslationText } from "./contract";
 import { getSocialFeedRepository, nativePublicationHash } from "./repository";
 import { normalizeSourceLang, validateTranslations } from "./translations";
+import { githubProfileXUrl } from "./github-profile";
 import { publishingCapabilities, readPublishingScore, requirePublication, xIngestPublication } from "./eligibility";
 
 const MAX_NATIVE_TEXT = 5_000;
@@ -256,6 +257,7 @@ export function getAuthorSummary(request: Request, params: RouteContext): Promis
     const score = await readPublishingScore(summary.author.github_login);
     if (score && !score.hidden && score.github_user_id && summary.author.id === `gha_${score.github_user_id}` &&
         Number.isFinite(score.final_score) && score.final_score >= 0 && score.final_score <= 100) summary.score = score.final_score;
+    if (!summary.x_url) summary.x_url = await githubProfileXUrl(summary.author.id.replace(/^gha_/, ""));
     return socialFeedJson(summary);
   });
 }
