@@ -408,10 +408,10 @@
     "clown": "No puedo con esto"
   },
   "rescan": {
-    "button": "🔄 Volver a detectar",
-    "scanning": "Escaneando…",
-    "roasting": "Roasteando…",
-    "error": "La detección falló, inténtalo más tarde",
+    "button": "Reevaluar",
+    "scanning": "Analizando…",
+    "roasting": "Generando comentario…",
+    "error": "La evaluación falló, inténtalo más tarde",
     "cooldown": "Podrás refrescar en {hours}h"
   },
   "detailMeta": {

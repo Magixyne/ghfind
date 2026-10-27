@@ -21,6 +21,7 @@ import {
 import { selectCacheStore, type CacheStore } from "./cache-store";
 import { selectAtomicStore, type AtomicStore } from "./atomic-store";
 import { admitAutoRescan, type AutoRescanAdmission } from "./auto-rescan";
+import { admitAutoRefreshOnVisit } from "./auto-refresh-on-visit";
 import { parsePayload, scanSlot, scanSlots, slotCoordinator } from "./scan-slots";
 import {
   durableObjectLimiter,
@@ -233,6 +234,14 @@ export async function admitVersionUpgradeRescan(
   maxPerHour: number,
 ): Promise<AutoRescanAdmission> {
   return admitAutoRescan(atomicStore(), username, { maxPerHour });
+}
+
+/** Per-user 24h slot + hourly budget for on-visit score refresh (see auto-refresh-on-visit.ts). */
+export async function admitVisitRefresh(
+  username: string,
+  maxPerHour: number,
+): Promise<AutoRescanAdmission> {
+  return admitAutoRefreshOnVisit(atomicStore(), username, { maxPerHour });
 }
 
 export async function setCachedScan(username: string, scan: ScanResult): Promise<void> {

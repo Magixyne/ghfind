@@ -21,6 +21,9 @@ import { RoastResultModal } from "./RoastResultModal";
  * the caller's). On completion it refreshes the server-rendered page once, so
  * the freshly persisted profile (rank, reactions, badge) replaces this shell.
  */
+// Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+const PROFILE_POPUP_ENABLED = false;
+
 export function LiveRoast({
   username,
   scan,
@@ -109,7 +112,8 @@ export function LiveRoast({
     // Spend the homepage handoff exactly once for this history entry. This
     // guards a remounted profile subtree from opening a second result popup
     // while its server-rendered props still say `openModalOnMount`.
-    openedHandoffPopupRef.current = openModalOnMount && consumeRoastingHandoff();
+    openedHandoffPopupRef.current =
+      PROFILE_POPUP_ENABLED && openModalOnMount && consumeRoastingHandoff();
     if (openedHandoffPopupRef.current && fallbackMeta) setModalMeta(fallbackMeta);
     // Failure downgrade: with fallback content the old report renders (and the
     // already-open popup keeps its stored content) instead of an error line —
@@ -175,6 +179,7 @@ export function LiveRoast({
           // Popup already dismissed mid-stream — refresh into the full profile.
           refreshOnce();
         } else if (
+          PROFILE_POPUP_ENABLED &&
           ((fresh && !openModalOnMount) || openedHandoffPopupRef.current) &&
           latestMeta
         ) {
