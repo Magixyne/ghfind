@@ -58,7 +58,8 @@ describe("auto refresh on visit config", () => {
     expect(autoRefreshOnVisitEnabled({ AUTO_REFRESH_ON_VISIT_ENABLED: "1" })).toBe(true);
   });
 
-  it("defaults the hourly budget to 200 and accepts overrides", () => {
+  it("defaults the hourly budget to 3000 and accepts overrides", () => {
+    expect(AUTO_REFRESH_ON_VISIT_DEFAULT_HOURLY_BUDGET).toBe(3000);
     expect(autoRefreshOnVisitMaxPerHour({})).toBe(AUTO_REFRESH_ON_VISIT_DEFAULT_HOURLY_BUDGET);
     expect(autoRefreshOnVisitMaxPerHour({ AUTO_REFRESH_ON_VISIT_HOURLY_BUDGET: "50" })).toBe(50);
     expect(autoRefreshOnVisitMaxPerHour({ AUTO_REFRESH_ON_VISIT_HOURLY_BUDGET: "0" })).toBe(0);

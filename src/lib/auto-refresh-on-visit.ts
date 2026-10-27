@@ -17,14 +17,14 @@ import { RESCAN_COOLDOWN_MS } from "./freshness";
  * Env (defaults are safe to leave unset):
  * - `AUTO_REFRESH_ON_VISIT_ENABLED` — default ON; set 0/false/off/no to kill.
  * - `AUTO_REFRESH_ON_VISIT_HOURLY_BUDGET` — default
- *   {@link AUTO_REFRESH_ON_VISIT_DEFAULT_HOURLY_BUDGET} (200/h).
+ *   {@link AUTO_REFRESH_ON_VISIT_DEFAULT_HOURLY_BUDGET} (3000/h; first-time scans of new users are not counted).
  */
 
 const ENABLED_ENV = "AUTO_REFRESH_ON_VISIT_ENABLED";
 const BUDGET_ENV = "AUTO_REFRESH_ON_VISIT_HOURLY_BUDGET";
 const HOUR_MS = 60 * 60 * 1000;
 
-export const AUTO_REFRESH_ON_VISIT_DEFAULT_HOURLY_BUDGET = 200;
+export const AUTO_REFRESH_ON_VISIT_DEFAULT_HOURLY_BUDGET = 3000;
 /** Same 24h user cooldown as the version-upgrade auto-rescan. */
 export const AUTO_REFRESH_ON_VISIT_USER_COOLDOWN_SECONDS = AUTO_RESCAN_USER_COOLDOWN_SECONDS;
 /** Snapshot older than this (≈ scan Redis TTL) may trigger a background refresh. */
