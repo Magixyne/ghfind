@@ -163,14 +163,16 @@ export function createRepository(client: Client): SocialFeedRepository {
   async function getAuthorSummary(id: string, viewerId?: string): Promise<FeedAuthorSummary | null> {
     const [row] = await query(`SELECT a.*,
       (SELECT x.x_user_id FROM social_feed_x_accounts x WHERE x.author_id=a.id ORDER BY x.updated_at DESC LIMIT 1) AS x_user_id,
+      (SELECT p.source_url FROM social_feed_posts p JOIN social_feed_x_accounts x ON x.x_user_id=p.source_x_user_id WHERE x.x_user_id=(SELECT x2.x_user_id FROM social_feed_x_accounts x2 WHERE x2.author_id=a.id ORDER BY x2.updated_at DESC LIMIT 1) AND p.source_url IS NOT NULL ORDER BY p.published_at DESC LIMIT 1) AS x_post_url,
       (SELECT COUNT(*) FROM social_feed_follows f WHERE f.author_id=a.id) AS followers,
       (SELECT COUNT(*) FROM social_feed_follows f WHERE f.user_id='github:'||a.github_user_id) AS following,
       EXISTS(SELECT 1 FROM social_feed_follows f JOIN social_feed_accounts me ON me.author_id=f.author_id
         WHERE f.user_id='github:'||a.github_user_id AND me.user_id=?) AS follows_you
       FROM social_feed_authors a WHERE a.id=?`, [viewerId ?? null, id]);
     if (!row) return null;
+    const xHandle = typeof row.x_post_url === "string" ? /^https:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/([A-Za-z0-9_]{1,15})\/status\/\d+\/?$/i.exec(row.x_post_url)?.[1] : undefined;
     return { author: { id: String(row.id), github_login: String(row.github_login), name: String(row.display_name), avatar_url: nullableText(row.avatar_url) },
-      followers: Number(row.followers), following: Number(row.following), follows_you: Boolean(row.follows_you), x_url: row.x_user_id ? `https://x.com/i/user/${encodeURIComponent(String(row.x_user_id))}` : null, score: null };
+      followers: Number(row.followers), following: Number(row.following), follows_you: Boolean(row.follows_you), x_handle: xHandle ?? null, x_url: row.x_user_id ? `https://x.com/i/user/${encodeURIComponent(String(row.x_user_id))}` : null, score: null };
   }
   async function upsertAuthor(author: FeedAuthorInput): Promise<FeedAuthor> {
     await batch([authorStatement(author, nowIso())]);

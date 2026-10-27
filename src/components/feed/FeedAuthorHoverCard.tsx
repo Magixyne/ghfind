@@ -33,6 +33,7 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
   }
   const score = summary?.score;
   const tier = score != null ? tierFor(score).tier : null;
+  const xHandle = summary?.x_handle ?? (summary?.x_url ? /^https:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/([A-Za-z0-9_]{1,15})\/?$/i.exec(summary.x_url)?.[1] : null);
   return <HoverCard openDelay={250} closeDelay={180} onOpenChange={load}>
     <HoverCardTrigger asChild>{children}</HoverCardTrigger>
     <HoverCardContent align="start" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
@@ -42,7 +43,7 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
         </Link>
         {score != null && tier ? <div className={`flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 ${tierStyle(tier).text}`}>
           <strong aria-label={`${t("score")} ${score.toFixed(1)}`} className="text-2xl font-bold tabular-nums">{score.toFixed(1)}</strong>
-          <span className="text-xs font-semibold">{tTier(`${TIER_KEY[tier]}.name`)}</span>
+          <span className="text-2xl font-bold">{tTier(`${TIER_KEY[tier]}.name`)}</span>
         </div> : null}
         <Button className="ms-auto shrink-0" variant="outline" size="sm" disabled={pending} onClick={() => onFollow(author.id, !following)}>{t(following ? "followingAction" : "follow")}</Button>
       </div>
@@ -55,12 +56,11 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
           : <>
             {score == null ? <p className="text-muted-foreground">{t("unscored")}</p> : null}
             <div className="mt-2 flex gap-4"><span><strong>{summary.following}</strong> {t("following")}</span><span><strong>{summary.followers}</strong> {t("followers")}</span></div>
-            <p className="mt-1 text-xs text-muted-foreground">{t("source")}</p>
           </>}
       </div>
-      <div className="mb-3 flex gap-4 text-sm">
-        <a href={`https://github.com/${author.github_login}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline"><GitHubMark /> GitHub</a>
-        {summary?.x_url ? <a href={summary.x_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline"><XMark className="size-4" /> X</a> : null}
+      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        <a href={`https://github.com/${author.github_login}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline"><GitHubMark /> @{author.github_login}</a>
+        {summary?.x_url ? <a aria-label={xHandle ? `X @${xHandle}` : "X"} href={summary.x_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline"><XMark className="size-4" /> {xHandle ? `@${xHandle}` : null}</a> : null}
       </div>
       <Button asChild variant="outline" className="w-full"><Link href={`/u/${author.github_login}`} prefetch={false}>Profile <ExternalLink className="size-3.5" /></Link></Button>
     </HoverCardContent>
