@@ -88,6 +88,10 @@
     {
       "name": "0032_vibe42_title_logo.sql",
       "sha256": "7771e85cd8941d3b970418757e57c1f08d31d3108eb59277ce72f66d2cf85cf6"
+    },
+    {
+      "name": "0033_vibe42_retitle_icon.sql",
+      "sha256": "4b163b19220a176f2a1947c7f1fb059a2d27d4778b0f8203b5bc8fb8d9945ac5"
     }
   ],
   "feed": [
