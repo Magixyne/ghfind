@@ -55,7 +55,6 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
           : <>
             {score == null ? <p className="text-muted-foreground">{t("unscored")}</p> : null}
             <div className="mt-2 flex gap-4"><span><strong>{summary.following}</strong> {t("following")}</span><span><strong>{summary.followers}</strong> {t("followers")}</span></div>
-            <p className="mt-1 text-xs text-muted-foreground">{t("source")}</p>
           </>}
       </div>
       <div className="mb-3 flex gap-4 text-sm">
