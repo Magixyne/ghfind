@@ -38,7 +38,7 @@ describe("social post storage", () => {
     await repository.upsertAuthor(bob);
     await repository.setFollow("gha_22", alice, true);
     await repository.setFollow("gha_11", bob, true);
-    expect(await repository.getAuthorSummary("gha_11", bob.user_id)).toMatchObject({ following: 1, followers: 1, follows_you: true, x_url: "https://x.com/i/user/555" });
+    expect(await repository.getAuthorSummary("gha_11", bob.user_id)).toMatchObject({ following: 1, followers: 1, follows_you: true, x_url: "https://x.com/i/user/555", x_handle: "alice_x" });
     expect(await repository.getAuthorSummary("gha_22")).toMatchObject({ following: 1, followers: 1, follows_you: false, x_url: null });
     await repository.setFollow("gha_11", bob, false);
     expect(await repository.getAuthorSummary("gha_11")).toMatchObject({ followers: 0 });

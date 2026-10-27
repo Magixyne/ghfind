@@ -31,6 +31,7 @@ export interface FeedAuthorSummary {
   followers: number;
   follows_you: boolean;
   x_url: string | null;
+  x_handle?: string | null;
   score: number | null;
 }
 
