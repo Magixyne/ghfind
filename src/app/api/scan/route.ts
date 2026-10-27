@@ -20,8 +20,11 @@ import {
   getStaleCachedScan,
   isScanPending,
   rateLimitHeaders,
-  tryAcquireScanRefresh,
 } from "@/lib/redis";
+import {
+  maybeScheduleVisitRefresh,
+  scheduleBackgroundRefresh,
+} from "@/lib/scan-background-refresh";
 import { GitHubDataUnavailableError } from "@/lib/github";
 import { SCAN_PENDING_RETRY_AFTER_SECONDS, ScanBusyError, ScanPendingError } from "@/lib/scan-protection";
 import { SCORE_CACHE_VERSION } from "@/lib/cache-version";
@@ -125,23 +128,6 @@ async function produceFreshScan(username: string): Promise<ScanResult> {
   const quickScan = await buildScanResult(username);
   if (!(await persistQuickScan(quickScan, scannedAt))) throw new ScorePersistenceError();
   return Object.assign(quickScan, { scanned_at: scannedAt });
-}
-
-async function refreshScanInBackground(username: string): Promise<void> {
-  if (!(await tryAcquireScanRefresh(username))) return;
-  try {
-    await coalesceScan(username, () => produceFreshScan(username), { background: true });
-  } catch (error) {
-    logFreshScanFailure(error, {
-      route: "scan",
-      username,
-      persistenceFailure: error instanceof ScorePersistenceError,
-    });
-  }
-}
-
-function scheduleBackgroundRefresh(username: string): void {
-  after(() => refreshScanInBackground(username));
 }
 
 async function staleReadResponse(input: {
@@ -397,6 +383,13 @@ export async function POST(req: NextRequest) {
     const indexed = await getCurrentCanonicalQuickScan(username);
     if (indexed) {
       await recordSuccessfulLookup(indexed.scan.metrics.username, ip, campaign);
+      // Cache miss but durable snapshot still present: serve it immediately and,
+      // when older than ~24h, kick a score-only background refresh (no LLM).
+      maybeScheduleVisitRefresh({
+        username,
+        scannedAt: indexed.scannedAt,
+        headers: req.headers,
+      });
       return attachAnonymousSession(
         immediateResponse({
           scan: indexed.scan,

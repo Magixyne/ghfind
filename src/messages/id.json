@@ -408,10 +408,10 @@
     "clown": "Nggak sanggup"
   },
   "rescan": {
-    "button": "🔄 Deteksi ulang",
+    "button": "Evaluasi ulang",
     "scanning": "Memindai…",
-    "roasting": "Me-roast…",
-    "error": "Deteksi gagal, coba lagi nanti",
+    "roasting": "Membuat komentar…",
+    "error": "Evaluasi gagal, coba lagi nanti",
     "cooldown": "Refresh tersedia dalam {hours} jam"
   },
   "detailMeta": {

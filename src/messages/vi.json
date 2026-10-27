@@ -408,10 +408,10 @@
     "clown": "Chịu luôn"
   },
   "rescan": {
-    "button": "🔄 Quét lại",
+    "button": "Đánh giá lại",
     "scanning": "Đang quét…",
-    "roasting": "Đang cà khịa…",
-    "error": "Quét thất bại, thử lại sau nhé",
+    "roasting": "Đang tạo nhận xét…",
+    "error": "Đánh giá thất bại, thử lại sau",
     "cooldown": "Có thể làm mới sau {hours}h"
   },
   "detailMeta": {

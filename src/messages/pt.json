@@ -408,10 +408,10 @@
     "clown": "Nem tenta"
   },
   "rescan": {
-    "button": "🔄 Reanalisar",
-    "scanning": "Escaneando…",
-    "roasting": "Zoando…",
-    "error": "Falha na análise, tente de novo mais tarde",
+    "button": "Reavaliar",
+    "scanning": "Analisando…",
+    "roasting": "Gerando comentário…",
+    "error": "A avaliação falhou, tente novamente mais tarde",
     "cooldown": "Nova análise disponível em {hours}h"
   },
   "detailMeta": {

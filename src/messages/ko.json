@@ -408,11 +408,11 @@
     "clown": "웃참 실패"
   },
   "rescan": {
-    "button": "🔄 다시 검사",
+    "button": "다시 평가",
     "scanning": "검사 중…",
-    "roasting": "독설 굽는 중…",
-    "error": "검사에 실패했어요. 잠시 후 다시 시도하세요",
-    "cooldown": "{hours}시간 후 다시 검사 가능"
+    "roasting": "코멘트 생성 중…",
+    "error": "평가에 실패했습니다. 잠시 후 다시 시도하세요",
+    "cooldown": "{hours}시간 후 다시 평가 가능"
   },
   "detailMeta": {
     "unratedTitle": "{username} · 개발자 프로필",
