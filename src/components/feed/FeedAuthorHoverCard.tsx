@@ -10,7 +10,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { FeedAvatar } from "./FeedAvatar";
 import { XMark } from "@/components/stream/StreamPost";
 import { tierFor } from "@/lib/score-presentation";
-import { tierStyle } from "@/lib/tier";
+import { TIER_KEY, tierStyle } from "@/lib/tier";
 import { feedClient } from "@/lib/social-feed/client";
 import type { FeedAuthor, FeedAuthorSummary } from "@/lib/social-feed/contract";
 
@@ -19,6 +19,7 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
   onFollow: (id: string, following: boolean) => void; children: ReactNode;
 }) {
   const t = useTranslations("stream.feed.authorCard");
+  const tTier = useTranslations("tiers");
   const [summary, setSummary] = useState<FeedAuthorSummary | null>(null);
   const [failed, setFailed] = useState(false);
   const loading = useRef(false);
@@ -39,8 +40,11 @@ export function FeedAuthorHoverCard({ author, following, pending, onFollow, chil
         <Link href={`/u/${author.github_login}`} prefetch={false} aria-label={author.name}>
           <FeedAvatar key={author.avatar_url} name={author.name} src={author.avatar_url} score={score} size="sm" />
         </Link>
-        {score != null && tier ? <strong aria-label={`${t("score")} ${score.toFixed(1)}`} className={`text-2xl font-bold tabular-nums ${tierStyle(tier).text}`}>{score.toFixed(1)}</strong> : null}
-        <Button className="ms-auto" variant="outline" size="sm" disabled={pending} onClick={() => onFollow(author.id, !following)}>{t(following ? "followingAction" : "follow")}</Button>
+        {score != null && tier ? <div className={`flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 ${tierStyle(tier).text}`}>
+          <strong aria-label={`${t("score")} ${score.toFixed(1)}`} className="text-2xl font-bold tabular-nums">{score.toFixed(1)}</strong>
+          <span className="text-xs font-semibold">{tTier(`${TIER_KEY[tier]}.name`)}</span>
+        </div> : null}
+        <Button className="ms-auto shrink-0" variant="outline" size="sm" disabled={pending} onClick={() => onFollow(author.id, !following)}>{t(following ? "followingAction" : "follow")}</Button>
       </div>
       <Link href={`/u/${author.github_login}`} prefetch={false} className="mt-3 block truncate font-semibold hover:underline">{author.name}</Link>
       <p className="truncate text-sm text-muted-foreground">@{author.github_login}</p>

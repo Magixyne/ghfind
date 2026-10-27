@@ -14,5 +14,5 @@ const [t, messages, feed] = await Promise.all([
 Astro.response.headers.set("Cache-Control", "no-store");
 ---
 <Base locale={locale} path="/feed" title={t("metaTitle")} description={t("metaDescription")} robots="noindex, follow">
-  <StreamIsland client:load {...feed} intl={{ locale, pathname: "/feed", search: Astro.url.search, messages: pickMessages(messages, ["stream", "loginDialog"]) }} />
+  <StreamIsland client:load {...feed} intl={{ locale, pathname: "/feed", search: Astro.url.search, messages: pickMessages(messages, ["stream", "loginDialog", "tiers"]) }} />
 </Base>
