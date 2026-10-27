@@ -62,6 +62,13 @@ describe("v18 contribution recognition", () => {
     );
   });
 
+  it("treats JSON null ownership as unknown, matching Go nil and Python None", () => {
+    const missing = { ...own, merged_pr_count: 10, issues_created: 0, own_pr_community: 1, external_merged_pr_count: undefined };
+    const jsonNull = { ...missing, external_merged_pr_count: null } as unknown as RawMetrics;
+    expect(lowPrestigeBulkContributionCap(jsonNull)).toBe(lowPrestigeBulkContributionCap(missing));
+    expect(score(jsonNull)).toEqual(score(missing));
+  });
+
   it("is continuous across old volume/prestige boundaries", () => {
     for (const n of [40, 80, 120, 200]) {
       const a = lowPrestigeBulkContributionCap({ ...own, external_merged_pr_count: undefined, merged_pr_count: n - 1e-5 });

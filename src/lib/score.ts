@@ -157,7 +157,7 @@ const OWN_PR_COMMUNITY_BONUS = 6;
  * `external_merged_pr_count` keep the v10 single-pool score (credit 0).
  */
 export function ownPrCommunityCredit(m: RawMetrics): number {
-  if (m.external_merged_pr_count === undefined) return 0;
+  if (m.external_merged_pr_count == null) return 0;
   const community = Math.max(0, Math.min(m.own_pr_community ?? 0, 1));
   if (community === 0) return 0;
   const external = Math.max(0, Math.min(m.external_merged_pr_count, m.merged_pr_count));
@@ -189,7 +189,7 @@ export function lowPrestigeBulkContributionCap(m: RawMetrics): number | undefine
   const coreProtection = smooth(((m.core_impact_pr_count ?? 0) - 40) / 60);
   const prestigeCap = 20 + 3*smooth((prestige-.3)/.5) + 4*strongPrestige + 2.5*coreProtection*(1-strongPrestige);
   const cap = 27 - (27 - prestigeCap) * volume;
-  if (m.external_merged_pr_count === undefined) return cap;
+  if (m.external_merged_pr_count == null) return cap;
   const external = Math.max(0, Math.min(m.external_merged_pr_count, m.merged_pr_count));
   const own = Math.max(0, m.merged_pr_count - external);
   const community = Math.max(0, Math.min(m.own_pr_community ?? 0, 1));

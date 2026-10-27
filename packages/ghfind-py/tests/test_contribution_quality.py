@@ -23,6 +23,7 @@ def test_stars_cannot_bypass_and_unknown_is_not_zero():
         assert score(dict(base, max_stars=stars))["sub_scores"]["contribution_quality"] == 20
     unknown = dict(base)
     unknown.pop("external_merged_pr_count")
+    assert low_prestige_bulk_contribution_cap(dict(base, external_merged_pr_count=None)) == low_prestige_bulk_contribution_cap(unknown)
     assert low_prestige_bulk_contribution_cap(unknown) == pytest.approx(21.944)
     for n in [0, 1, 22, 10000]:
         assert score(dict(base, self_closed_external_pr_count=n, self_closed_own_repo_pr_count=n)) == score(base)

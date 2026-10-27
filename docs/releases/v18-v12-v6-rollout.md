@@ -99,3 +99,9 @@ TS、Go、Python 共读 contribution-quality-fixtures.json，锁定子分、总�
 | fixture-account-038（impact-regression-fixtures.json） | 27 → 26.8 | 95.5 → 95.3 |
 
 旧 v16 内容校准的 ±1.5 守卫保留：从当前总分剔除此次贡献维的独立变化后验证；新增 calibration_contribution_quality 保存原参考贡献值。完整当前总分仍由精确 golden 锁定，没有放宽容差。
+
+### 缺测序列化边界
+
+新增回归先复现了 TS 将 JSON `external_merged_pr_count: null` 当成已测 0
+的问题；cap 和自有 PR 社区信用同时把 null/undefined 视为未测，统一 Go nil / Python None
+的行为。没有改动采集或缓存，原有非空数字结果不变。
