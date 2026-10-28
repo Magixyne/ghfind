@@ -36,13 +36,9 @@ type scanPartPayload struct {
 	// them when this part failed.
 	Organizations []string `json:"organizations,omitempty"`
 
-	// Incremental marks a delta that assemble merges into the stored source
-	// page. A full reconcile leaves it false and replaces that page.
+	// Incremental marks a repo delta that assemble merges into the stored
+	// inventory page. A full reconcile leaves it false and replaces that page.
 	Incremental bool `json:"incremental,omitempty"`
-	// EndCursor is the GraphQL page token observed when the newest timestamp
-	// on this pull was a stable boundary. It is stored with the cursor, not
-	// in the public snapshot.
-	EndCursor string `json:"end_cursor,omitempty"`
 }
 
 // CollectScanPart runs one named slice. Search parts are the caller's

@@ -95,11 +95,8 @@ func (w *ScanWorker) incrementalSince(ctx context.Context, username string) map[
 		now = collector.clock().UTC()
 	}
 	plans := planScanCursors(book, now)
-	for source, plan := range plans {
-		if plan.Full || plan.Since == "" {
-			continue
-		}
-		out[source] = plan.Since
+	if plan, ok := plans[scanCursorRepos]; ok && !plan.Full && plan.Since != "" {
+		out[scanCursorRepos] = plan.Since
 	}
 	return out
 }
@@ -287,14 +284,10 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 	}
 	payloads := parent.Payloads
 	incrementalParts := map[string]bool{}
-	endCursors := map[string]string{}
 	if w.config.ScanIncrementalEnabled {
 		for part, payload := range parent.Payloads {
 			if payload.Incremental && !payload.Failed {
 				incrementalParts[part] = true
-			}
-			if payload.EndCursor != "" {
-				endCursors[part] = payload.EndCursor
 			}
 		}
 		if merged, err := w.mergeIncrementalPayloads(ctx, parent); err == nil {
@@ -306,22 +299,40 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 		return workerRetry, err.Error()
 	}
 	scan.SourceStatus = mergedSourceStatus(scan, sources)
+	w.pendingCursors = nil
 	if w.config.ScanIncrementalEnabled {
-		w.storeIncrementalCursors(ctx, parent.Username, payloads, incrementalParts, endCursors)
+		w.pendingCursors = w.stageIncrementalCursors(ctx, parent.Username, payloads, incrementalParts)
 	}
 	if !parent.Full && quickCoverageExceeded(scan) {
-		// The delta itself left quick coverage. #582 owns the deepen step:
-		// drop the incremental merge and let the existing fullscan path run
-		// in process so the published row matches a full collect.
+		// The delta left quick coverage. Discard this run's incremental
+		// cursor and let #582 deepen. Only the captured inventory page is
+		// a truthful watermark; PR nodes are not rewritten from the delta.
+		w.pendingCursors = nil
 		if fullCollector, ok := w.collector.(interface {
 			CollectFull(context.Context, string) (ScanResult, error)
 		}); ok {
-			fullScan, fullErr := fullCollector.CollectFull(ctx, parent.Username)
+			var captured []githubRepo
+			var forkCount float64
+			fullScan, fullErr := fullCollector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), parent.Username)
 			if fullErr != nil {
 				return workerRetry, fullErr.Error()
 			}
 			scan = fullScan
 			scan.SourceStatus = nil
+			if store, ok := w.results.(ScanCursorStore); ok {
+				book, loadErr := store.LoadScanCursors(ctx, parent.Username)
+				if loadErr == nil {
+					now := time.Now().UTC()
+					if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
+						now = collector.clock().UTC()
+					}
+					repoPlan := scanCursorPlan{Source: scanCursorRepos, Full: true}
+					w.pendingCursors = &pendingScanCursors{
+						book: book, plans: map[string]scanCursorPlan{scanCursorRepos: repoPlan},
+						repos: captured, forkCount: forkCount, now: now,
+					}
+				}
+			}
 		}
 	}
 	return w.persistFinishedScan(ctx, job.asScanJob(), scan)
@@ -370,17 +381,18 @@ func (w *ScanWorker) mergeIncrementalPayloads(ctx context.Context, parent scanPa
 	return merged, nil
 }
 
-// storeIncrementalCursors writes the merged source pages after a successful
-// assemble. Failures are ignored by the caller: the public scan row is
-// already the source of truth, and the next scan reconciles a missing cursor.
-func (w *ScanWorker) storeIncrementalCursors(ctx context.Context, username string, payloads map[string]scanPartPayload, incrementalParts map[string]bool, endCursors map[string]string) {
+// stageIncrementalCursors builds the cursor book for a finished assemble.
+// It does not write. persistFinishedScan writes it after the public scan
+// row commits. PR sources are included only when that part read its full
+// window; an incremental repo delta does not mark them full.
+func (w *ScanWorker) stageIncrementalCursors(ctx context.Context, username string, payloads map[string]scanPartPayload, incrementalParts map[string]bool) *pendingScanCursors {
 	store, ok := w.results.(ScanCursorStore)
 	if !ok {
-		return
+		return nil
 	}
 	book, err := store.LoadScanCursors(ctx, username)
 	if err != nil {
-		return
+		return nil
 	}
 	book.Username = username
 	now := time.Now().UTC()
@@ -391,7 +403,11 @@ func (w *ScanWorker) storeIncrementalCursors(ctx context.Context, username strin
 	baseline := scanSnapshotBaseline{}
 	for part, payload := range payloads {
 		switch part {
-		case scanPartRepos, scanPartExternal, scanPartMerged:
+		case scanPartRepos:
+		case scanPartExternal, scanPartMerged:
+			if incrementalParts[part] {
+				continue
+			}
 		default:
 			continue
 		}
@@ -402,10 +418,9 @@ func (w *ScanWorker) storeIncrementalCursors(ctx context.Context, username strin
 		baseline, _ = applyIncrementalPayload(baseline, payload, true)
 	}
 	if len(plans) == 0 {
-		return
+		return nil
 	}
-	book = advanceCursorBook(book, plans, baseline, endCursors, now)
-	_ = store.SaveScanCursors(ctx, book)
+	return &pendingScanCursors{book: book, plans: plans, baseline: baseline, useBaseline: true, now: now}
 }
 
 func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan ScanResult) (workerDisposition, string) {
@@ -416,8 +431,12 @@ func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan 
 		return workerDead, err.Error()
 	}
 	if err != nil {
+		w.pendingCursors = nil
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, err.Error()
+	}
+	if err := w.commitPendingCursors(ctx); err != nil {
+		w.log.Warn("save scan cursors", "job_id", job.ID, "error", err)
 	}
 	if w.scanCache != nil {
 		if err := w.scanCache.SetCachedScan(ctx, scan.Metrics.Username, scan); err != nil {

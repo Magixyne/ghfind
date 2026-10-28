@@ -47,8 +47,10 @@ type ScanPartJob struct {
 	RequestedAt int64  `json:"requested_at"`
 	Full        bool   `json:"full"`
 	Lane        int    `json:"lane"`
-	// Since is the source watermark when this part is an incremental delta.
-	// Empty means the part pulls the same window the in-process collector uses.
+	// Since is the repo pushedAt watermark when this part is an incremental
+	// inventory delta. Empty means the part pulls its existing window.
+	// Merged and external PR parts ignore it: those connections are ordered
+	// by created time, not mergedAt.
 	Since string `json:"since,omitempty"`
 }
 

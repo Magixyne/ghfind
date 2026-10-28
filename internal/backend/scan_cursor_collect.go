@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -60,34 +61,34 @@ func baselineFromBook(book scanCursorBook) scanSnapshotBaseline {
 
 // advanceCursorBook records the merged page for the sources this scan
 // touched. A full plan resets that source's incremental streak.
-func advanceCursorBook(book scanCursorBook, plans map[string]scanCursorPlan, baseline scanSnapshotBaseline, endCursors map[string]string, now time.Time) scanCursorBook {
+func advanceCursorBook(book scanCursorBook, plans map[string]scanCursorPlan, baseline scanSnapshotBaseline, now time.Time) scanCursorBook {
 	if book.Sources == nil {
 		book.Sources = map[string]scanCursorWatermark{}
 	}
 	for source, plan := range plans {
+		if !knownScanCursorSource(source) {
+			continue
+		}
 		var items []scanCursorItem
 		switch source {
 		case scanCursorRepos:
 			items = reposToCursorItems(baseline.Repos)
-		case scanCursorExternal:
-			items = nodesToCursorItems(baseline.External)
-		case scanCursorMerged:
-			items = nodesToCursorItems(baseline.Merged)
-		default:
-			continue
+		case scanCursorExternal, scanCursorMerged:
+			// These connections are ordered by created time. A watermark is
+			// recorded only from a full read of that window.
+			if !plan.Full {
+				continue
+			}
+			if source == scanCursorExternal {
+				items = nodesToCursorItems(baseline.External)
+			} else {
+				items = nodesToCursorItems(baseline.Merged)
+			}
 		}
 		if len(items) == 0 {
-			// No page was observed. Leave the previous watermark in place so
-			// a later scan does not treat "now" as the last-seen pushedAt.
 			continue
 		}
-		endCursor := ""
-		stable := false
-		if endCursors != nil {
-			endCursor = endCursors[source]
-			stable = endCursor != ""
-		}
-		book.Sources[source] = cursorWatermarkFromItems(source, items, endCursor, stable, plan.Prev, plan.Full, now)
+		book.Sources[source] = cursorWatermarkFromItems(source, items, plan.Prev, plan.Full, now)
 	}
 	return book
 }
@@ -118,25 +119,10 @@ func (c *GitHubCollector) collectCursorPart(ctx context.Context, username, part 
 		payload.Repos = repos
 		payload.ForkCount = forks
 		payload.ReposIncomplete = incomplete
-	case scanPartExternal:
-		external, err := c.github.fetchExternalMergedPRsSince(ctx, login, externalMergedPRCap, plan.Since)
-		if err != nil {
-			return payload, true, err
-		}
-		if external == nil {
-			payload.ExternalMissing = true
-			break
-		}
-		payload.External = external
-	case scanPartMerged:
-		nodes, err := c.github.fetchMergedPRNodesSince(ctx, login, mergedPRWindow, plan.Since)
-		if err != nil {
-			return payload, true, err
-		}
-		payload.WindowNodes = nodes
-		if overview.MergedPRCount > float64(mergedPRWindow) {
-			payload.MergedIncomplete = true
-		}
+	case scanPartExternal, scanPartMerged:
+		// Created-time order cannot resume on mergedAt. Read the window.
+		collected, err := c.CollectScanPart(ctx, username, part, full, seed, overview)
+		return collected, false, err
 	default:
 		collected, err := c.CollectScanPart(ctx, username, part, full, seed, overview)
 		return collected, false, err
@@ -172,6 +158,7 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 	if err != nil {
 		return ScanResult{}, err
 	}
+	book.Username = strings.ToLower(job.Username)
 	plans := planScanCursors(book, now)
 	anyIncremental := false
 	for _, plan := range plans {
@@ -188,7 +175,7 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 			return ScanResult{}, err
 		}
 		if !quickCoverageExceeded(scan) {
-			w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, forkCount, now)
+			w.pendingCursors = &pendingScanCursors{book: book, plans: plans, repos: captured, forkCount: forkCount, now: now}
 		}
 		return scan, nil
 	}
@@ -221,52 +208,65 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 	scan.SourceStatus = mergedSourceStatus(scan, sources)
 	if quickCoverageExceeded(scan) {
 		// Delta left the quick window. #582 deepens with a full collect.
+		// This run's incremental pages are discarded. Only the full inventory
+		// page is a truthful cursor; PR sources are not marked full here
+		// because CollectFull does not return their nodes to this worker.
 		var captured []githubRepo
 		var forkCount float64
 		fullScan, fullErr := collector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 		if fullErr != nil {
 			return ScanResult{}, fullErr
 		}
-		reconcile := map[string]scanCursorPlan{}
-		for source, plan := range plans {
-			plan.Full = true
-			plan.Since = ""
-			reconcile[source] = plan
-		}
-		fullBaseline := baseline
-		fullBaseline.Repos = append([]githubRepo(nil), captured...)
-		fullBaseline.ForkCount = forkCount
-		book = advanceCursorBook(book, reconcile, fullBaseline, nil, now)
-		if mark, ok := book.Sources[scanCursorRepos]; ok {
-			mark.ForkCount = forkCount
-			book.Sources[scanCursorRepos] = mark
-		}
-		book.Username = job.Username
-		if saveErr := store.SaveScanCursors(ctx, book); saveErr != nil {
-			return ScanResult{}, saveErr
+		repoPlan := plans[scanCursorRepos]
+		repoPlan.Source = scanCursorRepos
+		repoPlan.Full = true
+		repoPlan.Since = ""
+		w.pendingCursors = &pendingScanCursors{
+			book: book, plans: map[string]scanCursorPlan{scanCursorRepos: repoPlan},
+			repos: captured, forkCount: forkCount, now: now,
 		}
 		return fullScan, nil
 	}
-	book = advanceCursorBook(book, plans, baseline, nil, now)
-	book.Username = job.Username
-	if err := store.SaveScanCursors(ctx, book); err != nil {
-		return ScanResult{}, err
-	}
+	w.pendingCursors = &pendingScanCursors{book: book, plans: plans, baseline: baseline, now: now, useBaseline: true}
 	return scan, nil
 }
 
-// rememberInProcessCursors stores the source pages from a reconcile that
-// went through Collect. Only the resumable inventory and PR windows are
-// kept; commits and workflows stay on their existing full pull.
-func (w *ScanWorker) rememberInProcessCursors(ctx context.Context, store ScanCursorStore, username string, book scanCursorBook, plans map[string]scanCursorPlan, repos []githubRepo, forkCount float64, now time.Time) {
-	// Inventory is the page Collect just walked. PR windows stay on the full
-	// window until a part scan stores their nodes.
-	baseline := scanSnapshotBaseline{Repos: append([]githubRepo(nil), repos...), ForkCount: forkCount}
-	book = advanceCursorBook(book, plans, baseline, nil, now)
-	if mark, ok := book.Sources[scanCursorRepos]; ok {
-		mark.ForkCount = forkCount
+// pendingScanCursors is the cursor book for the scan that just finished.
+// It is written only after PersistCollectedScan succeeds.
+type pendingScanCursors struct {
+	book        scanCursorBook
+	plans       map[string]scanCursorPlan
+	repos       []githubRepo
+	forkCount   float64
+	baseline    scanSnapshotBaseline
+	useBaseline bool
+	now         time.Time
+}
+
+// commitPendingCursors writes the staged book. The caller runs it only
+// after PersistCollectedScan succeeds.
+func (w *ScanWorker) commitPendingCursors(ctx context.Context) error {
+	pending := w.pendingCursors
+	w.pendingCursors = nil
+	if pending == nil || !w.config.ScanIncrementalEnabled {
+		return nil
+	}
+	store, ok := w.results.(ScanCursorStore)
+	if !ok {
+		return nil
+	}
+	book := pending.book
+	baseline := pending.baseline
+	if !pending.useBaseline {
+		baseline = scanSnapshotBaseline{Repos: append([]githubRepo(nil), pending.repos...), ForkCount: pending.forkCount}
+	}
+	book = advanceCursorBook(book, pending.plans, baseline, pending.now)
+	if mark, ok := book.Sources[scanCursorRepos]; ok && !pending.useBaseline {
+		mark.ForkCount = pending.forkCount
 		book.Sources[scanCursorRepos] = mark
 	}
-	book.Username = username
-	_ = store.SaveScanCursors(ctx, book)
+	if strings.TrimSpace(book.Username) == "" {
+		return nil
+	}
+	return store.SaveScanCursors(ctx, book)
 }

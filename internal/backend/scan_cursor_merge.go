@@ -9,11 +9,9 @@ import (
 // was a reconciliation, so the stored baseline is replaced. Otherwise the
 // items are a delta that must be merged into the previous snapshot.
 type scanCursorAdvance struct {
-	Source       string
-	Full         bool
-	Items        []scanCursorItem
-	EndCursor    string
-	CursorStable bool
+	Source string
+	Full   bool
+	Items  []scanCursorItem
 	// Dropped lists keys that a reconciliation proved are gone. Incremental
 	// pulls leave this empty: deletes, renames, and force-push drift wait
 	// for the next full reconcile.
@@ -98,10 +96,10 @@ func cursorItemAfter(a, b scanCursorItem) bool {
 }
 
 // cursorWatermarkFromItems records the newest timestamp in the merged page.
-// The end cursor is kept only when the caller observed a stable page
-// boundary. An incremental advance keeps the previous reconcile time so
-// the age threshold stays anchored to the last full read.
-func cursorWatermarkFromItems(source string, items []scanCursorItem, endCursor string, stable bool, prev scanCursorWatermark, reconciled bool, now time.Time) scanCursorWatermark {
+// Resume is that timestamp, not a GraphQL cursor. An incremental advance
+// keeps the previous reconcile time so the age threshold stays anchored
+// to the last full read.
+func cursorWatermarkFromItems(source string, items []scanCursorItem, prev scanCursorWatermark, reconciled bool, now time.Time) scanCursorWatermark {
 	mark := scanCursorWatermark{
 		Source:     source,
 		Collection: goCanonicalCollectionVersion,
@@ -127,10 +125,6 @@ func cursorWatermarkFromItems(source string, items []scanCursorItem, endCursor s
 		}
 	}
 	mark.Watermark = newest
-	if stable && endCursor != "" {
-		mark.EndCursor = endCursor
-		mark.CursorStable = true
-	}
 	switch source {
 	case scanCursorRepos:
 		mark.Repos = reposFromCursorItems(items)

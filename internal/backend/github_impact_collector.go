@@ -344,12 +344,13 @@ func (c *GitHubClient) fetchMergedPRNodes(ctx context.Context, username string, 
 	return c.fetchMergedPRNodesSince(ctx, username, maxPRs, "")
 }
 
-// fetchMergedPRNodesSince stops once mergedAt is no longer strictly after
-// since. An empty since is the existing window. The caller merges the delta.
+// fetchMergedPRNodesSince reads the existing merged window. since is ignored:
+// this connection is ordered by CREATED_AT, while the watermark is mergedAt.
+// Stopping early would miss a PR created before the watermark and merged after it.
 func (c *GitHubClient) fetchMergedPRNodesSince(ctx context.Context, username string, maxPRs int, since string) ([]mergedPRNode, error) {
+	_ = since
 	nodes := []mergedPRNode{}
 	var after *string
-	incremental := strings.TrimSpace(since) != ""
 	for len(nodes) < maxPRs {
 		count := maxPRs - len(nodes)
 		if count > 100 {
@@ -378,21 +379,7 @@ func (c *GitHubClient) fetchMergedPRNodesSince(ctx context.Context, username str
 			return nil, fmt.Errorf("GitHub merged PR data: %w", ErrGitHubUnavailable)
 		}
 		page := result.User.PullRequests
-		if incremental {
-			stopped := false
-			for _, node := range page.Nodes {
-				if node.MergedAt == nil || !cursorAfterWatermark(*node.MergedAt, since) {
-					stopped = true
-					continue
-				}
-				nodes = append(nodes, node)
-			}
-			if stopped || page.PageInfo == nil || !page.PageInfo.HasNextPage {
-				break
-			}
-		} else {
-			nodes = append(nodes, page.Nodes...)
-		}
+		nodes = append(nodes, page.Nodes...)
 		if page.PageInfo == nil {
 			return nil, ErrGitHubUnavailable
 		}
@@ -423,14 +410,14 @@ func (c *GitHubClient) fetchExternalMergedPRs(ctx context.Context, username stri
 	return c.fetchExternalMergedPRsSince(ctx, username, maxPRs, "")
 }
 
-// fetchExternalMergedPRsSince keeps search nodes whose mergedAt is strictly
-// after since. An empty since is the existing cap. Search still pages from
-// the start because its cursor is not a stable resume token across edits.
+// fetchExternalMergedPRsSince reads the existing search window. since is
+// ignored: search is ordered by created time, not mergedAt, and still pages
+// from the start. Stopping on mergedAt would miss a late merge of an older PR.
 func (c *GitHubClient) fetchExternalMergedPRsSince(ctx context.Context, username string, maxPRs int, since string) (*externalMergedPRs, error) {
+	_ = since
 	search := "is:pr is:merged is:public author:" + username + " -user:" + username + " sort:created-desc"
 	result := &externalMergedPRs{Nodes: []mergedPRNode{}}
 	var after *string
-	incremental := strings.TrimSpace(since) != ""
 	for len(result.Nodes) < maxPRs {
 		count := maxPRs - len(result.Nodes)
 		if count > 100 {
@@ -461,20 +448,15 @@ func (c *GitHubClient) fetchExternalMergedPRsSince(ctx context.Context, username
 		}
 		result.Total = page.Search.IssueCount
 		kept := 0
-		stopped := false
 		for _, node := range page.Search.Nodes {
 			if node.Repository == nil {
-				continue
-			}
-			if incremental && (node.MergedAt == nil || !cursorAfterWatermark(*node.MergedAt, since)) {
-				stopped = true
 				continue
 			}
 			result.Nodes = append(result.Nodes, node)
 			kept++
 		}
 		info := page.Search.PageInfo
-		if stopped || info == nil || !info.HasNextPage || info.EndCursor == nil || *info.EndCursor == "" || kept == 0 {
+		if info == nil || !info.HasNextPage || info.EndCursor == nil || *info.EndCursor == "" || kept == 0 {
 			break
 		}
 		after = info.EndCursor

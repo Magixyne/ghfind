@@ -21,16 +21,16 @@ const (
 	scanCursorSchemaVersion = 1
 )
 
-// scanCursorWatermark is the newest stable timestamp plus the GraphQL
-// endCursor observed while that timestamp was still the page boundary.
-// Incremental pulls ask only for items strictly after Watermark. EndCursor
-// is recorded when the page that established the watermark was stable
-// (no later item shared the same timestamp).
+// scanCursorWatermark is the newest pushedAt or mergedAt on one source.
+// Resume does not use GraphQL endCursor. Repo pages are ordered by
+// PUSHED_AT, so a later scan stops once pushedAt is older than Watermark.
+// Items that share Watermark's timestamp are kept and deduped by stable id,
+// because a page can stop in the middle of one second. Merged and external
+// PR connections are ordered by created time, not mergedAt, so those
+// sources are not resumed; each scan reads their existing window.
 type scanCursorWatermark struct {
 	Source          string `json:"source"`
 	Watermark       string `json:"watermark,omitempty"`
-	EndCursor       string `json:"end_cursor,omitempty"`
-	CursorStable    bool   `json:"cursor_stable"`
 	Collection      string `json:"collection"`
 	IncrementalRuns int    `json:"incremental_runs"`
 	ReconciledAt    string `json:"reconciled_at,omitempty"`
@@ -61,7 +61,12 @@ func (w scanCursorWatermark) valid() bool {
 // unreadable book means the next scan is a full reconciliation.
 type scanCursorBook struct {
 	Username string                         `json:"username"`
+	Schema   int                            `json:"schema"`
 	Sources  map[string]scanCursorWatermark `json:"sources"`
+	// Revision is the row updated_at observed by the last load. Save
+	// writes only when the row still has this value. It is not part of
+	// the stored JSON.
+	Revision int64 `json:"-"`
 }
 
 func (b scanCursorBook) source(name string) (scanCursorWatermark, bool) {
@@ -125,7 +130,7 @@ func decideScanReconcile(mark scanCursorWatermark, now time.Time) scanReconcileR
 		return scanReconcileVersion
 	}
 	if !mark.valid() {
-		if strings.TrimSpace(mark.Watermark) != "" || strings.TrimSpace(mark.EndCursor) != "" {
+		if strings.TrimSpace(mark.Watermark) != "" {
 			return scanReconcileCorrupt
 		}
 		return scanReconcileMissing
@@ -144,8 +149,7 @@ func decideScanReconcile(mark scanCursorWatermark, now time.Time) scanReconcileR
 }
 
 // cursorAfterWatermark reports whether itemTime is strictly newer than the
-// stored watermark. A missing watermark never matches, so the caller falls
-// back to the full page.
+// stored watermark. A missing watermark never matches.
 func cursorAfterWatermark(itemTime, watermark string) bool {
 	item, itemOK := parseTimestamp(&itemTime)
 	bound, boundOK := parseTimestamp(&watermark)
@@ -153,6 +157,27 @@ func cursorAfterWatermark(itemTime, watermark string) bool {
 		return false
 	}
 	return item.After(bound)
+}
+
+// cursorBeforeWatermark reports whether itemTime is strictly older than the
+// stored watermark. Equal timestamps are not before it: a one-second page
+// can contain several ids, and the merge dedupes those ids.
+func cursorBeforeWatermark(itemTime, watermark string) bool {
+	item, itemOK := parseTimestamp(&itemTime)
+	bound, boundOK := parseTimestamp(&watermark)
+	if !itemOK || !boundOK {
+		return true
+	}
+	return item.Before(bound)
+}
+
+func knownScanCursorSource(name string) bool {
+	switch name {
+	case scanCursorRepos, scanCursorExternal, scanCursorMerged:
+		return true
+	default:
+		return false
+	}
 }
 
 func encodeCursorBook(book scanCursorBook) ([]byte, error) {

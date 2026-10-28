@@ -112,7 +112,9 @@ func (c *GitHubClient) ownedOriginalInventorySince(ctx context.Context, login st
 		if incremental {
 			stopped := false
 			for _, repo := range pageRepos {
-				if repo.PushedAt == nil || !cursorAfterWatermark(*repo.PushedAt, since) {
+				// Equal timestamps stay. The merge dedupes by repo id, so a
+				// second item pushed in the same second is not dropped.
+				if repo.PushedAt == nil || cursorBeforeWatermark(*repo.PushedAt, since) {
 					stopped = true
 					continue
 				}

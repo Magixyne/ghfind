@@ -16,21 +16,31 @@ rewrite stored snapshots.
 
 ## When the flag is on
 
-Each user keeps one cursor book with a watermark per source (`repos`,
-`external_prs`, `merged_window`). The watermark is the newest `pushedAt` or
-`mergedAt` on that source. A GraphQL `endCursor` is stored only when that
-page boundary was stable. The next scan pulls items strictly after the
-watermark and merges them into the stored source page by stable key.
+Inventory is the resumable source. Its watermark is the newest `pushedAt`.
+The next scan stops once a page is older than that timestamp. Items that
+share the timestamp are kept and deduped by repository id, so two pushes in
+the same second are not dropped. GraphQL `endCursor` is not a resume token.
 
-A part job on the fan-out path carries the same `since` watermark. Assemble
-merges incremental part payloads before scoring. If the merged quick scan is
-still `partial_public`, the worker runs the existing fullscan deepen.
+Merged and external PR connections are ordered by created time, not
+`mergedAt`. Those sources still read their existing window on every scan.
+Commit years and workflow landings also stay on their existing full pull.
+A fan-out repos part may carry the `pushedAt` watermark. Other parts do not.
+
+Cursors are written only after the public scan row commits. If that write
+fails, the next scan reconciles from the previous cursor. A compare-and-swap
+on the cursor row's `updated_at` rejects a stale writer. A cursor book whose
+schema version is not the current one is treated as missing.
+
+If the merged quick scan is still `partial_public`, the worker discards
+that run's incremental cursor and runs the existing fullscan deepen. The
+cursor then records the full inventory page only. PR watermarks are not
+marked full unless that source's complete window was stored.
 
 ## Reconciliation
 
 The next pull of a source is a full read when any of these hold:
 
-- the cursor is missing or its watermark does not parse
+- the cursor book schema is not the current cursor schema, the cursor is missing, or its watermark does not parse
 - `collection` on the cursor is not the current collection version
 - incremental runs since the last full read reach `StatusTTL / roastFreshness`
   (7 days / 24 hours)

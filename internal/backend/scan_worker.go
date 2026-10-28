@@ -30,10 +30,13 @@ type ScanWorker struct {
 	outcomes   ScanOutcomeStore
 	lookupGate LookupGate
 	flightGate ScanFlightGate
-	revisions  CampaignRevisionWriter
-	publisher  ScanJobPublisher
-	metrics    *BackendMetrics
-	log        *slog.Logger
+	// pendingCursors is filled by an incremental collect and written only
+	// after PersistCollectedScan succeeds. A retry clears it.
+	pendingCursors *pendingScanCursors
+	revisions      CampaignRevisionWriter
+	publisher      ScanJobPublisher
+	metrics        *BackendMetrics
+	log            *slog.Logger
 }
 
 func NewScanWorker(config Config, collector ScanCollector, results ScanResultStore, statuses JobStatusStore, publisher ScanJobPublisher, logger *slog.Logger) *ScanWorker {
@@ -219,6 +222,7 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 	}
 	var scan ScanResult
 	var err error
+	w.pendingCursors = nil
 	if w.config.ScanIncrementalEnabled {
 		scan, err = w.collectIncremental(ctx, job)
 	} else {
@@ -240,6 +244,7 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 			var forkCount float64
 			scan, err = fullCollector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 			if err != nil {
+				w.pendingCursors = nil
 				return workerRetry, err.Error()
 			}
 			if w.config.ScanIncrementalEnabled {
@@ -250,12 +255,16 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 						if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
 							now = collector.clock().UTC()
 						}
-						plans := planScanCursors(book, now)
-						for source, plan := range plans {
-							plan.Full = true
-							plans[source] = plan
+						// Only the inventory page was captured. PR sources stay
+						// on their previous watermarks until a full PR read.
+						repoPlan := planScanCursors(book, now)[scanCursorRepos]
+						repoPlan.Source = scanCursorRepos
+						repoPlan.Full = true
+						repoPlan.Since = ""
+						w.pendingCursors = &pendingScanCursors{
+							book: book, plans: map[string]scanCursorPlan{scanCursorRepos: repoPlan},
+							repos: captured, forkCount: forkCount, now: now,
 						}
-						w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, forkCount, now)
 					}
 				}
 			}
@@ -267,8 +276,12 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 		return workerDead, err.Error()
 	}
 	if err != nil {
+		w.pendingCursors = nil
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, err.Error()
+	}
+	if err := w.commitPendingCursors(ctx); err != nil {
+		w.log.Warn("save scan cursors", "job_id", job.ID, "error", err)
 	}
 	if w.scanCache != nil {
 		// Turso remains the authoritative result. A cache failure must never make

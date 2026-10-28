@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -129,8 +130,8 @@ func TestCursorStoreRoundTripAndLazyTable(t *testing.T) {
 	book := scanCursorBook{Username: "Fiction-Cursor", Sources: map[string]scanCursorWatermark{
 		scanCursorRepos: {
 			Source: scanCursorRepos, Watermark: "2026-08-01T00:00:00Z", Collection: goCanonicalCollectionVersion,
-			EndCursor: "cursor-fiction", CursorStable: true, ReconciledAt: "2026-08-01T00:00:00Z",
-			Repos: []githubRepo{{Name: "fiction-lib", FullName: "fiction-cursor/fiction-lib", PushedAt: stringPointer("2026-08-01T00:00:00Z")}},
+			ReconciledAt: "2026-08-01T00:00:00Z",
+			Repos:        []githubRepo{{Name: "fiction-lib", FullName: "fiction-cursor/fiction-lib", PushedAt: stringPointer("2026-08-01T00:00:00Z")}},
 		},
 	}}
 	if err := store.SaveScanCursors(context.Background(), book); err != nil {
@@ -141,18 +142,192 @@ func TestCursorStoreRoundTripAndLazyTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	mark, ok := loaded.source(scanCursorRepos)
-	if !ok || mark.EndCursor != "cursor-fiction" || len(mark.Repos) != 1 || mark.Repos[0].Name != "fiction-lib" {
+	if !ok || mark.Watermark != "2026-08-01T00:00:00Z" || len(mark.Repos) != 1 || mark.Repos[0].Name != "fiction-lib" {
 		t.Fatalf("loaded=%+v ok=%v", mark, ok)
 	}
-	if _, err := store.db.Exec(`UPDATE scan_source_cursors SET book = ? WHERE username = ?`, `{`, "fiction-cursor"); err != nil {
+	if _, err := store.db.Exec(`UPDATE scan_source_cursors SET book = ?, updated_at = updated_at WHERE username = ?`, `{`, "fiction-cursor"); err != nil {
 		t.Fatal(err)
 	}
 	corrupt, err := store.LoadScanCursors(context.Background(), "fiction-cursor")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decideScanReconcile(corrupt.raw(scanCursorRepos), time.Now().UTC()) != scanReconcileCorrupt {
+	if decideScanReconcile(corrupt.raw(scanCursorRepos), time.Now().UTC()) != scanReconcileMissing {
 		t.Fatalf("corrupt book reason=%s raw=%+v", decideScanReconcile(corrupt.raw(scanCursorRepos), time.Now().UTC()), corrupt.raw(scanCursorRepos))
+	}
+}
+
+func TestCursorSchemaMismatchAndLegacySourceReconcile(t *testing.T) {
+	store := openScanPersistenceStore(t)
+	stale := `{"schema":0,"username":"fiction-schema","sources":{"repos":{"source":"repos","watermark":"2026-08-01T00:00:00Z","collection":"v7"},"retired_source":{"source":"retired_source","watermark":"2026-08-01T00:00:00Z","collection":"v7"}}}`
+	if _, err := store.db.Exec(`INSERT INTO scan_source_cursors (username, book, updated_at) VALUES (?, ?, 1)`, "fiction-schema", stale); err != nil {
+		if err := store.EnsureScanCursorSchema(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.db.Exec(`INSERT INTO scan_source_cursors (username, book, updated_at) VALUES (?, ?, 1)`, "fiction-schema", stale); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, err := store.LoadScanCursors(context.Background(), "fiction-schema")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := loaded.source(scanCursorRepos); ok {
+		t.Fatal("old schema kept a watermark")
+	}
+	if decideScanReconcile(loaded.raw(scanCursorRepos), time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)) != scanReconcileMissing {
+		t.Fatal("schema mismatch did not reconcile")
+	}
+	if loaded.Revision == 0 {
+		t.Fatal("schema mismatch dropped the row revision")
+	}
+}
+
+func TestSameSecondPushedAtIsKeptAndDeduped(t *testing.T) {
+	stamp := "2026-08-01T00:00:01Z"
+	first := githubRepo{Name: "fiction-a", FullName: "fiction-same/fiction-a", StargazersCount: 1, PushedAt: &stamp}
+	second := githubRepo{Name: "fiction-b", FullName: "fiction-same/fiction-b", StargazersCount: 2, PushedAt: &stamp}
+	updated := githubRepo{Name: "fiction-a", FullName: "fiction-same/fiction-a", StargazersCount: 9, PushedAt: &stamp}
+	if cursorBeforeWatermark(stamp, stamp) {
+		t.Fatal("equal timestamp counted as older")
+	}
+	merged := reposFromCursorItems(mergeScanCursorItems(reposToCursorItems([]githubRepo{first}), scanCursorAdvance{
+		Source: scanCursorRepos,
+		Items:  reposToCursorItems([]githubRepo{second, updated}),
+	}))
+	if len(merged) != 2 {
+		t.Fatalf("same-second repos=%d", len(merged))
+	}
+	foundUpdated := false
+	for _, repo := range merged {
+		if repo.Name == "fiction-a" && repo.StargazersCount == 9 {
+			foundUpdated = true
+		}
+	}
+	if !foundUpdated || !containsRepo(merged, "fiction-b") {
+		t.Fatalf("deduped=%+v", merged)
+	}
+}
+
+func TestCreatedOrderDoesNotStopOnMergedAt(t *testing.T) {
+	// Page one is an older merge that was created later. Page two is a PR
+	// created earlier and merged after the watermark. Stopping on mergedAt
+	// would never request page two.
+	var pages int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-RateLimit-Remaining", "4000")
+		var body struct {
+			Variables map[string]any `json:"variables"`
+		}
+		_ = json.NewDecoder(request.Body).Decode(&body)
+		pages++
+		if body.Variables["after"] == nil {
+			fmt.Fprint(w, `{"data":{"user":{"pullRequests":{"nodes":[{"id":"pr-older","mergedAt":"2026-07-01T00:00:00Z","repository":{"nameWithOwner":"fiction-other/old","stargazerCount":1,"isPrivate":false,"isFork":false,"owner":{"login":"fiction-other"}}}],"pageInfo":{"hasNextPage":true,"endCursor":"page-2"}}}}}`)
+			return
+		}
+		fmt.Fprint(w, `{"data":{"user":{"pullRequests":{"nodes":[{"id":"pr-late-merge","mergedAt":"2026-08-09T00:00:00Z","repository":{"nameWithOwner":"fiction-other/late","stargazerCount":1,"isPrivate":false,"isFork":false,"owner":{"login":"fiction-other"}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}`)
+	}))
+	t.Cleanup(server.Close)
+	client := NewGitHubClient("fiction-token").withBaseURL(server.URL).withHTTPClient(server.Client())
+	nodes, err := client.fetchMergedPRNodesSince(context.Background(), "fiction-order", 10, "2026-08-01T00:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pages < 2 {
+		t.Fatalf("stopped after %d page(s)", pages)
+	}
+	found := false
+	for _, node := range nodes {
+		if node.ID != nil && *node.ID == "pr-late-merge" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("late merge missing: %+v", nodes)
+	}
+}
+
+func TestCursorSaveConflictsWhenRevisionIsStale(t *testing.T) {
+	store := openScanPersistenceStore(t)
+	book := scanCursorBook{Username: "fiction-cas", Sources: map[string]scanCursorWatermark{
+		scanCursorRepos: {Source: scanCursorRepos, Watermark: "2026-08-01T00:00:00Z", Collection: goCanonicalCollectionVersion},
+	}}
+	if err := store.SaveScanCursors(context.Background(), book); err != nil {
+		t.Fatal(err)
+	}
+	first, err := store.LoadScanCursors(context.Background(), "fiction-cas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.LoadScanCursors(context.Background(), "fiction-cas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Sources[scanCursorRepos] = scanCursorWatermark{Source: scanCursorRepos, Watermark: "2026-08-02T00:00:00Z", Collection: goCanonicalCollectionVersion, Repos: []githubRepo{{Name: "fiction-winner", FullName: "fiction-cas/fiction-winner", PushedAt: stringPointer("2026-08-02T00:00:00Z")}}}
+	if err := store.SaveScanCursors(context.Background(), first); err != nil {
+		t.Fatal(err)
+	}
+	second.Sources[scanCursorRepos] = scanCursorWatermark{Source: scanCursorRepos, Watermark: "2026-08-03T00:00:00Z", Collection: goCanonicalCollectionVersion}
+	if err := store.SaveScanCursors(context.Background(), second); !errors.Is(err, ErrScanCursorConflict) {
+		t.Fatalf("stale save err=%v", err)
+	}
+	loaded, err := store.LoadScanCursors(context.Background(), "fiction-cas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Sources[scanCursorRepos].Watermark != "2026-08-02T00:00:00Z" || len(loaded.Sources[scanCursorRepos].Repos) != 1 {
+		t.Fatalf("winner lost: %+v", loaded.Sources[scanCursorRepos])
+	}
+}
+
+type failingCursorResultStore struct {
+	*TursoStore
+	failPersist bool
+}
+
+func (s *failingCursorResultStore) PersistCollectedScan(ctx context.Context, job ScanJob, scan ScanResult) (bool, error) {
+	if s.failPersist {
+		return false, errors.New("fiction persist failed")
+	}
+	return s.TursoStore.PersistCollectedScan(ctx, job, scan)
+}
+
+func TestPersistFailureDoesNotAdvanceCursor(t *testing.T) {
+	clock := time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)
+	catalog := fictionCatalog{
+		login:       "fiction-persist",
+		publicRepos: 1,
+		repos:       []fictionRepo{{name: "fiction-lib", pushed: "2026-07-01T00:00:00Z", stars: 8}},
+	}
+	collector, _ := fictionIncrementalGitHub(t, catalog)
+	collector.clock = func() time.Time { return clock }
+	base := openScanPersistenceStore(t)
+	store := &failingCursorResultStore{TursoStore: base, failPersist: true}
+	worker := NewScanWorker(Config{MaxAttempts: 3, ScanIncrementalEnabled: true}, collector, store, &fakeStatusStore{}, &fakeScanPublisher{}, nil)
+	disposition, reason := worker.process(context.Background(), ScanJob{ID: "fiction-persist-1", Username: catalog.login, RequestedAt: 1})
+	if disposition != workerRetry || !strings.Contains(reason, "fiction persist failed") {
+		t.Fatalf("disposition=%v reason=%s", disposition, reason)
+	}
+	loaded, err := base.LoadScanCursors(context.Background(), catalog.login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := loaded.source(scanCursorRepos); ok {
+		t.Fatal("failed persist advanced the cursor")
+	}
+	store.failPersist = false
+	disposition, reason = worker.process(context.Background(), ScanJob{ID: "fiction-persist-1", Username: catalog.login, RequestedAt: 1})
+	if disposition != workerCompleted || reason != "" {
+		t.Fatalf("retry: %v %s", disposition, reason)
+	}
+	loaded, err = base.LoadScanCursors(context.Background(), catalog.login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mark, ok := loaded.source(scanCursorRepos)
+	if !ok || mark.Watermark != "2026-07-01T00:00:00Z" || len(mark.Repos) != 1 {
+		t.Fatalf("cursor after success=%+v ok=%v", mark, ok)
 	}
 }
 
