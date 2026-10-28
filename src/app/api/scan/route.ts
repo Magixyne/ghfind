@@ -1,3 +1,5 @@
+import { scanCoverage } from "@/lib/scan-coverage";
+import { scheduleFullScanIfNeeded } from "@/lib/scan-background-refresh";
 import { NextRequest, NextResponse, after } from "next/server";
 import { notifyCampaignCardGenerated } from "@/lib/campaign-notify";
 import { campaignSlug, type CampaignSlug } from "@/lib/campaigns";
@@ -127,13 +129,14 @@ async function produceFreshScan(username: string): Promise<ScanResult> {
   const scannedAt = Date.now();
   const quickScan = await buildScanResult(username);
   if (!(await persistQuickScan(quickScan, scannedAt))) throw new ScorePersistenceError();
+  scheduleFullScanIfNeeded(quickScan);
   return Object.assign(quickScan, { scanned_at: scannedAt });
 }
 
 async function staleReadResponse(input: {
   scan: ScanResult;
   headers: Record<string, string>;
-  coverage: "quick" | "legacy";
+  coverage: ReturnType<typeof scanCoverage> | "legacy";
   servedScoreVersion: string;
   scannedAt?: number;
   legacy?: boolean;
@@ -235,9 +238,7 @@ function immediateResponse(input: {
     {
       ...input.scan,
       cached: input.cached,
-      // The bounded collector is the product contract. It never waits for a
-      // second full-history pass before scoring or roasting the account.
-      coverage: "quick",
+      coverage: scanCoverage(input.scan),
       ...(scannedAt ? { scanned_at: scannedAt } : {}),
     },
     { headers: input.headers },
@@ -466,7 +467,7 @@ export async function POST(req: NextRequest) {
           await staleReadResponse({
             scan: staleCached,
             headers: fallbackHeaders,
-            coverage: "quick",
+            coverage: scanCoverage(staleCached),
             servedScoreVersion: SCORE_CACHE_VERSION,
           }),
           anonymousSession,
@@ -480,7 +481,7 @@ export async function POST(req: NextRequest) {
           await staleReadResponse({
             scan: verified.scan,
             headers: fallbackHeaders,
-            coverage: "quick",
+            coverage: scanCoverage(verified.scan),
             servedScoreVersion: SCORE_CACHE_VERSION,
             scannedAt: verified.scannedAt,
           }),

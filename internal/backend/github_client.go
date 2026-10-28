@@ -290,7 +290,7 @@ func (c *GitHubClient) GetUser(ctx context.Context, username string) (githubUser
 
 func (c *GitHubClient) ListUserRepos(ctx context.Context, username string, page int) ([]githubRepo, error) {
 	var repos []githubRepo
-	path := "users/" + url.PathEscape(username) + "/repos?per_page=100&sort=pushed&page=" + strconv.Itoa(maxInt(page, 1))
+	path := "users/" + url.PathEscape(username) + "/repos?type=owner&per_page=100&sort=pushed&page=" + strconv.Itoa(maxInt(page, 1))
 	err := c.restGet(ctx, path, &repos)
 	return repos, err
 }

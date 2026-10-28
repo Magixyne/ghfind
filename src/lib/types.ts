@@ -345,6 +345,7 @@ export interface Scoring {
 
 /** Full scan payload — same shape the Python script prints. */
 export interface ScanResult {
+  collection?: import("./scan-coverage").CollectionCoverage;
   metrics: RawMetrics;
   top_repos: TopRepo[];
   recent_prs: RecentPr[];

@@ -374,7 +374,7 @@ return redis.call('GET', KEYS[1])`;
 export async function coalesceScan(
   username: string,
   producer: () => Promise<ScanResult>,
-  options: { force?: boolean; background?: boolean; continueOnDeadline?: boolean } = {},
+  options: { force?: boolean; background?: boolean; continueOnDeadline?: boolean; full?: boolean } = {},
 ): Promise<ScanResult> {
   if (bypassGeneratedCaches() && !isProductionDeployment()) return producer();
   const backgroundWait = options.background ? async () => {} : undefined;
@@ -387,7 +387,7 @@ export async function coalesceScan(
       try { baseline = (await slot.revision()) ?? ""; }
       catch { throw new ScanBusyError(); }
     }
-    const continueOnDeadline = options.continueOnDeadline === true && !options.background;
+    const continueOnDeadline = options.continueOnDeadline === true;
     return protectedScan({
       coordinator: slotCoordinator(slot, SCAN_PRODUCER_CAPACITY_KEY, true),
       key: scanKey(username),
@@ -401,11 +401,13 @@ export async function coalesceScan(
       staleTtl: SCAN_STALE_TTL_SECONDS,
       wait: backgroundWait,
       attempts: backgroundAttempts,
-      leaseMs: continueOnDeadline ? SCAN_BACKGROUND_LEASE_MS : undefined,
-      continueWaitMs: continueOnDeadline ? SCAN_CONTINUE_WAIT_MS : undefined,
+      leaseMs: continueOnDeadline || options.background ? SCAN_BACKGROUND_LEASE_MS : undefined,
+      continueWaitMs: continueOnDeadline ? (options.background ? 0 : SCAN_CONTINUE_WAIT_MS) : undefined,
       continueProduce: continueOnDeadline
         ? async (owner) => {
-            const marked = await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS);
+            const marked = options.full || options.force
+              ? await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS, { full: options.full === true, refresh: options.force === true })
+              : await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS);
             if (marked === 1) return "deferred";
             if (marked === -1) return "inline";
             throw new ScanBusyError();
@@ -426,6 +428,7 @@ export async function coalesceScan(
     catch { throw new ScanBusyError(); }
   }
   return protectedScan({ redis: r, key, revisionKey,
+    leaseMs: options.background ? SCAN_BACKGROUND_LEASE_MS : undefined,
     read: options.force ? async () => {
       try {
         const value = await r.eval(READ_REFRESHED_SCAN, [key, revisionKey], [baseline]) as ScanResult | string | null;

@@ -24,7 +24,7 @@ const (
 	goFourthPublicScoreVersion   = "v14"
 	goRetainedPublicScoreVersion = "v13"
 	goOldestPublicScoreVersion   = "v10"
-	goCanonicalCollectionVersion = "v5"
+	goCanonicalCollectionVersion = "v7"
 	progressMinGapMilliseconds   = int64(time.Hour / time.Millisecond)
 )
 
@@ -132,9 +132,8 @@ func (s *TursoStore) PersistCollectedScan(ctx context.Context, job ScanJob, scan
       (id, username, score_version, collection_version, state, coverage,
        source_status, quick_scan, snapshot, snapshot_hash, started_at,
        completed_at, updated_at)
-      VALUES (?, ?, ?, ?, 'complete_public', 'complete_public', ?, ?, ?, ?, ?, ?, ?)`,
-		job.ID, username, goCanonicalScoreVersion, goCanonicalCollectionVersion,
-		`{"quick":"complete","original_repos":"complete","native_prs":"complete","workflow_landings":"complete","commit_recovery":"complete"}`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		job.ID, username, goCanonicalScoreVersion, goCanonicalCollectionVersion, persistedScanCoverage(scan), persistedScanCoverage(scan), scanSourceStatus(scan),
 		string(snapshot), string(snapshot), snapshotHash, scannedAt, scannedAt, scannedAt); err != nil {
 		return false, fmt.Errorf("insert public scan result: %w", err)
 	}
@@ -222,4 +221,17 @@ func (s *TursoStore) GetCollectedScan(ctx context.Context, jobID string) (*ScanR
 	// raw metrics preserves the published score formula on every read.
 	scan.Scoring = Score(scan.Metrics)
 	return &scan, nil
+}
+
+func persistedScanCoverage(scan ScanResult) string {
+	if scan.Collection != nil {
+		return scan.Collection.Coverage
+	}
+	return "complete_public" // compatibility for pre-v7 internal callers
+}
+func scanSourceStatus(scan ScanResult) string {
+	if persistedScanCoverage(scan) == "partial_public" {
+		return `{"quick":"complete","original_repos":"pending","native_prs":"pending","workflow_landings":"pending","commit_recovery":"pending"}`
+	}
+	return `{"quick":"complete","original_repos":"complete","native_prs":"complete","workflow_landings":"complete","commit_recovery":"complete"}`
 }
