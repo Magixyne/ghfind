@@ -23,6 +23,8 @@ import type { Tier } from "@/lib/types";
 const DIM_SCORE_RE = /^(.+?)\s*[·•|]\s*([\d.]+)\s*\/\s*([\d.]+)\s*$/;
 const DIM_SECTION_RE = /^###\s*(维度评分|Dimensions)\s*$/m;
 const NEXT_H3_RE = /^###\s+/m;
+/** End the dims block before an inline risk line or the next section heading. */
+const DIM_SECTION_END_RE = /^(?:###\s+|\*\*(?:风险标记|Red flags|建议|Next)(?:\*\*)?[：:\s])/m;
 
 type DimCard = { name: string; score: number; max: number; note: string };
 
@@ -60,7 +62,10 @@ function splitDimensionSection(md: string): { before: string; dims: DimCard[]; a
   const sectionStart = sectionMatch.index;
   const bodyStart = sectionStart + sectionMatch[0].length;
   const rest = md.slice(bodyStart);
-  const next = rest.search(NEXT_H3_RE);
+  // Stop at next ### OR an inline **风险标记**/**建议** that render.ts emits
+  // when there is nothing to flag — otherwise those lines stick to the last
+  // dimension note as raw markdown asterisks.
+  const next = rest.search(DIM_SECTION_END_RE);
   const dimBody = (next < 0 ? rest : rest.slice(0, next)).trim();
   const after = next < 0 ? "" : rest.slice(next);
   const before = md.slice(0, sectionStart).trimEnd();
@@ -77,7 +82,10 @@ function splitDimensionSection(md: string): { before: string; dims: DimCard[]; a
       name: m[1].trim(),
       score: Number(m[2]),
       max: Number(m[3]),
-      note: note.replace(/^>\s?/gm, "").trim(),
+      note: note
+        .replace(/^>\s?/gm, "")
+        .replace(/\n\n\*\*(?:风险标记|Red flags)\*\*[：:].*$/s, "")
+        .trim(),
     });
   }
   return { before, dims, after };
@@ -86,6 +94,22 @@ function splitDimensionSection(md: string): { before: string; dims: DimCard[]; a
 /** Collapse "### 风险标记\n\n无。" into a single inline paragraph. */
 function collapseEmptyRisk(md: string): string {
   return md
+    .replace(
+      /^\*\*(风险标记|Red flags)\*\*\s*\n+(?:[-*]\s*)?(无。?|None\.?)\s*$/gim,
+      (_m, label: string, none: string) => {
+        const zh = /风险/.test(label);
+        const bare = none.replace(/[。.]$/, "");
+        return zh ? `**风险标记**：${bare}` : `**Red flags**: ${bare}`;
+      },
+    )
+    .replace(
+      /^\*\*(风险标记|Red flags)\*\*\s*\n+(?:[-*]\s*)?(无。?|None\.?)\s*\n+/gim,
+      (_m, label: string, none: string) => {
+        const zh = /风险/.test(label);
+        const bare = none.replace(/[。.]$/, "");
+        return zh ? `**风险标记**：${bare}\n\n` : `**Red flags**: ${bare}\n\n`;
+      },
+    )
     .replace(
       /^###\s*(风险标记|Red flags)\s*\n+(?:[-*]\s*)?(无。?|None\.?)\s*$/gim,
       (_m, label: string, none: string) => {

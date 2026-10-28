@@ -1482,8 +1482,44 @@ html[data-theme="light"] .login-apple-mark { filter: invert(1); }
 .workspace-content .home-page { padding-inline: clamp(24px, 4vw, 64px); }
 .workspace-content .site-footer { width: 100%; }
 .workspace-mobile-trigger { display: none; }
-.workspace-skip { position: fixed; top: 8px; left: 50%; transform: translateY(-160%); z-index: 100; background: var(--foreground); color: var(--background); padding: 8px 16px; border-radius: 6px; }
-.workspace-skip:focus { transform: translateY(0); }
+/* Skip link: visually hidden until keyboard focus. Avoid transform-only
+ * hiding — fixed+translateY can paint into fullPage/element screenshots and
+ * leave a clipped glyph ("容") over the report. */
+.workspace-skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  /* keep out of any stitched/fullPage paint */
+  left: -10000px;
+  top: 0;
+  z-index: 100;
+  background: var(--foreground);
+  color: var(--background);
+  border-radius: 6px;
+}
+.workspace-skip:focus,
+.workspace-skip:focus-visible {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 8px 16px;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
 .workspace-shell :is(.sidebar-link, .shell-icon, .workspace-brand-link, .workspace-mobile-brand, .sidebar-login, .sidebar-account-user):focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .workspace-shell[data-collapsed="true"] .workspace-sidebar { padding-inline: 12px; }
 .workspace-shell[data-collapsed="true"] .workspace-sidebar .sidebar-label,
