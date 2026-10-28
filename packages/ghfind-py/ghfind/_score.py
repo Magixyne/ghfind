@@ -176,12 +176,21 @@ def low_prestige_bulk_contribution_cap(m: Mapping[str, Any]) -> Optional[float]:
         x = max(0, min(1, value))
         return x*x*(3-2*x)
     volume = smooth((m["merged_pr_count"]-40)/80)
-    protection = smooth((m["max_stars"]-950)/100)
     prestige=impact_prestige_signal(m)
     strong_prestige=smooth((prestige-.65)/.15)
     core_protection=smooth(((m.get("core_impact_pr_count") or 0)-40)/60)
     prestige_cap=20+3*smooth((prestige-.3)/.5)+4*strong_prestige+2.5*core_protection*(1-strong_prestige)
-    return 27-(27-prestige_cap)*volume*(1-protection)
+    cap = 27-(27-prestige_cap)*volume
+    # Own stars cannot bypass outside adoption. Missing counts mean unknown,
+    # so legacy snapshots keep the prestige cap alone.
+    if m.get("external_merged_pr_count") is None:
+        return cap
+    external = max(0, min(m["external_merged_pr_count"], m["merged_pr_count"]))
+    own = max(0, m["merged_pr_count"]-external)
+    community = max(0, min(_nz(m.get("own_pr_community"), 0), 1))
+    # The 80-landing scale matches TypeScript and Go.
+    recognition_cap = 20+7*(1-math.exp(-(external+own*community)/80))
+    return min(cap, recognition_cap)
 
 
 def author_self_closed_external_penalty(m: Mapping[str, Any]) -> float:

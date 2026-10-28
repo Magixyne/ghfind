@@ -39,6 +39,8 @@ type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => Boolean(v) && typeof v === "object" && !Array.isArray(v);
 const arr = (v: unknown): Rec[] => (Array.isArray(v) ? v.filter(isRec) : []);
 const short = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : v ?? null);
+const langNames = (v: unknown): string[] =>
+  arr(v).slice(0, 4).map((l) => l.name).filter((n): n is string => typeof n === "string");
 
 export function buildWriterFactCard(payload: unknown): Rec {
   const p = isRec(payload) ? payload : {};
@@ -57,7 +59,9 @@ export function buildWriterFactCard(payload: unknown): Rec {
       stars: r.stars,
       forks: r.forks,
       language: r.language,
-      description: short(r.description, 100),
+      description: short(r.description, 220),
+      topics: Array.isArray(r.topics) ? r.topics.slice(0, 6) : [],
+      stack: langNames(r.languages),
       pushed: typeof r.pushed_at === "string" ? r.pushed_at.slice(0, 10) : null,
       open_issue_count: r.open_issue_count,
       attributed_original: r.attributed_original,
@@ -74,6 +78,12 @@ export function buildWriterFactCard(payload: unknown): Rec {
       all_time_prs: c.all_time_prs,
       example_titles: Array.isArray(c.examples) ? c.examples.slice(0, 3) : [],
     })),
+    core_work: arr(p.verified_impact_prs).filter((r) => r.trivial !== true).slice(0, 10).map((r) => ({
+      repo: r.repo,
+      repo_stars: r.repo_stars,
+      title: short(r.title, 120),
+      changed_files: r.changed_files,
+    })),
     recent_pr_titles: arr(p.recent_prs).slice(0, 12).map((r) => ({
       repo: r.repo,
       repo_stars: r.repo_stars,
@@ -85,7 +95,7 @@ export function buildWriterFactCard(payload: unknown): Rec {
   return card;
 }
 
-const REPO_DROP = ["readme", "readme_excerpt", "root_paths", "topics", "languages", "content_skill_share", "size"];
+const REPO_DROP = ["readme", "readme_excerpt", "root_paths", "content_skill_share", "size"];
 
 /** v13 payload: the v12 writer payload minus the v12 output contract and the
  * bulky README/file-list evidence the copy never needs verbatim. */
@@ -95,7 +105,9 @@ export function slimV13Payload(payload: unknown): Rec {
   p.top_repos = arr(p.top_repos).map((r) => {
     const out: Rec = { ...r };
     for (const k of REPO_DROP) delete out[k];
-    if (typeof out.description === "string") out.description = out.description.slice(0, 160);
+    if (typeof out.description === "string") out.description = out.description.slice(0, 300);
+    if (Array.isArray(out.topics)) out.topics = out.topics.slice(0, 8);
+    if (Array.isArray(out.languages)) out.languages = langNames(out.languages);
     return out;
   });
   const slimPr = (r: Rec): Rec => {

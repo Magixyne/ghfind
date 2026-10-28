@@ -1,9 +1,16 @@
 # Collection v7: fork filtering and automatic fullscan
 
-Only collection advances (v6 → v7). Score v17, roast v12, and
+Only collection advances (v6 → v7). Score stays at v18 (contrib-quality from
+dev / #581; public reads remain v18→v17→v16→v15→v14→v13→v10). Roast v12 and
 GHFIND_DISCOVER_SCORE_V1 remain unchanged. Go's stale v5 write constant is
 aligned with v7. Prior v6/v5 artifacts retain their original hashes and remain
 readable; none is relabeled complete under v7.
+
+Score formula and goldens are the v18 contract in
+`docs/releases/v18-v12-v6-rollout.md`. This document covers the collection
+contract only. The merged manifest records previousRelease as score v18 /
+collection v6 (dev's target) and targetRelease as score v18 / collection v7,
+so the version gate sees a single collection-component change.
 
 ## Inventory and score neutrality
 

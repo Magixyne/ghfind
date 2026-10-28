@@ -81,7 +81,8 @@ export function renderV13Report(scan: ScanResult, lang: Lang, copy: V13Copy): st
   lines.push(`${zh ? "**一句话结论**" : "**TL;DR**"}: ${cell(copy.verdict)}`);
   lines.push("");
   if (copy.findings.length) {
-    lines.push(zh ? "**扎心三连**" : "**Three things we noticed**");
+    const n = Math.min(copy.findings.length, 3);
+    lines.push(zh ? `**扎心${["一", "两", "三"][n - 1]}连**` : `**${["One thing", "Two things", "Three things"][n - 1]} we noticed**`);
     copy.findings.slice(0, 3).forEach((f, i) => {
       const head = f.headline ? `**${cell(f.headline)}** ` : "";
       lines.push(`${i + 1}. ${head}${cell(f.text)}`);
@@ -104,7 +105,7 @@ export function renderV13Report(scan: ScanResult, lang: Lang, copy: V13Copy): st
   lines.push("");
   if (copy.advice.length) {
     lines.push(zh ? "**建议**" : "**Verdict**");
-    for (const a of copy.advice.slice(0, 2)) lines.push(`- ${cell(a)}`);
+    for (const a of copy.advice.slice(0, 4)) lines.push(`- ${cell(a)}`);
   }
   return lines.join("\n").trim() + "\n";
 }
