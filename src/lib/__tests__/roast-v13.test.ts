@@ -490,7 +490,7 @@ describe("roast v13 salience, quotes and repetition", () => {
       ).some((i) => i.kind === "trivia" && /credited|折算/.test(i.detail)),
     ).toBe(false);
 
-    // Closed-PR counts only — no invented close reasons.
+    // Closed-PR counts banned entirely (and invented close reasons still banned).
     expect(
       validateCopy(
         index,
@@ -499,15 +499,15 @@ describe("roast v13 salience, quotes and repetition", () => {
           risk: "有 79 个 PR 被维护者关闭且未合并,说明文档型改动会被门槛直接弹回。",
         } as V13Copy,
         "zh",
-      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
+      ).some((i) => i.kind === "trivia" && /closed|关闭|invent|close reason/i.test(i.detail)),
     ).toBe(true);
     expect(
       validateCopy(
         index,
         { ...goodCopy, risk: "有 79 个 PR 被维护者关闭且未合并。" } as V13Copy,
         "zh",
-      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
-    ).toBe(false);
+      ).some((i) => i.kind === "trivia" && /maintainer-closed|关闭|self-closed/i.test(i.detail)),
+    ).toBe(true);
 
     const { copy } = dropUnverifiedSentences(index, {
       ...goodCopy,
@@ -685,7 +685,30 @@ describe("roast v13 commit-contrast and metaphor bans", () => {
     const a = checkTrivia(index, "findings[1].text", "隔壁讲原理课,你是协作者,合进去的已合并 PR 就 1 个。作业交了一份。");
     expect(a.some((i) => /low merged-PR|合入数量|only one/i.test(i.detail))).toBe(true);
     const b = checkTrivia(index, "findings[2].text", "另有 8 个 PR 被维护者关闭且未合并,扫描没有关闭原因。");
-    expect(b.some((i) => /scan-meta|扫描没有/i.test(i.detail))).toBe(true);
+    expect(b.some((i) => /scan-meta|扫描没有|maintainer-closed|关闭/i.test(i.detail))).toBe(true);
+  });
+
+  it("bans diminishing contrast, closed-PR counts, and credit-belittling", () => {
+    const dim = checkTrivia(
+      index,
+      "roast_line.zh",
+      "在能连着研究几小时的 bytedance/deer-flow 上做协作者,合进去的那一笔却是新对话导航的过期状态。",
+    );
+    expect(dim.some((i) => /diminishing contrast|却\/那一笔/i.test(i.detail))).toBe(true);
+    const closed = checkTrivia(
+      index,
+      "findings[0].text",
+      "你自己关闭的外部 PR 有 22 个,路径比较散。",
+    );
+    expect(closed.some((i) => /self-closed|关闭/i.test(i.detail))).toBe(true);
+    const credit = checkTrivia(
+      index,
+      "findings[2].text",
+      "序列化运行时仍是别人的,你的署名留在门厅布局上。",
+    );
+    expect(credit.some((i) => /credit-belittling|抢功|份额/i.test(i.detail))).toBe(true);
+    const share = checkTrivia(index, "dimensions.ecosystem", "按份额折完之后生态分一般。");
+    expect(share.some((i) => /credit-belittling|份额/i.test(i.detail))).toBe(true);
   });
 
     it("bans long English verbatim quotes", () => {

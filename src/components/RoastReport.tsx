@@ -38,17 +38,57 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
-function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest: ReactNode } {
-  const arr = Array.isArray(children) ? [...children] : [children];
+/** Resolve the HTML tag for a react-markdown child (string type, hast node, or named component). */
+function elementTag(node: ReactNode): string | null {
+  if (!node || typeof node !== "object" || !("type" in node)) return null;
+  const el = node as {
+    type?: unknown;
+    props?: { node?: { tagName?: string }; children?: ReactNode };
+  };
+  if (typeof el.type === "string") return el.type;
+  const hast = el.props?.node?.tagName;
+  if (typeof hast === "string") return hast;
+  if (typeof el.type === "function") {
+    const fn = el.type as { displayName?: string; name?: string };
+    return fn.displayName || fn.name || null;
+  }
+  return null;
+}
+
+function skipBlank(nodes: ReactNode[]): ReactNode[] {
+  const arr = [...nodes];
   while (arr.length && (arr[0] == null || arr[0] === "" || arr[0] === "\n" || arr[0] === " ")) {
     arr.shift();
   }
+  return arr;
+}
+
+/**
+ * Finding lines are `1. **title**\n\n   body` (loose list) → <li><p><strong>title</strong></p><p>body</p></li>,
+ * or tight `1. **title** body` → <li><strong>title</strong> body</li>.
+ * Custom `strong`/`p` components make `type` a function, so match via hast tagName / function name.
+ */
+function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest: ReactNode } {
+  const arr = skipBlank(Array.isArray(children) ? children : [children]);
   const first = arr[0];
-  if (first && typeof first === "object" && "type" in first && (first as { type?: unknown }).type === "strong") {
+  // Tight list: leading **title**
+  if (elementTag(first) === "strong") {
     return {
       chip: (first as { props?: { children?: ReactNode } }).props?.children ?? null,
       rest: arr.slice(1),
     };
+  }
+  // Loose list: title-only <p><strong>…</strong></p> then body paragraphs
+  if (elementTag(first) === "p") {
+    const pChildren = (first as { props?: { children?: ReactNode } }).props?.children;
+    const inner = skipBlank(Array.isArray(pChildren) ? pChildren : [pChildren]);
+    const lead = inner[0];
+    if (elementTag(lead) === "strong" && inner.length === 1) {
+      return {
+        chip: (lead as { props?: { children?: ReactNode } }).props?.children ?? null,
+        rest: arr.slice(1),
+      };
+    }
   }
   return { chip: null, rest: children };
 }

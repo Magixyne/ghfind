@@ -418,6 +418,15 @@ const ISSUE_BACKLOG_RE =
 /** Implying a metric caused a score deduction — scores are opaque to copy. */
 const SCORE_ATTRIBUTION_RE =
   /(?:因此|所以|于是).{0,12}(?:被)?(?:扣分|减分|拉低|压分|扣了|降分)|(?:扣分|减分|拉低分数|评分引擎|被评分).{0,8}(?:因为|由于|源自)|(?:因为|由于).{0,20}(?:被)?(?:扣分|减分|拉低|压到)/;
+/** Famous-repo vs tiny-contribution diminishing contrast ("却" / "那一笔"). */
+const DIMINISHING_CONTRAST_RE =
+  /(?:在|于).{0,40}(?:上做协作者|上做贡献|上客座|合进).{0,24}(?:那一笔却|合进去的那一笔却|却是|却只是)|(?:那一笔却是|合进去的那一笔却)|(?:大仓|名仓|明星仓|高星).{0,24}(?:却|那一笔)/;
+/** Counts of maintainer-closed-unmerged or self-closed PRs — trivial negative stats. */
+const CLOSED_PR_COUNT_RE =
+  /(?:被维护者关闭且?未合并|维护者关闭且?未合并|维护者关闭未合并).{0,8}\d+|\d+\s*个?(?:PR|pr)?.{0,12}(?:被维护者关闭且?未合并|维护者关闭且?未合并)|(?:你自己关闭|作者(?:自己|主动)?关闭|自[己行]关闭).{0,12}(?:外部\s*)?(?:PR|pr).{0,8}\d+|\d+\s*个?(?:外部\s*)?(?:PR|pr).{0,12}(?:你自己关闭|作者(?:自己|主动)?关闭|自[己行]关闭)|self[- ]?closed\s*(?:external\s*)?PRs?|maintainer[- ]?closed\s*(?:unmerged\s*)?PRs?/i;
+/** Credit-belittling / share-discount put-downs. */
+const CREDIT_BELITTLING_RE =
+  /(?:仍?是别人的|别人的运行时|别人的仓|原作者名下|挂在.{0,12}原作者|署名留在|留在门厅|被依赖的仓不是你发起|不是你发起的|按份额折完|折完份额|影响仍挂在)/;
 
 function countNumbers(text: string): number {
   // Collapse ISO dates so "2022-07-21" counts as one evidence token, not three.
@@ -534,6 +543,27 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
       kind: "trivia",
       field,
       detail: "do not attribute a score deduction to a metric — describe the work, never imply the scorer deducted points for it",
+    });
+  }
+  if (DIMINISHING_CONTRAST_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "diminishing contrast (famous repo + 却/那一笔 tiny contribution) is banned — frame what you built positively",
+    });
+  }
+  if (CLOSED_PR_COUNT_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "maintainer-closed-unmerged / self-closed PR counts are banned everywhere — omit these trivial negative stats",
+    });
+  }
+  if (CREDIT_BELITTLING_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "credit-belittling / share-discount lines are banned — do not say credit belongs to someone else or '按份额折完'; ecosystem gap as opportunity is fine",
     });
   }
   issues.push(...numberDensityIssues(field, text));
