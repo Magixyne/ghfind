@@ -1541,3 +1541,25 @@ html[data-theme="dark"] .model-sponsor-logo {
 @media (min-width: 900px) {
   .research-index { padding-inline: clamp(28px, 3vw, 56px); }
 }
+
+
+/* Profile impact-repo pseudo-3D multi-orbit (rAF-driven in ImpactOrbit). */
+.impact-orbit-stage {
+  width: var(--impact-orbit-size, 304px);
+  height: 212px;
+  max-width: calc(100% + 1.5rem);
+  overflow: visible;
+  transform-style: preserve-3d;
+}
+
+.impact-orbit-planet {
+  transform: translate(-50%, -50%);
+  transform-origin: center center;
+  backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .impact-orbit-planet {
+    transition: none !important;
+  }
+}
