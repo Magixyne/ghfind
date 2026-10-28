@@ -341,6 +341,14 @@ type graphPageInfo struct {
 
 // fetchMergedPRNodes returns the newest merged PRs (all repos), up to maxPRs.
 func (c *GitHubClient) fetchMergedPRNodes(ctx context.Context, username string, maxPRs int) ([]mergedPRNode, error) {
+	return c.fetchMergedPRNodesSince(ctx, username, maxPRs, "")
+}
+
+// fetchMergedPRNodesSince reads the existing merged window. since is ignored:
+// this connection is ordered by CREATED_AT, while the watermark is mergedAt.
+// Stopping early would miss a PR created before the watermark and merged after it.
+func (c *GitHubClient) fetchMergedPRNodesSince(ctx context.Context, username string, maxPRs int, since string) ([]mergedPRNode, error) {
+	_ = since
 	nodes := []mergedPRNode{}
 	var after *string
 	for len(nodes) < maxPRs {
@@ -399,6 +407,14 @@ type externalMergedPRs struct {
 // external work out of the newest-300 window. Best-effort: only a rate limit
 // fails the scan; other errors return nil (single-pool contribution volume).
 func (c *GitHubClient) fetchExternalMergedPRs(ctx context.Context, username string, maxPRs int) (*externalMergedPRs, error) {
+	return c.fetchExternalMergedPRsSince(ctx, username, maxPRs, "")
+}
+
+// fetchExternalMergedPRsSince reads the existing search window. since is
+// ignored: search is ordered by created time, not mergedAt, and still pages
+// from the start. Stopping on mergedAt would miss a late merge of an older PR.
+func (c *GitHubClient) fetchExternalMergedPRsSince(ctx context.Context, username string, maxPRs int, since string) (*externalMergedPRs, error) {
+	_ = since
 	search := "is:pr is:merged is:public author:" + username + " -user:" + username + " sort:created-desc"
 	result := &externalMergedPRs{Nodes: []mergedPRNode{}}
 	var after *string
@@ -433,10 +449,11 @@ func (c *GitHubClient) fetchExternalMergedPRs(ctx context.Context, username stri
 		result.Total = page.Search.IssueCount
 		kept := 0
 		for _, node := range page.Search.Nodes {
-			if node.Repository != nil {
-				result.Nodes = append(result.Nodes, node)
-				kept++
+			if node.Repository == nil {
+				continue
 			}
+			result.Nodes = append(result.Nodes, node)
+			kept++
 		}
 		info := page.Search.PageInfo
 		if info == nil || !info.HasNextPage || info.EndCursor == nil || *info.EndCursor == "" || kept == 0 {

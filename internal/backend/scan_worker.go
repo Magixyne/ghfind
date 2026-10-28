@@ -217,7 +217,14 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 			}
 		}
 	}
-	scan, err := w.collector.Collect(ctx, job.Username)
+	var scan ScanResult
+	var pending *pendingScanCursors
+	var err error
+	if w.config.ScanIncrementalEnabled {
+		scan, pending, err = w.collectIncremental(ctx, job)
+	} else {
+		scan, err = w.collector.Collect(ctx, job.Username)
+	}
 	if err != nil {
 		if errors.Is(err, ErrGitHubAccountNotFound) || errors.Is(err, ErrGitHubAuthRequired) {
 			w.metrics.recordWorkerJobFailed(ScanJobKind, "permanent", time.Since(startedAt))
@@ -226,50 +233,54 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, err.Error()
 	}
-	if scan.Collection != nil && scan.Collection.Mode == "quick" && scan.Collection.Coverage == "partial_public" {
+	if quickCoverageExceeded(scan) {
 		if fullCollector, ok := w.collector.(interface {
 			CollectFull(context.Context, string) (ScanResult, error)
 		}); ok {
-			scan, err = fullCollector.CollectFull(ctx, job.Username)
+			var captured []githubRepo
+			var forkCount float64
+			scan, err = fullCollector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 			if err != nil {
 				return workerRetry, err.Error()
 			}
+			if w.config.ScanIncrementalEnabled {
+				if store, ok := w.results.(ScanCursorStore); ok {
+					book, loadErr := store.LoadScanCursors(ctx, job.Username)
+					if loadErr == nil {
+						now := time.Now().UTC()
+						if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
+							now = collector.clock().UTC()
+						}
+						// Only the inventory page was captured. PR sources stay
+						// on their previous watermarks until a full PR read.
+						repoPlan := planScanCursors(book, now)[scanCursorRepos]
+						repoPlan.Source = scanCursorRepos
+						repoPlan.Full = true
+						repoPlan.Since = ""
+						pending = &pendingScanCursors{
+							book: book, plans: map[string]scanCursorPlan{scanCursorRepos: repoPlan},
+							repos: captured, forkCount: forkCount, now: now,
+						}
+					}
+				}
+			}
 		}
 	}
-	created, err := w.results.PersistCollectedScan(ctx, job, scan)
-	if errors.Is(err, ErrScanJobConflict) {
+	disposition, reason := w.persistFinishedScan(ctx, job, scan, pending)
+	if disposition == workerCompleted {
+		result := "created"
+		if reason == "duplicate_delivery" {
+			result = "duplicate"
+		}
+		w.metrics.recordWorkerJobCompleted(ScanJobKind, result, time.Since(startedAt))
+		return workerCompleted, ""
+	}
+	if disposition == workerDead {
 		w.metrics.recordWorkerJobFailed(ScanJobKind, "conflict", time.Since(startedAt))
-		return workerDead, err.Error()
+		return workerDead, reason
 	}
-	if err != nil {
-		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
-		return workerRetry, err.Error()
-	}
-	if w.scanCache != nil {
-		// Turso remains the authoritative result. A cache failure must never make
-		// a successfully committed scan retry and write a newer-looking score.
-		if err := w.scanCache.SetCachedScan(ctx, scan.Metrics.Username, scan); err != nil {
-			w.log.Warn("cache collected scan", "job_id", job.ID, "error", err)
-		}
-	}
-	if created {
-		recordSuccessfulScanOutcome(ctx, w.outcomes, w.lookupGate, w.revisions, scan.Metrics.Username, job.LookupHash, job.Campaign, time.Now().UTC())
-	}
-	completed := newScanJobStatus(job, JobCompleted, "")
-	completed.Attempt = attempt
-	if !created {
-		completed.Error = "duplicate_delivery"
-	}
-	if err := w.statuses.Put(ctx, completed); err != nil {
-		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
-		return workerRetry, "status store unavailable: " + err.Error()
-	}
-	result := "created"
-	if !created {
-		result = "duplicate"
-	}
-	w.metrics.recordWorkerJobCompleted(ScanJobKind, result, time.Since(startedAt))
-	return workerCompleted, ""
+	w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
+	return workerRetry, reason
 }
 
 func (w *ScanWorker) releaseFlight(ctx context.Context, job ScanJob) {

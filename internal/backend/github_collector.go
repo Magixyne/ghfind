@@ -85,6 +85,14 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 	if err != nil {
 		return ScanResult{}, err
 	}
+	if sink, ok := ctx.Value(inventoryCapture{}).(inventoryCapture); ok {
+		if sink.Repos != nil {
+			*sink.Repos = append([]githubRepo(nil), repos...)
+		}
+		if sink.ForkCount != nil {
+			*sink.ForkCount = forkCount
+		}
+	}
 	overview, stats, lastYearContributions, err := c.github.fetchContributionOverview(ctx, username)
 	if err != nil {
 		return ScanResult{}, err

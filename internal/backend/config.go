@@ -112,6 +112,11 @@ type Config struct {
 	// collection v7. Rollback is unsetting the flag; collection and score
 	// versions stay put.
 	ScanFanoutEnabled bool
+	// ScanIncrementalEnabled stores per-user per-source cursors and merges
+	// later scans into the saved snapshot. Default off: collection stays the
+	// Phase 2 full pull, including that phase's fan-out flag. Rollback is
+	// unsetting the flag. Score and collection versions stay put.
+	ScanIncrementalEnabled bool
 }
 
 // LoadConfigFromEnv reads the existing Turso/Upstash names plus the new broker
@@ -164,6 +169,7 @@ func LoadConfigFromEnv() Config {
 		FeedCanaryBPS:                    clampIntValueAllowZero(os.Getenv("FEED_CANARY_BPS"), 0, 0, 10_000),
 		FeedGorseLiveBPS:                 clampIntValueAllowZero(os.Getenv("FEED_GORSE_LIVE_BPS"), 0, 0, 10_000),
 		ScanFanoutEnabled:                envFlagEnabled("GHFIND_SCAN_FANOUT_ENABLED"),
+		ScanIncrementalEnabled:           envFlagEnabled("GHFIND_SCAN_INCREMENTAL_ENABLED"),
 		FeedShadowOutcomeWindow:          boundedDurationValue(os.Getenv("FEED_SHADOW_OUTCOME_WINDOW"), defaultFeedShadowOutcomeWindow, minFeedShadowOutcomeWindow, maxFeedShadowOutcomeWindow),
 		FeedInternalAllowlist:            int64ListFromEnv(os.Getenv("FEED_INTERNAL_GITHUB_IDS")),
 		EmbeddingBaseURL:                 strings.TrimRight(strings.TrimSpace(os.Getenv("FEED_EMBEDDING_BASE_URL")), "/"),

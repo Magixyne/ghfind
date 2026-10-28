@@ -69,6 +69,25 @@ func (s *TursoStore) EnsureScanPartSchema(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ensure scan parent table: %w", err)
 	}
+	_, err = s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS scan_part_ready (
+      parent_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      state TEXT NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      PRIMARY KEY (parent_id, kind)
+    )`)
+	if err != nil {
+		return fmt.Errorf("ensure scan ready table: %w", err)
+	}
+	// A table created by the first claim shape has no state. Adding the
+	// columns is safe; existing rows become published so they are not
+	// published again.
+	if _, err = s.db.ExecContext(ctx, `ALTER TABLE scan_part_ready ADD COLUMN state TEXT NOT NULL DEFAULT 'published'`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		return fmt.Errorf("ensure scan ready state: %w", err)
+	}
+	if _, err = s.db.ExecContext(ctx, `ALTER TABLE scan_part_ready ADD COLUMN claimed_at INTEGER NOT NULL DEFAULT 0`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		return fmt.Errorf("ensure scan ready claimed_at: %w", err)
+	}
 	return nil
 }
 
@@ -188,6 +207,112 @@ func (s *TursoStore) LoadScanParent(ctx context.Context, parentID string) (scanP
 		}
 	}
 	return record, nil
+}
+
+const (
+	scanReadyClaimed   = "claimed"
+	scanReadyPublished = "published"
+)
+
+// scanReadyLease is how long a claimed publish may stay unpublished before
+// another delivery may take it. It is one scan processing timeout, the
+// existing bound on a part attempt, not a new production knob.
+func scanReadyLease() time.Duration {
+	return scanWorkerProcessTimeout
+}
+
+// claimReadyPublish marks this parent and kind claimed. A published row is
+// left alone. A claim older than the lease may be taken again. The caller
+// publishes only when claimed is true, then calls markReadyPublished.
+func (s *TursoStore) claimReadyPublish(ctx context.Context, parentID, kind string, now time.Time) (bool, error) {
+	if err := s.EnsureScanPartSchema(ctx); err != nil {
+		return false, err
+	}
+	claimedAt := now.UTC().UnixMilli()
+	result, err := s.db.ExecContext(ctx, `INSERT INTO scan_part_ready (parent_id, kind, state, claimed_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(parent_id, kind) DO NOTHING`,
+		parentID, kind, scanReadyClaimed, claimedAt)
+	if err != nil {
+		return false, fmt.Errorf("claim scan publish: %w", err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read scan publish claim: %w", err)
+	}
+	if inserted > 0 {
+		return true, nil
+	}
+	staleBefore := now.UTC().Add(-scanReadyLease()).UnixMilli()
+	result, err = s.db.ExecContext(ctx, `UPDATE scan_part_ready
+      SET state = ?, claimed_at = ?
+      WHERE parent_id = ? AND kind = ? AND state = ? AND claimed_at <= ?`,
+		scanReadyClaimed, claimedAt, parentID, kind, scanReadyClaimed, staleBefore)
+	if err != nil {
+		return false, fmt.Errorf("reclaim scan publish: %w", err)
+	}
+	reclaimed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read scan publish reclaim: %w", err)
+	}
+	return reclaimed > 0, nil
+}
+
+// markReadyPublished records that Publish succeeded. A crash before this
+// leaves the row claimed so a later delivery can reclaim it after the lease.
+func (s *TursoStore) markReadyPublished(ctx context.Context, parentID, kind string) error {
+	if err := s.EnsureScanPartSchema(ctx); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE scan_part_ready SET state = ? WHERE parent_id = ? AND kind = ?`,
+		scanReadyPublished, parentID, kind)
+	if err != nil {
+		return fmt.Errorf("mark scan publish: %w", err)
+	}
+	return nil
+}
+
+// releaseReadyPublish drops a claim that did not publish, so the next
+// delivery can claim it immediately.
+func (s *TursoStore) releaseReadyPublish(ctx context.Context, parentID, kind string) error {
+	if err := s.EnsureScanPartSchema(ctx); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM scan_part_ready WHERE parent_id = ? AND kind = ? AND state = ?`,
+		parentID, kind, scanReadyClaimed)
+	if err != nil {
+		return fmt.Errorf("release scan publish: %w", err)
+	}
+	return nil
+}
+
+type scanReadyStore interface {
+	claimReadyPublish(context.Context, string, string, time.Time) (bool, error)
+	markReadyPublished(context.Context, string, string) error
+	releaseReadyPublish(context.Context, string, string) error
+}
+
+func (w *ScanWorker) claimReadyPublish(ctx context.Context, parentID, kind string) (bool, error) {
+	store, ok := w.results.(scanReadyStore)
+	if !ok {
+		return true, nil
+	}
+	now := time.Now().UTC()
+	if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
+		now = collector.clock().UTC()
+	}
+	return store.claimReadyPublish(ctx, parentID, kind, now)
+}
+
+func (w *ScanWorker) finishReadyPublish(ctx context.Context, parentID, kind string, published bool) error {
+	store, ok := w.results.(scanReadyStore)
+	if !ok {
+		return nil
+	}
+	if published {
+		return store.markReadyPublished(ctx, parentID, kind)
+	}
+	return store.releaseReadyPublish(ctx, parentID, kind)
 }
 
 func timeNowMillis() int64 {
