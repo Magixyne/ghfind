@@ -205,7 +205,7 @@ describe("generateRoastV13", () => {
     );
     expect(r.steps.map((s) => s.step)).toEqual(["writer", "editor"]);
     expect(r.report).toContain("编辑后的结论");
-    expect(r.tags.zh).toEqual(["词条外交", "粉丝倒挂"]);
+    expect(r.tags.zh).toEqual(["词条外交", "自营荒地"]);
     const hard = ["number", "repo", "repo_stars", "quote", "trivia", "repeat", "schema", "language"];
     expect(r.finalIssues.filter((i) => hard.includes(i.kind))).toEqual([]);
     expect(r.cards.length).toBeGreaterThan(3);

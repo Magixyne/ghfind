@@ -75,8 +75,8 @@ export function sanitizeTagsPair(tags: Tags, cap = ROAST_TAG_CAP): Tags {
 export function tagsForLocale(tags: Tags | null | undefined, locale: unknown, cap = ROAST_TAG_CAP): string[] {
   if (!tags) return [];
   const lang: Lang = normLang(locale);
-  const primary = tags[lang] ?? [];
-  const fallback = tags[lang === "zh" ? "en" : "zh"] ?? [];
-  const chosen = primary.length > 0 ? primary : fallback;
-  return chosen.filter((t) => !isTriviaTag(t)).slice(0, cap);
+  const primary = (tags[lang] ?? []).filter((t) => !isTriviaTag(t));
+  if (primary.length > 0) return primary.slice(0, cap);
+  const fallback = (tags[lang === "zh" ? "en" : "zh"] ?? []).filter((t) => !isTriviaTag(t));
+  return fallback.slice(0, cap);
 }
