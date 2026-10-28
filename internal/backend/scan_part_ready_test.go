@@ -207,6 +207,137 @@ func TestLostClaimDoesNotTouchWinner(t *testing.T) {
 	}
 }
 
+// redeliveryCollector stores an empty payload for every part. processPart
+// then reaches publishReady without a live GitHub call. The embedded
+// collector carries the clock claimReadyPublish reads.
+type redeliveryCollector struct {
+	*GitHubCollector
+}
+
+func newRedeliveryCollector(at time.Time) *redeliveryCollector {
+	return &redeliveryCollector{GitHubCollector: &GitHubCollector{clock: func() time.Time { return at }}}
+}
+
+func (c *redeliveryCollector) Collect(context.Context, string) (ScanResult, error) {
+	return ScanResult{}, nil
+}
+
+func (c *redeliveryCollector) CollectScanPart(_ context.Context, _, part string, _ bool, _ githubUser, _ contributionOverview) (scanPartPayload, error) {
+	return scanPartPayload{Part: part}, nil
+}
+
+func (c *redeliveryCollector) assembleCollectedScan(_ context.Context, _ bool, user githubUser, _ contributionOverview, _ *contribStats, _ float64, _ *time.Time, _ map[string]scanPartPayload) (ScanResult, map[string]string, error) {
+	return ScanResult{Metrics: RawMetrics{Username: user.Login}}, map[string]string{}, nil
+}
+
+func countPublished(publisher *recordingScanPublisher, part string) (parts, assembles int) {
+	publisher.mu.Lock()
+	defer publisher.mu.Unlock()
+	for _, job := range publisher.parts {
+		if job.Part == part {
+			parts++
+		}
+	}
+	assembles = len(publisher.assembles)
+	return parts, assembles
+}
+
+// finishRedeliveredParent runs the dependent part message, then assemble.
+// Both go through processPart / processAssemble, the same path a queue
+// redelivery takes. Dependents and assemble must each be published once.
+func finishRedeliveredParent(t *testing.T, worker *ScanWorker, publisher *recordingScanPublisher, parent scanParentRecord) {
+	t.Helper()
+	dependents := ScanPartJob{ParentID: parent.ID, Username: parent.Username, Phase: scanPhasePart, Part: scanPartDependents, RequestedAt: 1}
+	disposition, reason := worker.processPart(context.Background(), dependents)
+	if disposition != workerCompleted || reason != "" {
+		t.Fatalf("dependents: %v %s", disposition, reason)
+	}
+	parts, assembles := countPublished(publisher, scanPartDependents)
+	if parts != 1 || assembles != 1 {
+		t.Fatalf("after dependents parts=%d assembles=%d", parts, assembles)
+	}
+	disposition, reason = worker.processAssemble(context.Background(), ScanAssembleJob{
+		ParentID: parent.ID, Username: parent.Username, Phase: scanPhaseAssemble, RequestedAt: 1,
+	})
+	if disposition != workerCompleted || (reason != "" && reason != "duplicate_delivery") {
+		t.Fatalf("assemble: %v %s", disposition, reason)
+	}
+	parts, assembles = countPublished(publisher, scanPartDependents)
+	if parts != 1 || assembles != 1 {
+		t.Fatalf("published parts=%d assembles=%d", parts, assembles)
+	}
+}
+
+func TestPartRedeliveryAfterPublishFailurePublishesOnce(t *testing.T) {
+	store := openScanPersistenceStore(t)
+	publisher := &failingReadyPublisher{failPart: true}
+	now := time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)
+	worker := NewScanWorker(Config{MaxAttempts: 3, ScanFanoutEnabled: true}, newRedeliveryCollector(now), store, &fakeStatusStore{}, publisher, nil)
+	parentJob := ScanJob{ID: "fiction-ready-" + t.Name(), Username: "fiction-ready", RequestedAt: 1}
+	if err := store.SaveScanParent(context.Background(), parentJob, false, []string{scanPartRepos, scanPartDependents}, scanSeedEnvelope{User: githubUser{Login: parentJob.Username}}); err != nil {
+		t.Fatal(err)
+	}
+	repos := ScanPartJob{ParentID: parentJob.ID, Username: parentJob.Username, Phase: scanPhasePart, Part: scanPartRepos, RequestedAt: 1}
+	disposition, reason := worker.processPart(context.Background(), repos)
+	if disposition != workerRetry || reason == "" {
+		t.Fatalf("first: %v %s", disposition, reason)
+	}
+	if parts, assembles := countPublished(&publisher.recordingScanPublisher, scanPartDependents); parts != 0 || assembles != 0 {
+		t.Fatalf("failed publish recorded parts=%d assembles=%d", parts, assembles)
+	}
+	publisher.failPart = false
+	disposition, reason = worker.processPart(context.Background(), repos)
+	if disposition != workerCompleted || reason != "" {
+		t.Fatalf("redelivery: %v %s", disposition, reason)
+	}
+	if parts, assembles := countPublished(&publisher.recordingScanPublisher, scanPartDependents); parts != 1 || assembles != 0 {
+		t.Fatalf("after redelivery parts=%d assembles=%d", parts, assembles)
+	}
+	parent, err := store.LoadScanParent(context.Background(), parentJob.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finishRedeliveredParent(t, worker, &publisher.recordingScanPublisher, parent)
+}
+
+func TestPartRedeliveryAfterClaimCrashPublishesOnce(t *testing.T) {
+	store := openScanPersistenceStore(t)
+	publisher := &recordingScanPublisher{}
+	claimedAt := time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)
+	parentJob := ScanJob{ID: "fiction-ready-" + t.Name(), Username: "fiction-crash", RequestedAt: 1}
+	if err := store.SaveScanParent(context.Background(), parentJob, false, []string{scanPartRepos, scanPartDependents}, scanSeedEnvelope{User: githubUser{Login: parentJob.Username}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.SaveScanPart(context.Background(), ScanPartJob{ParentID: parentJob.ID, Username: parentJob.Username, Part: scanPartRepos}, scanPartPayload{Part: scanPartRepos}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, token, err := store.claimReadyPublish(context.Background(), parentJob.ID, scanPartDependents, claimedAt)
+	if err != nil || !claimed || token == "" {
+		t.Fatalf("crashed claim=%v token=%q err=%v", claimed, token, err)
+	}
+	parent, err := store.LoadScanParent(context.Background(), parentJob.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The crashed worker's clock is still inside the lease, so a redelivery
+	// now sees the claim and does not publish.
+	early := NewScanWorker(Config{MaxAttempts: 3, ScanFanoutEnabled: true}, newRedeliveryCollector(claimedAt), store, &fakeStatusStore{}, publisher, nil)
+	disposition, reason := early.processPart(context.Background(), ScanPartJob{ParentID: parent.ID, Username: parent.Username, Part: scanPartRepos, RequestedAt: 1})
+	if disposition != workerCompleted || reason != "" || len(publisher.parts) != 0 {
+		t.Fatalf("inside lease: %v %s parts=%d", disposition, reason, len(publisher.parts))
+	}
+	worker := NewScanWorker(Config{MaxAttempts: 3, ScanFanoutEnabled: true}, newRedeliveryCollector(claimedAt.Add(scanReadyLease())), store, &fakeStatusStore{}, publisher, nil)
+	repos := ScanPartJob{ParentID: parent.ID, Username: parent.Username, Phase: scanPhasePart, Part: scanPartRepos, RequestedAt: 1}
+	disposition, reason = worker.processPart(context.Background(), repos)
+	if disposition != workerCompleted || reason != "" {
+		t.Fatalf("redelivery: %v %s", disposition, reason)
+	}
+	if parts, _ := countPublished(publisher, scanPartDependents); parts != 1 {
+		t.Fatalf("dependents published %d", parts)
+	}
+	finishRedeliveredParent(t, worker, publisher, parent)
+}
+
 func TestConcurrentReadyPublishClaimsOnce(t *testing.T) {
 	store := openScanPersistenceStore(t)
 	publisher := &recordingScanPublisher{}

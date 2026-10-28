@@ -343,24 +343,43 @@ func (w *ScanWorker) claimReadyPublish(ctx context.Context, parentID, kind strin
 	if !ok {
 		return true, "", nil
 	}
-	now := time.Now().UTC()
-	if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
-		now = collector.clock().UTC()
+	return store.claimReadyPublish(ctx, parentID, kind, claimClockNow(w.collector))
+}
+
+// claimClockNow is the time a publish claim is stamped with. Tests pin it
+// through *GitHubCollector. A collector that embeds one still exposes that
+// clock, so a redelivery fixture can collect parts and expire a lease.
+func claimClockNow(collector ScanCollector) time.Time {
+	type clocked interface{ claimClock() time.Time }
+	if timed, ok := collector.(clocked); ok && timed != nil {
+		return timed.claimClock().UTC()
 	}
-	return store.claimReadyPublish(ctx, parentID, kind, now)
+	if github, ok := collector.(*GitHubCollector); ok && github != nil && github.clock != nil {
+		return github.clock().UTC()
+	}
+	return time.Now().UTC()
+}
+
+func (c *GitHubCollector) claimClock() time.Time {
+	if c != nil && c.clock != nil {
+		return c.clock()
+	}
+	return time.Now()
 }
 
 // finishReadyPublish marks or releases this caller's token. The handler
 // context is cancelled at scanWorkerProcessTimeout, which is shorter than
-// the lease, so the write uses a context that survives that cancel. A lost
-// lease (zero rows) is logged and ignored: returning an error would
-// redeliver and publish again even though the winner already owns the row.
+// the lease, so the write detaches from that cancel and keeps the same
+// four-second bound feed cleanup uses for a lease release. A lost lease
+// (zero rows) is logged and ignored: returning an error would redeliver
+// and publish again even though the winner already owns the row.
 func (w *ScanWorker) finishReadyPublish(ctx context.Context, parentID, kind, token string, published bool) error {
 	store, ok := w.results.(scanReadyStore)
 	if !ok {
 		return nil
 	}
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 4*time.Second)
+	defer cancel()
 	var (
 		affected bool
 		err      error

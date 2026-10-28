@@ -161,10 +161,11 @@ func (w *ScanWorker) processPart(ctx context.Context, job ScanPartJob) (workerDi
 		return workerRetry, err.Error()
 	}
 	if _, already := parent.Payloads[job.Part]; already {
-		if parent.Done {
-			return w.publishAssemble(ctx, parent, job)
-		}
-		return workerCompleted, ""
+		// A redelivery after a failed publish, or after a crash that claimed
+		// and never marked, still has this payload. Done only means assemble
+		// is next. While the parent is open, publishReady claims dependents
+		// again; the claim is a no-op when another delivery still holds it.
+		return w.publishReady(ctx, parent, job)
 	}
 	payload, err := w.collectPart(ctx, collector, job, parent)
 	if err != nil {
