@@ -231,7 +231,7 @@ func (w *ScanWorker) publishAssemble(ctx context.Context, parent scanParentRecor
 // publish releases the claim and asks for redelivery. A claim that is not
 // won means another delivery already published or still holds a fresh lease.
 func (w *ScanWorker) publishClaimed(ctx context.Context, parentID, kind string, publish func() error) (workerDisposition, string) {
-	claimed, err := w.claimReadyPublish(ctx, parentID, kind)
+	claimed, token, err := w.claimReadyPublish(ctx, parentID, kind)
 	if err != nil {
 		return workerRetry, err.Error()
 	}
@@ -239,12 +239,12 @@ func (w *ScanWorker) publishClaimed(ctx context.Context, parentID, kind string, 
 		return workerCompleted, ""
 	}
 	if err := publish(); err != nil {
-		if releaseErr := w.finishReadyPublish(ctx, parentID, kind, false); releaseErr != nil {
+		if releaseErr := w.finishReadyPublish(ctx, parentID, kind, token, false); releaseErr != nil {
 			return workerRetry, releaseErr.Error()
 		}
 		return workerRetry, err.Error()
 	}
-	if err := w.finishReadyPublish(ctx, parentID, kind, true); err != nil {
+	if err := w.finishReadyPublish(ctx, parentID, kind, token, true); err != nil {
 		return workerRetry, err.Error()
 	}
 	return workerCompleted, ""

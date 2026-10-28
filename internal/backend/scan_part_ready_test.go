@@ -89,18 +89,18 @@ func TestExpiredClaimIsReclaimed(t *testing.T) {
 	store := openScanPersistenceStore(t)
 	parent := readyParent(t, store)
 	now := time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)
-	claimed, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, now)
-	if err != nil || !claimed {
-		t.Fatalf("claim=%v err=%v", claimed, err)
+	claimed, token, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, now)
+	if err != nil || !claimed || token == "" {
+		t.Fatalf("claim=%v token=%q err=%v", claimed, token, err)
 	}
-	again, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, now.Add(time.Minute))
-	if err != nil || again {
-		t.Fatalf("fresh claim reclaimed=%v err=%v", again, err)
+	again, againToken, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, now.Add(time.Minute))
+	if err != nil || again || againToken != "" {
+		t.Fatalf("fresh claim reclaimed=%v token=%q err=%v", again, againToken, err)
 	}
 	later := now.Add(scanReadyLease())
-	reclaimed, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, later)
-	if err != nil || !reclaimed {
-		t.Fatalf("expired reclaim=%v err=%v", reclaimed, err)
+	reclaimed, reclaimToken, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, later)
+	if err != nil || !reclaimed || reclaimToken == "" || reclaimToken == token {
+		t.Fatalf("expired reclaim=%v token=%q err=%v", reclaimed, reclaimToken, err)
 	}
 	publisher := &recordingScanPublisher{}
 	redeliveredAt := later.Add(scanReadyLease())
@@ -125,6 +125,85 @@ func TestPublishedClaimDoesNotRepublish(t *testing.T) {
 	disposition, reason = worker.publishReady(context.Background(), parent, part)
 	if disposition != workerCompleted || len(publisher.parts) != 1 {
 		t.Fatalf("redelivery republished: %v %s count=%d", disposition, reason, len(publisher.parts))
+	}
+}
+
+func readyClaimRow(t *testing.T, store *TursoStore, parentID, kind string) (state, token string) {
+	t.Helper()
+	err := store.db.QueryRowContext(context.Background(), `SELECT state, claim_token FROM scan_part_ready
+      WHERE parent_id = ? AND kind = ?`, parentID, kind).Scan(&state, &token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return state, token
+}
+
+func TestLostClaimDoesNotTouchWinner(t *testing.T) {
+	store := openScanPersistenceStore(t)
+	parent := readyParent(t, store)
+	now := time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)
+	claimed, tokenA, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, now)
+	if err != nil || !claimed || tokenA == "" {
+		t.Fatalf("A claim=%v token=%q err=%v", claimed, tokenA, err)
+	}
+	later := now.Add(scanReadyLease())
+	reclaimed, tokenB, err := store.claimReadyPublish(context.Background(), parent.ID, scanPartDependents, later)
+	if err != nil || !reclaimed || tokenB == "" || tokenB == tokenA {
+		t.Fatalf("B reclaim=%v token=%q err=%v", reclaimed, tokenB, err)
+	}
+
+	released, err := store.releaseReadyPublish(context.Background(), parent.ID, scanPartDependents, tokenA)
+	if err != nil || released {
+		t.Fatalf("A release affected=%v err=%v", released, err)
+	}
+	if state, token := readyClaimRow(t, store, parent.ID, scanPartDependents); state != scanReadyClaimed || token != tokenB {
+		t.Fatalf("after A release state=%s token=%q", state, token)
+	}
+	marked, err := store.markReadyPublished(context.Background(), parent.ID, scanPartDependents, tokenA)
+	if err != nil || marked {
+		t.Fatalf("A mark affected=%v err=%v", marked, err)
+	}
+	if state, token := readyClaimRow(t, store, parent.ID, scanPartDependents); state != scanReadyClaimed || token != tokenB {
+		t.Fatalf("after A mark state=%s token=%q", state, token)
+	}
+
+	publisher := &recordingScanPublisher{}
+	workerA := NewScanWorker(Config{MaxAttempts: 3, ScanFanoutEnabled: true}, &GitHubCollector{clock: func() time.Time { return now }}, store, &fakeStatusStore{}, publisher, nil)
+	workerB := NewScanWorker(Config{MaxAttempts: 3, ScanFanoutEnabled: true}, &GitHubCollector{clock: func() time.Time { return later }}, store, &fakeStatusStore{}, publisher, nil)
+	// B already holds the claim, so B publishes and marks that token.
+	// A second claim from the worker would correctly refuse the fresh lease.
+	part := ScanPartJob{ParentID: parent.ID, Username: parent.Username, Phase: scanPhasePart, Part: scanPartDependents, RequestedAt: 1, Full: parent.Full}
+	if err := publisher.PublishScanPart(context.Background(), part); err != nil {
+		t.Fatal(err)
+	}
+	if err := workerB.finishReadyPublish(context.Background(), parent.ID, scanPartDependents, tokenB, true); err != nil {
+		t.Fatal(err)
+	}
+	if len(publisher.parts) != 1 {
+		t.Fatalf("B published %d parts", len(publisher.parts))
+	}
+	if state, token := readyClaimRow(t, store, parent.ID, scanPartDependents); state != scanReadyPublished || token != tokenB {
+		t.Fatalf("after B mark state=%s token=%q", state, token)
+	}
+
+	// A's late release and mark lost the lease. They must not error, or the
+	// handler would redeliver and publish a second time.
+	if err := workerA.finishReadyPublish(context.Background(), parent.ID, scanPartDependents, tokenA, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := workerA.finishReadyPublish(context.Background(), parent.ID, scanPartDependents, tokenA, true); err != nil {
+		t.Fatal(err)
+	}
+	if state, token := readyClaimRow(t, store, parent.ID, scanPartDependents); state != scanReadyPublished || token != tokenB {
+		t.Fatalf("after A finish state=%s token=%q", state, token)
+	}
+	disposition, reason := workerA.publishReady(context.Background(), parent, ScanPartJob{ParentID: parent.ID, Username: parent.Username, Part: scanPartRepos, RequestedAt: 1})
+	if disposition != workerCompleted || reason != "" || len(publisher.parts) != 1 {
+		t.Fatalf("A republish: %v %s parts=%d", disposition, reason, len(publisher.parts))
+	}
+	disposition, reason = workerB.publishReady(context.Background(), parent, ScanPartJob{ParentID: parent.ID, Username: parent.Username, Part: scanPartRepos, RequestedAt: 1})
+	if disposition != workerCompleted || reason != "" || len(publisher.parts) != 1 {
+		t.Fatalf("B republish: %v %s parts=%d", disposition, reason, len(publisher.parts))
 	}
 }
 
