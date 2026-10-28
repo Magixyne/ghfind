@@ -57,7 +57,7 @@ const lg = (n: number) => Math.log10(Math.max(1, n));
 const clamp01 = (n: number) => Math.max(0, Math.min(1, Math.round(n * 100) / 100));
 
 const FAMOUS_STARS = 10_000;
-const TOKEN_WORK = 6;
+const TOKEN_WORK = 10;
 const MAJOR_COMMITS = 50;
 const MAJOR_PRS = 20;
 
@@ -132,8 +132,18 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     const parts = [`${repo}(${stars} 星${language ? `,${language}` : stack.length ? `,${stack[0]}` : ",未检出语言"})`];
     parts.push(description ? "它是做什么的见 quotes(仓库描述原文)" : "仓库没有描述");
     if (!commits && w?.commits) parts.push(`TA 在这里有 ${w.commits} 个提交`);
-    if (commits) parts.push(`${commits.total} 个提交里 ${commits.mine} 个是 TA 的${commits.leader && commits.leader > commits.mine ? `(提交最多者 ${commits.leader} 个)` : commits.leader === commits.mine ? "(提交数第一)" : ""}`);
-    if (prs) parts.push(`${prs.total} 个已合并 PR 里 ${prs.mine} 个是 TA 的`);
+    if (commits) {
+      const tinyCommitShare = commits.total >= 200 && commits.mine <= 30 && commits.mine / commits.total < 0.1;
+      if (tinyCommitShare) parts.push(`TA 在这里有 ${commits.mine} 个提交`);
+      else parts.push(`${commits.total} 个提交里 ${commits.mine} 个是 TA 的${commits.leader && commits.leader > commits.mine ? `(提交最多者 ${commits.leader} 个)` : commits.leader === commits.mine ? "(提交数第一)" : ""}`);
+    }
+    // Skip "N 个已合并 PR 里你 M 个" when M is a token slice of a large repo —
+    // that contrast is trivia the owner rejected. Keep absolute counts instead.
+    if (prs) {
+      const tinyShare = prs.total >= 50 && prs.mine <= 15 && prs.mine / prs.total < 0.1;
+      if (tinyShare) parts.push(`TA 在这里合过 ${prs.mine} 个 PR`);
+      else parts.push(`${prs.total} 个已合并 PR 里 ${prs.mine} 个是 TA 的`);
+    }
     if (pushed) parts.push(`最后推送 ${pushed}`);
     const share = commits ? commits.mine / Math.max(1, commits.total) : 0;
     covered.add(repo.toLowerCase());

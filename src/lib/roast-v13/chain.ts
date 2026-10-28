@@ -20,6 +20,7 @@ import { SUBSCORE_MAX } from "../score-presentation";
 import { slimV13Payload } from "./facts";
 import { renderV13Report, V13_DIMENSIONS, hasRiskSignals } from "./render";
 import { editorSkill, roastWriterSkill, slotRange } from "./skill";
+import { sanitizeRoastTags } from "../roast-tags";
 import {
   BAD_QUOTE,
   checkSlots,
@@ -103,11 +104,8 @@ const str = (v: unknown): string => (typeof v === "string" ? v.replace(/\s+/g, "
 const strList = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 
 function cleanTags(list: string[], maxLen: number): string[] {
-  const cleaned = [...new Set(list.map((t) => t.replace(/[#@,，|]/g, "").trim()).filter(Boolean))];
-  // Prefer dropping an over-long tag to cutting it mid-word ("少开issu").
-  const fitting = cleaned.filter((t) => [...t].length <= maxLen);
-  const tags = fitting.length >= 2 ? fitting : cleaned.map((t) => [...t].slice(0, maxLen).join(""));
-  return tags.slice(0, 5);
+  // Substance only: drop follower-ratio / time-window trivia, cap at 4.
+  return sanitizeRoastTags(list, maxLen);
 }
 
 function clamp(text: string, max: number): string {

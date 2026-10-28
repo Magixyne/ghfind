@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -497,12 +498,12 @@ export function Roaster({
                 </div>
               )}
 
-              {tags && (tags.zh.length > 0 || tags.en.length > 0) && (
-                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
-                  {[...tags.zh, ...tags.en].map((tag, i) => (
+              {tagsForLocale(tags, locale).length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                  {tagsForLocale(tags, locale).map((tag, i) => (
                     <span
                       key={`${tag}-${i}`}
-                      className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-200"
+                      className="rounded-full border border-orange-400/25 bg-orange-500/10 px-2.5 py-1 text-[11px] font-medium tracking-wide text-orange-200/95"
                     >
                       #{tag}
                     </span>

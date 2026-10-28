@@ -5,6 +5,7 @@
  * sentences that still cite facts absent from the data.
  */
 import type { FactCard } from "./cards";
+import { isTriviaTag } from "../roast-tags";
 import { slotRange, SLOTS, type SlotName } from "./skill";
 import { V13_CLICHE_PHRASES, V13_CLICHE_PHRASES_EN } from "./voice";
 
@@ -342,24 +343,46 @@ export function repeatsRoastLine(roastLine: string, text: string): boolean {
 
 const FOLLOW_RE = /(粉丝|关注|followers?|following)/i;
 const WINDOW_RE = /(近|最近|过去)\s*\d+\s*(天|日|周)|last\s+\d+\s+days/i;
+/** Vague depth jab with no project named ("卡在厚度"). */
+const THICKNESS_RE = /卡在厚度|没有厚度|厚度不够|差在厚度|缺厚度|少了厚度/;
+/**
+ * Tiny share of a large repo's merged-PR total ("1863 个已合并 PR 里你 7 个").
+ * Captures yours ≤15 against a total ≥50 — substance lives in the main work,
+ * not in a token slice of someone else's ledger.
+ */
+const SHARE_CONTRAST_RE = /(?:[5-9]\d|\d{3,})\s*个(?:已合并\s*)?PR\s*里\s*(?:你|TA|他|她|其)?\s*(?:只有\s*)?(?:[0-9]|1[0-5])\s*个|(?:only\s+)?(?:[0-9]|1[0-5])\s+(?:of\s+(?:the\s+)?)?(?:[5-9]\d|\d{3,})\s+(?:merged\s+)?PRs?\b/i;
 
 /**
  * Trivia hooks the owner rejected: follower/following ratios, activity time
- * windows, and a handful of PRs/commits to a famous repository on an account
- * that has real work elsewhere. Only checked on the hook fields (one-liner,
- * verdict, title, findings); the dimension table may still state them.
+ * windows, vague "厚度", big-repo share-count contrasts, and a handful of
+ * PRs/commits to a famous repository on an account that has real work
+ * elsewhere. Dimension notes may still state follower counts; hooks may not.
  */
 /** "只合了 1 个 PR" / "那个 PR" / "only one PR" in a one-liner. */
 const PR_COUNT_RE = /(只|仅|就|才|那)(合进去?的?|合并的?|有|提了?|开了?)?(你|她|他)?\s*(那|一|1|两|2|三|3|几)?\s*个\s*PR|\bonly (one|two|three|a few|\d) (merged )?PRs?\b/i;
 
 export function checkTrivia(index: FactIndex, field: string, text: string): V13Issue[] {
-  if (field.startsWith("tags")) return [];
   const issues: V13Issue[] = [];
+  // Tags: reject follower-ratio / time-window / thickness gotchas by name.
+  if (field.startsWith("tags")) {
+    if (isTriviaTag(text)) {
+      issues.push({ kind: "trivia", field, detail: "tag names a trivial stat, not substance" });
+    }
+    return issues;
+  }
   // The community row may state the follower count; nowhere else is it a point.
   if (FOLLOW_RE.test(text) && index.followers < 5000 && field !== "dimensions.community_influence") {
     issues.push({ kind: "trivia", field, detail: "follower/following counts are not a roast hook" });
   }
   if (WINDOW_RE.test(text)) issues.push({ kind: "trivia", field, detail: "activity time window is not a roast hook" });
+  // Vague "厚度" as a roast jab — name the project/gap instead.
+  if (THICKNESS_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "vague '厚度' is not a roast hook; name the project or gap" });
+  }
+  // Big-repo share-count contrast ("1863 个已合并 PR 里你 7 个") — not a hook.
+  if (SHARE_CONTRAST_RE.test(text) && !field.startsWith("dimensions.")) {
+    issues.push({ kind: "trivia", field, detail: "a tiny share of a big repo's PR total is not a roast hook" });
+  }
   if (/^(roast_line|title)/.test(field)) {
     if (PR_COUNT_RE.test(text)) issues.push({ kind: "trivia", field, detail: "a PR count is not a one-liner hook" });
     if (DESC_WORD.test(text) && [...text.matchAll(QUOTE_RE)].length > 0) {
@@ -369,7 +392,8 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   if (index.hasMajorWork) {
     const lower = text.toLowerCase();
     for (const [key, work] of index.work) {
-      if ((index.repos.get(key) ?? 0) < 10_000 || work > 6) continue;
+      // Token touch to a famous repo (≤10 lifetime PRs+commits) is not a point.
+      if ((index.repos.get(key) ?? 0) < 10_000 || work > 10) continue;
       const name = key.split("/")[1];
       // Full owner/repo, or the bare repo name as a standalone word.
       const bare = name.length >= 3 && new RegExp(`(^|[^a-z0-9_.-])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9_-])`).test(lower);
@@ -438,6 +462,10 @@ export function dropUnverifiedSentences(
   };
   const next: V13Copy = {
     ...copy,
+    tags: {
+      zh: copy.tags.zh.filter((t) => !isTriviaTag(t)),
+      en: copy.tags.en.filter((t) => !isTriviaTag(t)),
+    },
     verdict: clean("verdict", copy.verdict),
     risk: clean("risk", copy.risk),
     findings: copy.findings

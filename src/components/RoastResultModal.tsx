@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { X } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { SITE_URL } from "@/lib/site";
@@ -61,7 +62,7 @@ export function RoastResultModal({
   const style = tierStyle(meta.tier);
   const tierKey = TIER_KEY[meta.tier];
   const line = pickLine(meta.roast_line, locale);
-  const tags = [...(meta.tags?.zh ?? []), ...(meta.tags?.en ?? [])];
+  const tags = tagsForLocale(meta.tags, locale);
   const beat = meta.percentile?.beat ?? null;
 
   return (
@@ -117,11 +118,11 @@ export function RoastResultModal({
               </div>
             ))}
           {tags.length > 0 && (
-            <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               {tags.map((tag, i) => (
                 <span
                   key={`${tag}-${i}`}
-                  className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-200"
+                  className="rounded-full border border-orange-400/25 bg-orange-500/10 px-2.5 py-1 text-[11px] font-medium tracking-wide text-orange-200/95"
                 >
                   #{tag}
                 </span>

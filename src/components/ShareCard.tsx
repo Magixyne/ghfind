@@ -1,6 +1,7 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { forwardRef, useEffect, useState } from "react";
 import { TIER_KEY, tierStyle } from "@/lib/tier";
 import type { Tags, Tier } from "@/lib/types";
@@ -28,8 +29,9 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function Sha
 ) {
   const t = useTranslations("shareCard");
   const tTier = useTranslations("tiers");
+  const locale = useLocale();
   const style = tierStyle(tier);
-  const shownTags = [...(tags?.zh ?? []), ...(tags?.en ?? [])].slice(0, 4);
+  const shownTags = tagsForLocale(tags, locale);
   const [avatarData, setAvatarData] = useState<string | null>(null);
   const [avatarReady, setAvatarReady] = useState(!avatarUrl);
 
