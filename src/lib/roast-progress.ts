@@ -65,6 +65,11 @@ export interface RoastProgressInput {
   reducedMotion?: boolean;
   /** Copy chain for this roast. Unknown uses the longer v13 τ. */
   generator?: RoastGenerator | null;
+  /**
+   * Optional τ override (harness / tests only). When set, ignores `generator`.
+   * Production callers should leave this unset and pass `generator` instead.
+   */
+  tauMs?: number;
 }
 
 export interface RoastProgressSnapshot {
@@ -143,9 +148,14 @@ function stageIndexForRatio(ratio: number, complete: boolean): number {
  * from the in-flight value to 1 over {@link ROAST_PROGRESS_COMPLETE_MS}.
  */
 export function roastProgress(input: RoastProgressInput): RoastProgressSnapshot {
-  const elapsedMs = Math.max(0, input.elapsedMs);
+  // Negative / non-finite elapsed (clock skew, bad resume) must not NaN the ring.
+  const elapsedMs = Math.max(0, Number.isFinite(input.elapsedMs) ? input.elapsedMs : 0);
   const floor = clamp01(input.stageFloor ?? 0);
-  const running = Math.max(roastRunningRatio(elapsedMs, roastProgressTauMs(input.generator)), floor);
+  const tau =
+    input.tauMs != null && Number.isFinite(input.tauMs) && input.tauMs > 0
+      ? input.tauMs
+      : roastProgressTauMs(input.generator);
+  const running = Math.max(roastRunningRatio(elapsedMs, tau), floor);
   const complete = input.complete === true;
   let ratio = running;
   if (complete) {
@@ -178,12 +188,64 @@ export function roastProgress(input: RoastProgressInput): RoastProgressSnapshot 
 /**
  * Seed a non-zero elapsed time when a roast is already in flight but this
  * view has no start timestamp — avoids flashing 0% on refresh.
+ *
+ * A future `startedAtMs` (client/server clock skew) returns 0 so callers can
+ * re-anchor; prefer {@link resolveStartedAtMs} in the hook.
  */
 export function seedElapsedMs(startedAtMs: number | null | undefined, nowMs: number): number {
-  if (startedAtMs == null || !Number.isFinite(startedAtMs)) return 4_000;
+  if (startedAtMs == null || !Number.isFinite(startedAtMs) || !Number.isFinite(nowMs)) return 4_000;
   const elapsed = nowMs - startedAtMs;
   if (!Number.isFinite(elapsed) || elapsed < 0) return 0;
   return elapsed;
+}
+
+const DEFAULT_START_MAX_AGE_MS = 10 * 60_000;
+
+/**
+ * Pick a wall-clock start for the progress curve. Future or stale stored
+ * timestamps are ignored so a skewed clock cannot pin the ring at 0%.
+ */
+export function resolveStartedAtMs(
+  stored: number | null | undefined,
+  nowMs: number,
+  options?: { resume?: boolean; maxAgeMs?: number },
+): number {
+  const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const maxAge = options?.maxAgeMs ?? DEFAULT_START_MAX_AGE_MS;
+  if (
+    stored != null &&
+    Number.isFinite(stored) &&
+    now >= stored &&
+    now - stored < maxAge
+  ) {
+    return stored;
+  }
+  const seeded = options?.resume ? seedElapsedMs(null, now) : 0;
+  return now - seeded;
+}
+
+/**
+ * Keep displayed progress from walking backward when τ lengthens mid-stream
+ * (e.g. X-Roast-Generator arrives late and switches the curve).
+ */
+export function holdProgress(
+  previous: { percent: number; stageIndex: number },
+  next: RoastProgressSnapshot,
+): RoastProgressSnapshot {
+  const percent = Math.max(
+    Number.isFinite(previous.percent) ? previous.percent : 0,
+    next.percent,
+  );
+  const stageIndex = Math.max(
+    Number.isFinite(previous.stageIndex) ? previous.stageIndex : 0,
+    next.stageIndex,
+  );
+  return {
+    ...next,
+    percent: Math.min(100, percent),
+    stageIndex: Math.min(ROAST_PROGRESS_STAGE_COUNT - 1, stageIndex),
+    settled: next.settled || percent >= 100,
+  };
 }
 
 const START_KEY_PREFIX = "ghfind:roast-progress:";

@@ -5,11 +5,12 @@ import {
   ROAST_PROGRESS_COMPLETE_MS,
   ROAST_PROGRESS_FADE_MS,
   clearRoastStart,
+  holdProgress,
   nextStageFloor,
   readRoastStart,
   rememberRoastStart,
+  resolveStartedAtMs,
   roastProgress,
-  seedElapsedMs,
   stageFloorForLabel,
   type RoastGenerator,
 } from "@/lib/roast-progress";
@@ -59,24 +60,32 @@ export function useRoastProgress(
   const [fading, setFading] = useState(false);
   const [hidden, setHidden] = useState(false);
 
-  const publish = (now: number) => {
+  const publish = (nowMs: number) => {
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    // Clock skew / future start would clamp elapsed to 0 forever — re-anchor.
+    if (startedAtRef.current != null && now < startedAtRef.current) {
+      startedAtRef.current = now;
+      rememberRoastStart(username, lang, now);
+    }
     const started = startedAtRef.current ?? now;
     const completeAt = completeAtRef.current;
     const next = roastProgress({
       elapsedMs: Math.max(0, now - started),
       complete: completeAt != null,
-      completeElapsedMs: completeAt == null ? 0 : now - completeAt,
+      completeElapsedMs: completeAt == null ? 0 : Math.max(0, now - completeAt),
       stageFloor: floorRef.current,
       reducedMotion: reducedRef.current,
       generator: generatorRef.current,
     });
-    const shownPercent = Math.max(highPercentRef.current, next.percent);
-    const shownStage = Math.max(highStageRef.current, next.stageIndex);
-    highPercentRef.current = shownPercent;
-    highStageRef.current = shownStage;
-    setPercent(shownPercent);
-    setStageIndex(shownStage);
-    setSettled(next.settled || shownPercent >= 100);
+    const held = holdProgress(
+      { percent: highPercentRef.current, stageIndex: highStageRef.current },
+      next,
+    );
+    highPercentRef.current = held.percent;
+    highStageRef.current = held.stageIndex;
+    setPercent(held.percent);
+    setStageIndex(held.stageIndex);
+    setSettled(held.settled || held.percent >= 100);
   };
 
   useEffect(() => {
@@ -95,19 +104,19 @@ export function useRoastProgress(
     if (!active) return;
     const now = Date.now();
     if (startedAtRef.current == null) {
-      const stored = readRoastStart(username, lang);
-      if (stored != null && now - stored < 10 * 60_000 && now >= stored) {
-        startedAtRef.current = stored;
-      } else {
-        // A brand-new request starts at 0. A resumed in-flight view with no
-        // timestamp is seeded above 0 so the ring does not flash empty.
-        const seeded = resume ? seedElapsedMs(null, now) : 0;
-        startedAtRef.current = now - seeded;
-      }
+      // Future/stale sessionStorage values are ignored so skew cannot pin at 0%.
+      startedAtRef.current = resolveStartedAtMs(readRoastStart(username, lang), now, {
+        resume,
+      });
       rememberRoastStart(username, lang, startedAtRef.current);
     }
-    publish(Date.now());
-    const timer = window.setInterval(() => publish(Date.now()), reducedRef.current ? 800 : 200);
+    publishRef.current(now);
+    // Always tick through the ref so a mid-stream setGenerator / noteThinking
+    // republish sees the latest closure without resetting the interval.
+    const timer = window.setInterval(
+      () => publishRef.current(Date.now()),
+      reducedRef.current ? 800 : 200,
+    );
     return () => window.clearInterval(timer);
   }, [active, username, lang, resume]);
 

@@ -5,7 +5,9 @@ import {
   ROAST_PROGRESS_CREEP_MAX,
   ROAST_PROGRESS_TAU_V12_MS,
   ROAST_PROGRESS_TAU_V13_MS,
+  holdProgress,
   nextStageFloor,
+  resolveStartedAtMs,
   roastApproachRatio,
   roastProgress,
   roastProgressTauMs,
@@ -123,4 +125,53 @@ describe("roast progress curve", () => {
     expect(late.stageIndex).toBeGreaterThanOrEqual(mid.stageIndex);
     expect(late.stageIndex).toBeLessThanOrEqual(4);
   });
+
+  it("clamps negative or non-finite elapsed time to 0% instead of NaN", () => {
+    for (const elapsedMs of [-5_000, Number.NaN, Number.NEGATIVE_INFINITY]) {
+      const snap = roastProgress({ elapsedMs });
+      expect(snap.percent).toBe(0);
+      expect(snap.stageIndex).toBe(0);
+      expect(Number.isFinite(snap.ratio)).toBe(true);
+    }
+  });
+
+  it("keeps reduced-motion steps advancing the stage line", () => {
+    const early = roastProgress({ elapsedMs: 2_000, reducedMotion: true, generator: "v12" });
+    const mid = roastProgress({ elapsedMs: 20_000, reducedMotion: true, generator: "v12" });
+    const late = roastProgress({ elapsedMs: 90_000, reducedMotion: true, generator: "v12" });
+    expect(early.percent % 5).toBe(0);
+    expect(mid.percent).toBeGreaterThan(early.percent);
+    expect(mid.stageIndex).toBeGreaterThan(0);
+    expect(late.stageIndex).toBeGreaterThan(mid.stageIndex);
+    expect(late.percent % 5).toBe(0);
+  });
+
+  it("accepts a harness-only tauMs override without touching generator defaults", () => {
+    const compressed = roastProgress({ elapsedMs: 8_000, tauMs: 5_000 });
+    const production = roastProgress({ elapsedMs: 8_000, generator: "v13" });
+    expect(compressed.percent).toBeGreaterThan(production.percent);
+    expect(compressed.percent).toBeGreaterThan(40);
+    expect(roastProgressTauMs("v13")).toBe(ROAST_PROGRESS_TAU_V13_MS);
+  });
+
+  it("holdProgress prevents a mid-stream generator header from walking the ring backward", () => {
+    const withV12 = roastProgress({ elapsedMs: 40_000, generator: "v12" });
+    const withV13 = roastProgress({ elapsedMs: 40_000, generator: "v13" });
+    expect(withV13.percent).toBeLessThan(withV12.percent);
+    const held = holdProgress(
+      { percent: withV12.percent, stageIndex: withV12.stageIndex },
+      withV13,
+    );
+    expect(held.percent).toBe(withV12.percent);
+    expect(held.stageIndex).toBeGreaterThanOrEqual(withV12.stageIndex);
+  });
+
+  it("resolveStartedAtMs ignores future or stale stored starts", () => {
+    const now = 1_000_000;
+    expect(resolveStartedAtMs(now + 5_000, now)).toBe(now);
+    expect(resolveStartedAtMs(now - 20 * 60_000, now)).toBe(now);
+    expect(resolveStartedAtMs(now - 3_000, now)).toBe(now - 3_000);
+    expect(resolveStartedAtMs(null, now, { resume: true })).toBeLessThan(now);
+  });
+
 });
