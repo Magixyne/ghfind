@@ -5,6 +5,7 @@ import { tagsForLocale } from "@/lib/roast-tags";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { RoastReport } from "./RoastReport";
 import remarkGfm from "remark-gfm";
 import { Link, useRouter } from "@/i18n/navigation";
 import { DIMENSIONS } from "@/lib/dimensions";
@@ -579,14 +580,10 @@ export function Roaster({
               outside the card, above the leaderboard */}
           {reportBody && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-7">
-              <div
-                dir="ltr"
-                className={`report text-[0.95rem] text-zinc-200 ${
-                  roasting && !roastLine ? "caret" : ""
-                }`}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportBody}</ReactMarkdown>
-              </div>
+              <RoastReport
+                markdown={reportBody}
+                className={roasting && !roastLine ? "caret" : ""}
+              />
             </div>
           )}
 

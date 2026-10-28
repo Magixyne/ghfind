@@ -35,6 +35,8 @@ const TRIVIA_TAG_RE: readonly RegExp[] = [
   // Vague "thickness" / depth-as-metric jabs that name no project.
   /^厚度$/,
   /卡在厚度|没有厚度/,
+  // Bare role labels are not substance.
+  /^(?:协作者|维护者|贡献者|Owner|OWNER|Collaborator|Maintainer|Contributor|Committer)$/i,
 ];
 
 export function isTriviaTag(tag: string): boolean {

@@ -368,6 +368,25 @@ const CREDITED_AS_OWNED_STARS_RE =
 const INVENTED_CLOSE_REASON_RE =
   /(?:被?(?:维护者)?关闭|未合并|拒收|弹回)[^。！？!?\n]{0,40}(?:因为|由于|说明|都是|多是|全是)[^。！？!?\n]{0,40}(?:文档|说明文字|门槛|质量|太水|没实质)|(?:文档型|说明型|水(?:PR|pr)|琐碎)(?:改动|PR|pr)[^。！？!?\n]{0,24}(?:弹回|拒|关)/i;
 
+/** Stars vs commits/PRs juxtaposition, or "提交数(不是)第一" rank talk. */
+const STAR_COMMIT_JUXTAPOSE_RE =
+  /\d[\d,]*\s*星[^。！？!?\n]{0,48}(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|堆进去|打满)|(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|打满|堆进去)[^。！？!?\n]{0,48}\d[\d,]*\s*星|不是?\s*提交数\s*第一|提交数\s*(?:不是)?第一|top\s*committer|not\s+the\s+top\s+committer/i;
+/** Percent-of-work gotchas ("约 65% 是文档", "六成是站点"). */
+const PCT_OF_WORK_RE =
+  /约?\s*\d+\s*%\s*(?:是|为|都在)|(?:约|接近)?\s*[一二三四五六七八九十两\d]+\s*成\s*(?:是|都|在)|percent\s+of\s+(?:PRs?|commits?|work)/i;
+/** Language-share figures — prefer drop; judges flag as fabricated. */
+const LANG_SHARE_RE =
+  /(?:TypeScript|JavaScript|Python|Go|Rust|Java|C\+\+|C#|Ruby|PHP|Swift|Kotlin|Dart|Shell|HTML|CSS|Vue|Astro|GDScript|Handlebars|SCSS)\s*\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*%\s*(?:TypeScript|JavaScript|Python|Go|Rust|Java)|语言[^。！？!?\n]{0,24}\d+\s*%/i;
+/** Score-tier restating / meta filler the owner rejected. */
+const SCORE_META_FILLER_RE =
+  /所以(?:高|低|中|停在|这个分)[^。！？!?\n]{0,24}(?:没到头|没到顶|到不了|停在中段|上不去)|这是日历总数[,，]?不是\s*PR\s*数|这是评分口径本身[,，]?不是界面抛光|不是界面抛光/i;
+/** Stiff knife/craft metaphors that pile up. */
+const STIFF_METAPHOR_RE =
+  /亮仓刀|刀却都在|刀口在|砍一刀|客座刀|(?:你的)?手艺/;
+/** Third-person gendered pronouns — always address as 你. Skip 其他/他人. */
+const GENDERED_PRONOUN_RE =
+  /(?<![其])她|(?<![其])他(?![人们])/;
+
 function countNumbers(text: string): number {
   // Collapse ISO dates so "2022-07-21" counts as one evidence token, not three.
   const normalized = text.replace(/\d{4}-\d{2}-\d{2}/g, "DATE");
@@ -378,15 +397,16 @@ function numberDensityIssues(field: string, text: string): V13Issue[] {
   const out: V13Issue[] = [];
   for (const s of sentences(text)) {
     const n = countNumbers(s);
-    if (n > 2) {
+    const sentMax = field.startsWith("findings") ? 1 : field.startsWith("dimensions.") ? 2 : 2;
+    if (n > sentMax) {
       out.push({
         kind: "trivia",
         field,
-        detail: `number density: sentence has ${n} numbers (max 2) — "${s.slice(0, 48)}"`,
+        detail: `number density: sentence has ${n} numbers (max ${sentMax}) — "${s.slice(0, 48)}"`,
       });
     }
   }
-  const cap = field.startsWith("dimensions.") ? 4 : field.startsWith("findings") ? 3 : field === "roast_line" || field.endsWith(".zh") || field.endsWith(".en") ? 2 : 4;
+  const cap = field.startsWith("dimensions.") ? 2 : field.startsWith("findings") ? 1 : field === "roast_line" || field.endsWith(".zh") || field.endsWith(".en") ? 2 : 3;
   const total = countNumbers(text);
   if (total > cap) {
     out.push({ kind: "trivia", field, detail: `number density: field has ${total} numbers (max ${cap})` });
@@ -407,8 +427,8 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   const issues: V13Issue[] = [];
   // Tags: reject follower-ratio / time-window / thickness gotchas by name.
   if (field.startsWith("tags")) {
-    if (isTriviaTag(text)) {
-      issues.push({ kind: "trivia", field, detail: "tag names a trivial stat, not substance" });
+    if (isTriviaTag(text) || /^(?:协作者|维护者|贡献者|Owner|OWNER|Collaborator|Maintainer|Contributor|Committer)$/i.test(text.trim())) {
+      issues.push({ kind: "trivia", field, detail: "tag names a trivial stat or bare role, not substance" });
     }
     return issues;
   }
@@ -425,11 +445,32 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   if (SHARE_CONTRAST_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "share-count contrast (N里M个 / M个是你的 / X of Y) is banned — absolute counts and qualitative roles only" });
   }
+  if (STAR_COMMIT_JUXTAPOSE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "stars-vs-commits juxtaposition or 提交数第一 rank talk is banned — write what the work is" });
+  }
+  if (PCT_OF_WORK_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "percent-of-PRs/work gotcha is banned — describe the work, not the share" });
+  }
+  if (LANG_SHARE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "language-share percentages are banned — name the stack without % figures" });
+  }
+  if (SCORE_META_FILLER_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "score-tier restating / meta filler (所以高但没到头 / 日历总数不是PR数) is banned" });
+  }
+  if (STIFF_METAPHOR_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "stiff knife/手艺 metaphors are banned — witty framing from the work itself" });
+  }
+  if (GENDERED_PRONOUN_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "never infer gender — address the subject as 你 / you" });
+  }
   if (CREDITED_AS_OWNED_STARS_RE.test(text) && !/折算|计入|credited/i.test(text)) {
     issues.push({ kind: "trivia", field, detail: "metrics.total_stars is credited/折算 stars — say 折算/计入, never 名下总星/名下仓库总星" });
   }
   if (INVENTED_CLOSE_REASON_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "do not invent why PRs were closed — count only, no fabricated close reasons" });
+  }
+  if (/\bOWNER\b|标成\s*OWNER|标成所有者/i.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "do not claim OWNER — only state roles from the card facts.role field in plain words" });
   }
   if (field.startsWith("advice") && GAMEY_ADVICE_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "gamey advice (chase commits/stars/followers) — suggest what to build/ship/write/OSS next" });

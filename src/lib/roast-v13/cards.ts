@@ -134,8 +134,10 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     // Absolute counts + role only — never "N 里 M 个是 TA 的" share contrasts.
     if (commits) {
       parts.push(`TA 在这里有 ${commits.mine} 个提交`);
-      if (commits.leader !== undefined && commits.leader === commits.mine) parts.push("提交数第一");
-      else if (commits.leader !== undefined && commits.leader > commits.mine) parts.push("不是提交数第一");
+      // Qualitative depth only — never "提交数第一 / 不是提交数第一" rank talk
+      // (rank contrasts leak into roast copy). Maintainer/role comes from facts.role.
+      if (commits.leader !== undefined && commits.leader === commits.mine) parts.push("是这边主笔量级的提交");
+      else if (commits.leader !== undefined && commits.leader > commits.mine) parts.push("是客座量级的提交");
     } else if (w?.commits) {
       parts.push(`TA 在这里有 ${w.commits} 个提交`);
     }

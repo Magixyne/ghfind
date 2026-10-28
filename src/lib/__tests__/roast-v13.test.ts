@@ -93,15 +93,15 @@ const scan = {
 const goodCopy = {
   title: "万星仓库只改两个词",
   roast_line: {
-    zh: "主力 commit 全砸进 2 星的 sample-user/side-app,组件库 sample-user/widget-kit 反倒从年初起没再推送。",
-    en: "Most commits went into a 2-star side app while the component library sat idle.",
+    zh: "主力活全砸进 sample-user/side-app,组件库 sample-user/widget-kit 反倒从年初起没再推送。",
+    en: "The real work went into the side app while the component library sat idle.",
   },
   roast_line_candidates: ["候选一", "候选二"],
   tags: { zh: ["词条外交", "自营荒地"], en: ["Word Diplomat", "Own-Repo Famine"] },
   verdict: "代码是真写,名气全靠别人家的仓库撑场。",
   findings: [
     { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的,5 个 open Issue 等着。" },
-    { headline: "桌面代理在加班", text: "19 星的 sample-user/desk-agent 是 Rust 写的桌面代理,7 个 open Issue。" },
+    { headline: "桌面代理在加班", text: "sample-user/desk-agent 是 Rust 写的桌面代理,还堆着一串 open Issue。" },
     { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,最大的工具 57 星。" },
   ],
   dimensions: {
@@ -155,12 +155,15 @@ describe("roast v13 rendering", () => {
     const copy = coerceCopy(goodCopy) as V13Copy;
     const md = renderV13Report(scan, "zh", copy);
     expect(md.startsWith("## sample-user — 73.60/100  ·  人上人 (优质贡献者 · 值得信任)")).toBe(true);
-    expect(md).toContain("| 原创与主导项目质量 | 12.2/18 |");
-    expect(md).toContain("**扎心三连**");
-    expect(md).toContain("**风险标记**\n无。");
+    expect(md).toContain("#### 原创与主导项目质量 · 12.2/18");
+    expect(md).toContain("### 扎心三连");
+    expect(md).toContain("> **一句话结论**");
+    expect(md).toMatch(/#### .+ · \d/);
+    expect(md).toContain("### 风险标记");
+    expect(md).toContain("无。");
     const en = renderV13Report(scan, "en", copy);
     expect(en).toContain("SOLID (Solid · Trustworthy)");
-    expect(en).toContain("| Account maturity | 10/10 |");
+    expect(en).toContain("#### Account maturity · 10/10");
   });
 });
 
@@ -182,7 +185,8 @@ describe("roast v13 risk section", () => {
       },
     } as unknown as ScanResult;
     const md = renderV13Report(risky, "zh", { ...(coerceCopy(goodCopy) as V13Copy), risk: "" });
-    expect(md).toContain("**风险标记**\n- 公开仓库以 Fork 为主（提示）");
+    expect(md).toContain("### 风险标记");
+    expect(md).toContain("- 公开仓库以 Fork 为主（提示）");
     expect(md).not.toContain("不代表任何问题");
   });
 
@@ -406,6 +410,61 @@ describe("roast v13 salience, quotes and repetition", () => {
       ).some((i) => i.kind === "trivia" && /follower/.test(i.detail)),
     ).toBe(true);
 
+    // Stars-vs-commits / rank talk / lang share / gender / OWNER.
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, roast_line: { ...goodCopy.roast_line, zh: "84213 星的 org/app 上堆了 100 个提交。" } } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /stars-vs-commits|提交数第一/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, verdict: "你在那边不是提交数第一,只是客座。" } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /stars-vs-commits|提交数第一/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, findings: [{ headline: "x", text: "约 65% 是文档和站点皮肤。", cards: ["c1"] }, ...goodCopy.findings.slice(0, 2)] } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /percent-of/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, activity_authenticity: "语言落在 TypeScript 32%、Go 19%。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /language-share/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(index, { ...goodCopy, verdict: "她把导航补丁合进主干。" } as V13Copy, "zh").some(
+        (i) => i.kind === "trivia" && /gender/.test(i.detail),
+      ),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, account_maturity: "仓把你标成 OWNER 和维护者。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /OWNER/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, tags: { zh: ["协作者", "导航补丁"], en: ["Collaborator", "Nav"] } } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && i.field.startsWith("tags") && /role|trivial/.test(i.detail)),
+    ).toBe(true);
+
     // Credited/折算 stars must not be mislabeled as owned-repo totals.
     expect(
       validateCopy(
@@ -472,7 +531,7 @@ describe("roast v13 salience, quotes and repetition", () => {
       findings: goodCopy.findings.slice(0, 2),
       advice: ["一", "二", "三", "四", "五"],
     } as V13Copy);
-    expect(report).toContain("**扎心两连**");
+    expect(report).toContain("### 扎心两连");
     expect(report.match(/^- /gm)?.length).toBe(4);
   });
 });

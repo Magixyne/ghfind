@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { RoastReport } from "./RoastReport";
 import { Link } from "@/i18n/navigation";
 import { consumeRoastingHandoff, readSessionScan, stripRoastingParam } from "@/lib/home-handoff";
 import { splitReport } from "@/lib/report";
@@ -275,9 +274,7 @@ export function LiveRoast({
       )}
 
       {reportBody && (
-        <div dir="ltr" className={`report text-[0.95rem] text-zinc-200 ${report ? "caret" : ""}`}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportBody}</ReactMarkdown>
-        </div>
+        <RoastReport markdown={reportBody} className={report ? "caret" : ""} />
       )}
     </>
   );

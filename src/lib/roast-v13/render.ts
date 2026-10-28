@@ -1,6 +1,10 @@
 /**
  * Deterministic Markdown skeleton for roast v13. Scores, tier and dimension
  * maxima come from the scan; only prose fields come from the model.
+ *
+ * Layout (parsed by RoastReport): stacked dimension cards with progress bars,
+ * callout verdict, numbered findings with title chips, bulleted advice —
+ * no narrow 3-column table (that wrapped dimension names on mobile).
  */
 import { TIER_EN, TIER_LABEL_EN } from "../badge";
 import type { Lang } from "../lang";
@@ -78,33 +82,43 @@ export function renderV13Report(scan: ScanResult, lang: Lang, copy: V13Copy): st
     lines.push(`${zh ? "**称号**" : "**Title**"}: ${cell(copy.title)}`);
     lines.push("");
   }
-  lines.push(`${zh ? "**一句话结论**" : "**TL;DR**"}: ${cell(copy.verdict)}`);
+  // Blockquote callout — RoastReport styles this as a highlighted verdict.
+  lines.push(zh ? "> **一句话结论**" : "> **TL;DR**");
+  lines.push(`>`);
+  lines.push(`> ${cell(copy.verdict)}`);
   lines.push("");
   if (copy.findings.length) {
     const n = Math.min(copy.findings.length, 3);
-    lines.push(zh ? `**扎心${["一", "两", "三"][n - 1]}连**` : `**${["One thing", "Two things", "Three things"][n - 1]} we noticed**`);
-    copy.findings.slice(0, 3).forEach((f, i) => {
-      const head = f.headline ? `**${cell(f.headline)}** ` : "";
-      lines.push(`${i + 1}. ${head}${cell(f.text)}`);
-    });
+    lines.push(zh ? `### 扎心${["一", "两", "三"][n - 1]}连` : `### ${["One thing", "Two things", "Three things"][n - 1]} we noticed`);
     lines.push("");
+    copy.findings.slice(0, 3).forEach((f, i) => {
+      const head = f.headline ? `**${cell(f.headline)}**` : "";
+      lines.push(`${i + 1}. ${head}`);
+      lines.push("");
+      lines.push(`   ${cell(f.text)}`);
+      lines.push("");
+    });
   }
-  lines.push(zh ? "| 维度 | 得分 | 说明 |" : "| Dimension | Score | Note |");
-  lines.push("|------|------|------|");
+  lines.push(zh ? "### 维度评分" : "### Dimensions");
+  lines.push("");
   for (const key of V13_DIMENSIONS) {
     const score = s.sub_scores[key];
-    lines.push(
-      `| ${DIM_LABEL[zh ? "zh" : "en"][key]} | ${fmt(score)}/${SUBSCORE_MAX[key]} | ${cell(copy.dimensions[key] ?? "")} |`,
-    );
+    const max = SUBSCORE_MAX[key];
+    // h4 "Name · score/max" — RoastReport turns this into a card + progress bar.
+    lines.push(`#### ${DIM_LABEL[zh ? "zh" : "en"][key]} · ${fmt(score)}/${max}`);
+    lines.push("");
+    lines.push(cell(copy.dimensions[key] ?? ""));
+    lines.push("");
   }
+  lines.push(zh ? "### 风险标记" : "### Red flags");
   lines.push("");
-  lines.push(zh ? "**风险标记**" : "**Red flags**");
   if (hasRiskSignals(scan) && copy.risk) lines.push(cell(copy.risk));
   else if (hasRiskSignals(scan)) for (const line of riskLines(scan, zh)) lines.push(`- ${cell(line)}`);
   else lines.push(zh ? "无。" : "None.");
   lines.push("");
   if (copy.advice.length) {
-    lines.push(zh ? "**建议**" : "**Verdict**");
+    lines.push(zh ? "### 建议" : "### Next");
+    lines.push("");
     for (const a of copy.advice.slice(0, 4)) lines.push(`- ${cell(a)}`);
   }
   return lines.join("\n").trim() + "\n";

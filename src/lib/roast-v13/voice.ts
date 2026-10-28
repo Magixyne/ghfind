@@ -68,7 +68,7 @@ export const V13_CLICHE_PHRASES_EN = [
 export const SAFETY_ZH = `## 安全底线(违反任何一条整篇作废)
 - 只评价公开的 GitHub 行为与数据。绝不涉及性别、种族、国籍、地域、长相、年龄、健康、家庭、收入、宗教、学校/公司出身。
 - 不评价英语/语言水平,不把拼写、语法、翻译类 PR 写成作者语言差。
-- 代词遵守 context_notes.pronoun_usage;不确定就用用户名或"你"。
+- 代词一律用"你"。禁止她/他(「其他/他人/他们」除外)。不推断性别。context_notes.pronoun_usage 仅作参考,仍写"你"。
 - 不编造身份头衔(Committer/Maintainer/核心成员),除非数据明说。
 - 给自己仓库提 PR 是正常开发流程,不得嘲讽为刷量。只有 maintainer_closed_unmerged_pr_count 能叫"被拒";作者自己关闭的不是被拒;官方工作流落地的 PR 不是被拒。
 - last_year_contributions 是贡献日历总数,不是 PR 数,也不能推出分布在哪些仓库。
@@ -80,7 +80,7 @@ export const SAFETY_ZH = `## 安全底线(违反任何一条整篇作废)
 export const SAFETY_EN = `## Safety floor (breaking any rule voids the output)
 - Judge only public GitHub behavior and data. Never touch gender, race, nationality, region, looks, age, health, family, income, religion, school/employer pedigree.
 - Never judge English/language proficiency; typo/grammar/translation PRs are work done, not proof of bad English.
-- Follow context_notes.pronoun_usage; if unclear use the username or "you".
+- Always address as "you". Never infer gender (no he/she).
 - Never invent titles (committer/maintainer/core team) unless the data states them.
 - PRs to your own repos are normal workflow, never "farming". Only maintainer_closed_unmerged_pr_count may be called rejections; self-closed and workflow-landed PRs are not.
 - last_year_contributions is a calendar aggregate, not a PR count, and says nothing about which repos.
@@ -93,7 +93,7 @@ export const PRECISION_ZH = `## 精确口径(最常见的事实错误,逐条遵�
 - **绝对词要查全表**:"最高/最响/唯一/只有/全是/全部/封顶/从没/一个都没有/一辈子"只能在你核对过 top_repos 和 impact_repos 全部条目、数据字面支持时使用。"自有仓库最高星"只看 attributed_original 为 true 的仓库或 metrics 里的明确字段;attributed_original 为 false 的仓库不能叫"自有/个人仓"。
 - **日期不是状态**:pushed_at 只说明"最后一次推送在某天"。可以写"最后一次推送停在 2024-02",不能写成"停更/弃坑/熄火/冬眠"这种确定状态,除非数据明说已归档。
 - **样本不是全量**:recent_prs、verified_impact_prs、近期样本只是部分记录,不能据此说"唯一/全部/只合进去 1 个";全量口径用 metrics 和 impact_repos。
-- **份额要带分母**:共建仓库的"697/811 次提交"写成"811 个提交里 697 个是你的",不能写成"全是你写的";"近 180 天"就写近 180 天,别改成"近半年全部"。
+- **份额对比已禁止**:不要写"N 个里 M 个是你的"。只写绝对量(合过 N 个 PR / 有 N 个提交)或定性(主笔量级 / 客座)。时间窗("近 180 天")禁止当梗。
 - **别和强项打架**:factual_guardrails 写明主导/共建、或长期高星 PR/commit 很多的账号,不得用"过客/路过/没留下"类角度。
 - **数据没给的就不推**:不从粉丝数推"没人用",不从 open issue 数推"没人接话",不从用户名推身份或含义。`;
 

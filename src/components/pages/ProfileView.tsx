@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import { RoastReport } from "../RoastReport";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
 import { aggregateLanguages, collectTopics } from "@/lib/profile-insights";
@@ -994,9 +995,7 @@ export function ProfileView({
                 />
               )}
               */}
-              <div dir="ltr" className="report text-[0.95rem] text-zinc-200">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{roast}</ReactMarkdown>
-              </div>
+              <RoastReport markdown={roast} />
             </>
           )
         ) : shouldStreamRoast ? (
@@ -1018,9 +1017,7 @@ export function ProfileView({
             lang={lang}
             staleReport={
               staleRoast ? (
-                <div dir="ltr" className="report text-[0.95rem] text-zinc-200">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{staleRoast}</ReactMarkdown>
-                </div>
+                <RoastReport markdown={staleRoast} />
               ) : null
             }
           />

@@ -448,7 +448,7 @@ html[data-theme="light"] [data-force-dark] .text-orange-400 {
   color: #fb923c;
 }
 
-/* Markdown report styling (react-markdown output) — roast hierarchy */
+/* Markdown report styling (react-markdown / RoastReport) — roast hierarchy */
 .report {
   max-width: 42rem;
   line-height: 1.7;
@@ -513,6 +513,49 @@ html[data-theme="light"] [data-force-dark] .text-orange-400 {
   border-radius: 4px;
   font-family: var(--font-mono), monospace;
   font-size: 0.85em;
+}
+
+/* v13l stacked dimension cards: h4 head + following note paragraph */
+.roast-report .roast-dim-head + p {
+  margin: 0 0 0.85rem;
+  max-width: none;
+  padding: 0.65rem 0.9rem 0.9rem;
+  border: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
+  border-top: 0;
+  border-radius: 0 0 0.75rem 0.75rem;
+  background: color-mix(in oklab, var(--surface-muted) 35%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.roast-report .roast-verdict p {
+  margin: 0.25rem 0;
+  max-width: none;
+}
+.roast-report .roast-verdict strong {
+  color: #fdba74; /* orange-300-ish, works on dark; light theme overridden below */
+}
+html[data-theme="light"] .roast-report .roast-verdict strong {
+  color: #c2410c;
+}
+/* Numbered findings via CSS counter on the chip circle */
+.roast-report .roast-findings {
+  counter-reset: roast-finding;
+}
+.roast-report .roast-finding-num::before {
+  counter-increment: roast-finding;
+  content: counter(roast-finding);
+}
+.roast-report .roast-finding p {
+  margin: 0.35rem 0 0;
+  max-width: none;
+}
+.roast-report .roast-advice {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.roast-report .roast-advice > li {
+  margin: 0.55rem 0;
+  padding-left: 0.15rem;
 }
 
 /* Long-form article styling (blog/research posts; .report stays tuned for roast cards) */
