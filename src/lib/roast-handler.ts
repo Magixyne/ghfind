@@ -60,6 +60,8 @@ import { sanitizeRoastTags } from "./roast-tags";
 
 /** Response header carrying the score meta (base64'd JSON; it contains CJK). */
 export const ROAST_META_HEADER = "X-Roast-Meta";
+/** Which copy chain this response will run. Clients use it to pick a progress τ. */
+export const ROAST_GENERATOR_HEADER = "X-Roast-Generator";
 
 const EMPTY_ROAST_LINE: RoastLine = { zh: "", en: "" };
 
@@ -512,6 +514,7 @@ function roastResponse(body: ReadableStream<Uint8Array> | string, meta: RoastMet
       "Cache-Control": "no-store",
       "X-Accel-Buffering": "no",
       [ROAST_META_HEADER]: metaHeader(meta),
+      [ROAST_GENERATOR_HEADER]: roastGenerator(),
     },
   });
 }

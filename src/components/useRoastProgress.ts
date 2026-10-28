@@ -11,6 +11,7 @@ import {
   roastProgress,
   seedElapsedMs,
   stageFloorForLabel,
+  type RoastGenerator,
 } from "@/lib/roast-progress";
 
 export interface RoastProgressDriver {
@@ -21,6 +22,8 @@ export interface RoastProgressDriver {
   /** Drop the card once the fade finishes. */
   hidden: boolean;
   noteThinking: (label: string) => void;
+  /** Switch τ once /api/roast names v12 or v13. Unknown stays on the longer v13 curve. */
+  setGenerator: (generator: RoastGenerator) => void;
   markComplete: () => void;
   reset: () => void;
 }
@@ -43,6 +46,7 @@ export function useRoastProgress(
 ): RoastProgressDriver {
   const startedAtRef = useRef<number | null>(null);
   const floorRef = useRef(0);
+  const generatorRef = useRef<RoastGenerator | null>(null);
   const highPercentRef = useRef(0);
   const highStageRef = useRef(0);
   const completeAtRef = useRef<number | null>(null);
@@ -64,6 +68,7 @@ export function useRoastProgress(
       completeElapsedMs: completeAt == null ? 0 : now - completeAt,
       stageFloor: floorRef.current,
       reducedMotion: reducedRef.current,
+      generator: generatorRef.current,
     });
     const shownPercent = Math.max(highPercentRef.current, next.percent);
     const shownStage = Math.max(highStageRef.current, next.stageIndex);
@@ -128,12 +133,18 @@ export function useRoastProgress(
       floorRef.current = nextStageFloor(floorRef.current, stageFloorForLabel(label));
       publishRef.current(Date.now());
     },
+    setGenerator(generator: RoastGenerator) {
+      if (generatorRef.current === generator) return;
+      generatorRef.current = generator;
+      publishRef.current(Date.now());
+    },
     markComplete,
     reset() {
       const now = Date.now();
       // Re-anchor even when the ring is already active, so a retry starts over.
       startedAtRef.current = now;
       floorRef.current = 0;
+      generatorRef.current = null;
       highPercentRef.current = 0;
       highStageRef.current = 0;
       completeAtRef.current = null;

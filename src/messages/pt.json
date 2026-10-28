@@ -126,7 +126,7 @@
     "title": "Código-fonte e algoritmo de pontuação são open source · Ver no GitHub"
   },
   "home": {
-    "brand": "Brutal",
+    "brand": "Roast",
     "headline": "Descubra os melhores desenvolvedores — e vire um deles.",
     "subtitle": "Comece com uma nota de 0 a 100 brutalmente honesta. Veja onde você está e pra onde ir.",
     "boardHeading": "🏆 Melhores desenvolvedores",
@@ -354,7 +354,7 @@
     "orgsLabel": "Organizações",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "🔥 Zoada completa",
+    "roastHeading": "Roast",
     "roastEmpty": "Esta zoada ainda não foi arquivada — <a>julgue de novo pela página inicial</a> pra gerar.",
     "scoreStateStaleTitle": "Pontuação histórica",
     "scoreStateStaleBody": "Esta pontuação usa regras antigas. Ela continua visível até ser substituída por uma nova varredura verificada.",
@@ -399,7 +399,8 @@
     "battleTie": "Empate",
     "selfCta": "Avaliar meu próprio GitHub →",
     "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês.",
-    "coCreatorShare": "Liderado / cocriado ({share}%)"
+    "coCreatorShare": "Liderado / cocriado ({share}%)",
+    "scoreReadyHint": "A pontuação já saiu. O roast chega já"
   },
   "reactions": {
     "heading": "Reações da comunidade",
@@ -437,7 +438,7 @@
     "judging": "Julgando…",
     "byoLink": "Usar seu próprio modelo / API key",
     "scanning": "Desenterrando o histórico de {username}… lendo commits, checando PRs, contando stars, farejando atividade fabricada",
-    "roastLabel": "🔥 Zoada",
+    "roastLabel": "Roast",
     "roastThinking": "A IA está preparando uma zoada impiedosa — sai já já…",
     "roastPending": "Preparando a zoada",
     "firstJudged": "🥇 Você é a primeira pessoa julgada — pioneirismo de verdade",

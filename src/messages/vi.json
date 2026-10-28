@@ -126,7 +126,7 @@
     "title": "Mã nguồn & thuật toán chấm điểm đều mã nguồn mở · Xem trên GitHub"
   },
   "home": {
-    "brand": "Cực gắt",
+    "brand": "Nhận xét",
     "headline": "Khám phá những dev giỏi nhất — và trở thành một trong số họ.",
     "subtitle": "Bắt đầu bằng một điểm số 0–100 thật đến phũ phàng. Biết mình đang ở đâu, và nên đi về đâu.",
     "boardHeading": "🏆 Những dev xịn nhất",
@@ -354,7 +354,7 @@
     "orgsLabel": "Tổ chức",
     "commits": "commit",
     "prs": "PR",
-    "roastHeading": "🔥 Toàn văn cà khịa",
+    "roastHeading": "Nhận xét",
     "roastEmpty": "Bài cà khịa này chưa được lưu trữ — <a>phán xét lại từ trang chủ</a> để tạo nó.",
     "scoreStateStaleTitle": "Điểm lịch sử",
     "scoreStateStaleBody": "Điểm này dùng bộ quy tắc cũ. Nó vẫn được hiển thị cho đến khi một lần quét lại đã xác minh thay thế.",
@@ -399,7 +399,8 @@
     "battleTie": "Hòa",
     "selfCta": "Chấm điểm GitHub của chính bạn →",
     "reportLangNotice": "Báo cáo cà khịa của AI hiện chỉ được viết bằng tiếng Anh và tiếng Trung — bạn đang đọc bản tiếng Anh.",
-    "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)"
+    "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)",
+    "scoreReadyHint": "Điểm đã ra. Nhận xét tới ngay"
   },
   "reactions": {
     "heading": "Phản ứng cộng đồng",
@@ -437,7 +438,7 @@
     "judging": "Đang phán xét…",
     "byoLink": "Dùng model / API key của riêng bạn",
     "scanning": "Đang đào bới lịch sử của {username}… đọc commit, soi PR, đếm star, đánh hơi hoạt động cày ảo",
-    "roastLabel": "🔥 Cà khịa",
+    "roastLabel": "Nhận xét",
     "roastThinking": "AI đang nấu một màn cà khịa cực gắt — sắp ra lò rồi…",
     "roastPending": "Đang chuẩn bị màn cà khịa",
     "firstJudged": "🥇 Bạn là người đầu tiên bị phán xét — đúng chất tiên phong",

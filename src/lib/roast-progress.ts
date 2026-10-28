@@ -6,18 +6,28 @@
  * floored and never decreases. Backend T-frames may only raise a stage floor.
  *
  * τ is chosen so 80% of the capped curve (p = 0.80 × 0.92) lands on the
- * estimated median generation time:
- *   0.80 = 1 - exp(-median / τ)
- *   τ = median / -ln(0.2)
- * Live generation is budgeted at GENERATION_ATTEMPT_MS = 95s with a 30s LLM
- * idle timeout. The low-effort path's first content is about 15–60s (see
- * src/lib/llm.ts). Median estimate: 28s → τ ≈ 17.4s.
+ * measured median wall time:
+ *   τ = median_ms / -ln(0.2)
+ * v12 median 56.0s (n=30, v12grok batch) → τ ≈ 34.8s.
+ * v13 median 230.5s (n=30, recent v13m+n+o+p) → τ ≈ 143.2s.
+ * Until the response names a generator, use the longer v13 constant so a
+ * chain run does not sit on the cap early.
  */
+
+export type RoastGenerator = "v12" | "v13";
 
 export const ROAST_PROGRESS_CAP = 0.92;
 export const ROAST_PROGRESS_CREEP_MAX = 0.97;
-/** Time constant for the exponential approach to the cap. */
-export const ROAST_PROGRESS_TAU_MS = 17_400;
+/** v12 single-call median 56.0s. */
+export const ROAST_PROGRESS_TAU_V12_MS = 34_800;
+/** v13 chain median 230.5s. Also the default until the generator is known. */
+export const ROAST_PROGRESS_TAU_V13_MS = 143_200;
+/** @deprecated Use {@link roastProgressTauMs}. Kept as the v13 default. */
+export const ROAST_PROGRESS_TAU_MS = ROAST_PROGRESS_TAU_V13_MS;
+
+export function roastProgressTauMs(generator?: RoastGenerator | null): number {
+  return generator === "v12" ? ROAST_PROGRESS_TAU_V12_MS : ROAST_PROGRESS_TAU_V13_MS;
+}
 /** Hold at the cap this long before the slow creep toward 97%. */
 export const ROAST_PROGRESS_CREEP_DELAY_MS = 8_000;
 /** Creep from cap to 97% over this window, then stay. */
@@ -53,6 +63,8 @@ export interface RoastProgressInput {
   stageFloor?: number;
   /** When true, the displayed percent moves in 5-point steps. */
   reducedMotion?: boolean;
+  /** Copy chain for this roast. Unknown uses the longer v13 τ. */
+  generator?: RoastGenerator | null;
 }
 
 export interface RoastProgressSnapshot {
@@ -72,9 +84,12 @@ function clamp01(value: number): number {
 }
 
 /** Exponential approach to `cap`, before creep or completion. */
-export function roastApproachRatio(elapsedMs: number, tauMs = ROAST_PROGRESS_TAU_MS): number {
+export function roastApproachRatio(
+  elapsedMs: number,
+  tauMs = ROAST_PROGRESS_TAU_V13_MS,
+): number {
   const t = Math.max(0, elapsedMs);
-  const tau = tauMs > 0 ? tauMs : ROAST_PROGRESS_TAU_MS;
+  const tau = tauMs > 0 ? tauMs : ROAST_PROGRESS_TAU_V13_MS;
   return ROAST_PROGRESS_CAP * (1 - Math.exp(-t / tau));
 }
 
@@ -82,11 +97,14 @@ export function roastApproachRatio(elapsedMs: number, tauMs = ROAST_PROGRESS_TAU
  * Running ratio: exponential curve, then a slow creep from the cap toward 97%
  * that stays there. Never exceeds the creep ceiling while incomplete.
  */
-export function roastRunningRatio(elapsedMs: number, tauMs = ROAST_PROGRESS_TAU_MS): number {
+export function roastRunningRatio(elapsedMs: number, tauMs = ROAST_PROGRESS_TAU_V13_MS): number {
   const approach = roastApproachRatio(elapsedMs, tauMs);
   const t = Math.max(0, elapsedMs);
-  // Time when the curve is within ~0.5pt of the cap — creep starts after a pause.
-  const nearCapMs = tauMs > 0 ? -tauMs * Math.log(0.005 / ROAST_PROGRESS_CAP) : 0;
+  const tau = tauMs > 0 ? tauMs : ROAST_PROGRESS_TAU_V13_MS;
+  // Creep begins once the exponential is within ~0.5pt of the cap, then
+  // pauses a fixed beat. The creep window stays absolute so a long v13 run
+  // still leaves the cap instead of stretching the pause with τ.
+  const nearCapMs = -tau * Math.log(0.005 / ROAST_PROGRESS_CAP);
   const creepStart = nearCapMs + ROAST_PROGRESS_CREEP_DELAY_MS;
   if (t <= creepStart) return approach;
   const creepT = Math.min(1, (t - creepStart) / ROAST_PROGRESS_CREEP_WINDOW_MS);
@@ -127,7 +145,7 @@ function stageIndexForRatio(ratio: number, complete: boolean): number {
 export function roastProgress(input: RoastProgressInput): RoastProgressSnapshot {
   const elapsedMs = Math.max(0, input.elapsedMs);
   const floor = clamp01(input.stageFloor ?? 0);
-  const running = Math.max(roastRunningRatio(elapsedMs), floor);
+  const running = Math.max(roastRunningRatio(elapsedMs, roastProgressTauMs(input.generator)), floor);
   const complete = input.complete === true;
   let ratio = running;
   if (complete) {

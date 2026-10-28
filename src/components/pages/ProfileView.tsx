@@ -466,6 +466,9 @@ export function ProfileView({
         <div className="mt-1 text-sm font-medium text-zinc-300">
           {tTier(`${tierKey}.blurb`)}
         </div>
+        {shouldStreamRoast || reroastPending ? (
+          <p className="mt-2 text-sm text-zinc-400">{t("scoreReadyHint")}</p>
+        ) : null}
         {isOwner && (
           <RescanButton
             username={d.username}
@@ -943,7 +946,7 @@ export function ProfileView({
             : "mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-7"
         }
       >
-        <h2 className="mb-3 text-lg font-bold text-orange-400">{t("roastHeading")}</h2>
+        <h2 className={`mb-3 text-lg font-bold ${style.text}`}>{t("roastHeading")}</h2>
         {/* LLM content only exists in zh/en; a ja/ko visitor reads the English
             side, so tell them why the report language differs from the UI. */}
         {lang !== locale && (roast || roastLine) && (

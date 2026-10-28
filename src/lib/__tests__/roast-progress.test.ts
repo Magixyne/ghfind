@@ -3,10 +3,12 @@ import {
   ROAST_PROGRESS_CAP,
   ROAST_PROGRESS_COMPLETE_MS,
   ROAST_PROGRESS_CREEP_MAX,
-  ROAST_PROGRESS_TAU_MS,
+  ROAST_PROGRESS_TAU_V12_MS,
+  ROAST_PROGRESS_TAU_V13_MS,
   nextStageFloor,
   roastApproachRatio,
   roastProgress,
+  roastProgressTauMs,
   roastRunningRatio,
   seedElapsedMs,
   stageFloorForLabel,
@@ -16,23 +18,29 @@ describe("roast progress curve", () => {
   it("follows p(t) = cap * (1 - exp(-t/τ)) and stays under the cap", () => {
     const samples = [0, 1_000, 8_000, 28_000, 60_000];
     for (const t of samples) {
-      const expected = ROAST_PROGRESS_CAP * (1 - Math.exp(-t / ROAST_PROGRESS_TAU_MS));
+      const expected = ROAST_PROGRESS_CAP * (1 - Math.exp(-t / ROAST_PROGRESS_TAU_V13_MS));
       expect(roastApproachRatio(t)).toBeCloseTo(expected, 8);
       expect(roastApproachRatio(t)).toBeLessThanOrEqual(ROAST_PROGRESS_CAP);
     }
     expect(roastApproachRatio(0)).toBe(0);
   });
 
-  it("puts about 80% of the capped curve on the 28s median", () => {
-    const atMedian = roastApproachRatio(28_000);
-    expect(atMedian / ROAST_PROGRESS_CAP).toBeCloseTo(0.8, 2);
-    expect(atMedian).toBeGreaterThan(0.73);
-    expect(atMedian).toBeLessThan(0.75);
+  it("puts about 80% of the capped curve on each measured median", () => {
+    const v12 = roastApproachRatio(56_000, ROAST_PROGRESS_TAU_V12_MS);
+    const v13 = roastApproachRatio(230_500, ROAST_PROGRESS_TAU_V13_MS);
+    expect(v12 / ROAST_PROGRESS_CAP).toBeCloseTo(0.8, 2);
+    expect(v13 / ROAST_PROGRESS_CAP).toBeCloseTo(0.8, 2);
+    expect(roastProgressTauMs("v12")).toBe(ROAST_PROGRESS_TAU_V12_MS);
+    expect(roastProgressTauMs("v13")).toBe(ROAST_PROGRESS_TAU_V13_MS);
+    expect(roastProgressTauMs(null)).toBe(ROAST_PROGRESS_TAU_V13_MS);
+    const atTwelve = roastProgress({ elapsedMs: 12_000, generator: "v12" });
+    const unknown = roastProgress({ elapsedMs: 12_000 });
+    expect(atTwelve.percent).toBeGreaterThan(unknown.percent);
   });
 
   it("is monotonic, floors the percent, and never walks backward", () => {
     let prev = -1;
-    for (let t = 0; t <= 90_000; t += 250) {
+    for (let t = 0; t <= 200_000; t += 1_000) {
       const snap = roastProgress({ elapsedMs: t });
       expect(snap.percent).toBeGreaterThanOrEqual(prev);
       expect(snap.percent).toBe(Math.floor(snap.ratio * 100 + 1e-9));
@@ -44,12 +52,12 @@ describe("roast progress curve", () => {
   it("creeps from the cap toward 97% and then stays", () => {
     const early = roastRunningRatio(20_000);
     expect(early).toBeLessThan(ROAST_PROGRESS_CAP);
-    const creeping = roastRunningRatio(120_000);
+    const creeping = roastRunningRatio(780_000);
     expect(creeping).toBeGreaterThan(ROAST_PROGRESS_CAP);
     expect(creeping).toBeLessThanOrEqual(ROAST_PROGRESS_CREEP_MAX);
-    const late = roastRunningRatio(10 * 60_000);
+    const late = roastRunningRatio(30 * 60_000);
     expect(late).toBeCloseTo(ROAST_PROGRESS_CREEP_MAX, 5);
-    expect(roastProgress({ elapsedMs: 10 * 60_000 }).percent).toBe(97);
+    expect(roastProgress({ elapsedMs: 30 * 60_000 }).percent).toBe(97);
   });
 
   it("ramps to 100% across the complete window and settles", () => {
@@ -108,8 +116,8 @@ describe("roast progress curve", () => {
 
   it("advances the stage index with progress and never cycles within one snapshot", () => {
     const early = roastProgress({ elapsedMs: 500 });
-    const mid = roastProgress({ elapsedMs: 20_000 });
-    const late = roastProgress({ elapsedMs: 70_000 });
+    const mid = roastProgress({ elapsedMs: 80_000 });
+    const late = roastProgress({ elapsedMs: 280_000 });
     expect(early.stageIndex).toBe(0);
     expect(mid.stageIndex).toBeGreaterThan(early.stageIndex);
     expect(late.stageIndex).toBeGreaterThanOrEqual(mid.stageIndex);

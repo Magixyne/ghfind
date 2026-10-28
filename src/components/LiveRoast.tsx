@@ -174,6 +174,7 @@ export function LiveRoast({
 
         let latestMeta: RoastMeta | null = null;
         const { errored, fresh } = await consumeRoastStream(res, {
+          onGenerator: (generator) => progressRef.current.setGenerator(generator),
           onThinking: (label) => progressRef.current.noteThinking(label),
           onMeta: (m) => {
             latestMeta = m;

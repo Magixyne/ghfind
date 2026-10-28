@@ -40,7 +40,7 @@ export function RoastProgressCard({
     <div
       data-tier-tone={tone}
       data-roast-progress=""
-      className="roast-report roast-progress-card flex min-h-[160px] max-h-[200px] w-full flex-col items-center gap-4 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 sm:max-h-none sm:flex-row sm:items-center sm:gap-5 sm:px-5"
+      className="roast-report roast-progress-card flex min-h-[160px] max-h-[200px] w-full flex-col items-center gap-4 overflow-hidden bg-white/[0.03] px-1 py-1 sm:max-h-none sm:flex-row sm:items-center sm:gap-5"
       role="status"
     >
       <div className="relative size-14 shrink-0" aria-hidden>
@@ -66,8 +66,9 @@ export function RoastProgressCard({
             strokeDashoffset={dash}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-foreground">
+        <span className="absolute inset-0 flex items-baseline justify-center pt-4 text-sm font-semibold tabular-nums text-foreground">
           {clamped}
+          <span className="ms-px text-[10px] font-medium text-foreground/45">%</span>
         </span>
       </div>
       <div className="min-w-0 flex-1 text-center sm:text-start">

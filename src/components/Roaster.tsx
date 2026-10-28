@@ -163,6 +163,7 @@ export function Roaster({
         // Shared decoder: reads the X-Roast-Meta header fallback, then the frame
         // protocol (T progress / M meta / E error) followed by report markdown.
         await consumeRoastStream(res, {
+          onGenerator: (generator) => progressRef.current.setGenerator(generator),
           onThinking: (label) => progressRef.current.noteThinking(label),
           onMeta: (meta) => {
             progressRef.current.markComplete();
@@ -483,10 +484,19 @@ export function Roaster({
             <div className={`mt-1 text-2xl font-bold ${style.text}`}>
               {style.emoji} {tTier(`${TIER_KEY[display.tier]}.name`)}
             </div>
+            {roasting && !roastLine && !reportBody ? (
+              <p className="mt-2 text-sm text-zinc-400">{tDetail("scoreReadyHint")}</p>
+            ) : null}
 
             {/* Savage one-liner only — full scoring report renders below the card */}
-            <div className="mt-4 w-full rounded-xl border border-orange-500/20 bg-orange-500/[0.04] p-4 text-start">
-              <div className="mb-2 text-base font-bold text-orange-400">{t("roastLabel")}</div>
+            <div
+              className={
+                roasting && !roastLine
+                  ? "mt-4 w-full text-start"
+                  : "mt-4 w-full rounded-xl border border-orange-500/20 bg-orange-500/[0.04] p-4 text-start"
+              }
+            >
+              <div className={`mb-2 text-base font-bold ${style.text}`}>{t("roastLabel")}</div>
               {roastLine ? (
                 <p
                   className={`text-sm leading-relaxed text-zinc-100 ${
