@@ -13,9 +13,11 @@ import {
   checkTrivia,
   dropUnverifiedSentences,
   fillQuoteTokens,
+  fitSlotLengths,
   validateCopy,
   type V13Copy,
 } from "../roast-v13/validate";
+import { rewriteLegacyRoastMarkdown } from "../roast-report-legacy";
 import type { ScanResult } from "../types";
 
 const scan = {
@@ -519,7 +521,7 @@ describe("roast v13 salience, quotes and repetition", () => {
     const kinds = (text: string, field = "roast_line.zh") =>
       validateCopy(index, { ...goodCopy, roast_line: { ...goodCopy.roast_line, zh: text } } as V13Copy, "zh")
         .filter((i) => i.field === field && i.kind === "trivia");
-    expect(kinds("sample-user/side-app 有 719 个提交,合进去的那个 PR 只改了导航。")).toHaveLength(1);
+    expect(kinds("sample-user/side-app 有 719 个提交,合进去的那个 PR 只改了导航。").length).toBeGreaterThanOrEqual(1);
     expect(kinds("sample-user/widget-kit 的描述写着「A lightweight component library」,轻的是推送。")).toHaveLength(1);
     expect(kinds(goodCopy.roast_line.zh)).toEqual([]);
     expect(checkTrivia(index, "findings[0].text", "sample-user/side-app 只有 1 个 PR。")).toEqual([]);
@@ -627,5 +629,86 @@ describe("roast v13 fact cards and slots", () => {
     expect(copy.dimensions.account_maturity).toBe("y".repeat(70));
     expect(copy.advice).toEqual(["z".repeat(50)]);
     expect(copy.cites?.["advice[0]"]).toEqual([hook]);
+  });
+});
+
+describe("roast report legacy markdown rewrite", () => {
+  it("turns v12 dimension tables into h4 score cards", () => {
+    const legacy = `## sample-user — 82.90/100
+
+**一句话结论**: 分数站得住，招牌却薄。
+
+| 维度 | 得分 | 说明 |
+|------|------|------|
+| 账号成熟度 | 8/10 | 注册多年，合入稳定。 |
+| 贡献质量 | 23.8/27 | 合进评分器和放槽家务。 |
+
+**风险标记**
+无。
+
+**建议**
+把归属规则写成公开规格。
+
+给 ScriptForge 补可跑 demo。
+`;
+    const out = rewriteLegacyRoastMarkdown(legacy);
+    expect(out).toContain("> **一句话结论**");
+    expect(out).toContain("#### 账号成熟度 · 8/10");
+    expect(out).toContain("#### 贡献质量 · 23.8/27");
+    expect(out).toContain("### 风险标记");
+    expect(out).toContain("### 建议");
+    expect(out).toContain("- 把归属规则写成公开规格。");
+    expect(out).toContain("- 给 ScriptForge 补可跑 demo。");
+    expect(out).not.toMatch(/\|\s*维度\s*\|/);
+  });
+});
+
+describe("roast v13 commit-contrast and metaphor bans", () => {
+  const index = buildFactIndex(buildRoastPayload(scan as ScanResult, "zh"), scan as ScanResult);
+
+  it("bans N-commits-却 outcome contrast and commits↔merged juxtaposition", () => {
+    const a = checkTrivia(index, "roast_line.zh", "提交到了 100,方向是 agent harness,留下的合入却是导航过期状态。");
+    expect(a.some((i) => /commits-却|outcome contrast/i.test(i.detail))).toBe(true);
+    const b = checkTrivia(index, "advice[0]", "你有 93 个提交、合进 1 个 PR。把改动收成插件。");
+    expect(b.some((i) => /commits↔merged|提交↔合入/i.test(i.detail))).toBe(true);
+  });
+
+  it("bans long English verbatim quotes", () => {
+    const issues = checkTrivia(
+      index,
+      "findings[2].text",
+      "描述却是 「AI-powered Novel-to-Screenplay Workspace for authors」。应意译。",
+    );
+    expect(issues.some((i) => /long English/i.test(i.detail))).toBe(true);
+  });
+
+  it("flags a distinctive metaphor used more than once across the report", () => {
+    const copy = coerceCopy({
+      ...goodCopy,
+      verdict: "家务做得密。",
+      findings: [
+        { headline: "一", text: "又在评分器里做家务，把放槽修好。" + "证".repeat(50) },
+        { headline: "二", text: "第三处还是家务：相位切换。" + "据".repeat(50) },
+        goodCopy.findings[2],
+      ],
+    })!;
+    const issues = validateCopy(index, copy, "zh");
+    expect(issues.some((i) => i.kind === "repeat" && /家务/.test(i.detail))).toBe(true);
+  });
+
+  it("fitSlotLengths trims over-long findings to the slot max", () => {
+    const copy = coerceCopy({
+      ...goodCopy,
+      findings: [
+        { headline: "标题够长了", text: "甲。" + "这是填充句用来超过一百五十字限制的内容。".repeat(8) },
+        goodCopy.findings[1],
+        goodCopy.findings[2],
+      ],
+    })!;
+    // coerce may already trim — force long text
+    copy.findings[0].text = "这是一句用来撑长度的中文证据。".repeat(12);
+    expect([...copy.findings[0].text].length).toBeGreaterThan(150);
+    const fitted = fitSlotLengths(copy, "zh");
+    expect([...fitted.findings[0].text].length).toBeLessThanOrEqual(150);
   });
 });

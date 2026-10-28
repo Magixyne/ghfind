@@ -371,6 +371,20 @@ const INVENTED_CLOSE_REASON_RE =
 /** Stars vs commits/PRs juxtaposition, or "提交数(不是)第一" rank talk. */
 const STAR_COMMIT_JUXTAPOSE_RE =
   /\d[\d,]*\s*星[^。！？!?\n]{0,48}(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|堆进去|打满)|(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|打满|堆进去)[^。！？!?\n]{0,48}\d[\d,]*\s*星|不是?\s*提交数\s*第一|提交数\s*(?:不是)?第一|top\s*committer|not\s+the\s+top\s+committer/i;
+/** "N commits … 却/只 …" outcome contrast (commits vs what landed). */
+const COMMIT_OUTCOME_CONTRAST_RE =
+  /(?:\d+\s*(?:个)?\s*(?:提交|commits?)|(?:提交|commits?)\s*(?:到了|了)?\s*\d+)[^。！？!?\n]{0,64}(?:却|只)(?:是|留下|合[入进]|落地|做成|改成)?/i;
+/** "N 个提交、合进 M 个 PR" commits↔merged-count juxtaposition. */
+const COMMIT_MERGED_JUXTAPOSE_RE =
+  /\d+\s*个?\s*提交[^。！？!?\n]{0,28}(?:合进|已合并|合并了?)\s*\d+\s*个?\s*(?:已合并\s*)?PR|\d+\s*commits?[^.\n]{0,40}\d+\s*(?:merged\s*)?PRs?/i;
+/** Long predominantly-English quotes — paraphrase in Chinese; do not paste repo blurbs. */
+const LONG_EN_QUOTE_RE =
+  /[「""]\s*[A-Za-z][^」""]{39,}[」""]/;
+/** Distinctive metaphor words that must appear at most once per report. */
+const METAPHOR_ONCE = [
+  "家务", "刻度", "秒表", "发条", "抽屉", "样品瓶", "铭牌", "屏保", "工位",
+  "裁判", "便利店", "化石", "后院", "连续剧", "季播",
+] as const;
 /** Percent-of-work gotchas ("约 65% 是文档", "六成是站点"). */
 const PCT_OF_WORK_RE =
   /约?\s*\d+\s*%\s*(?:是|为|都在)|(?:约|接近)?\s*[一二三四五六七八九十两\d]+\s*成\s*(?:是|都|在)|percent\s+of\s+(?:PRs?|commits?|work)/i;
@@ -447,6 +461,15 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   }
   if (STAR_COMMIT_JUXTAPOSE_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "stars-vs-commits juxtaposition or 提交数第一 rank talk is banned — write what the work is" });
+  }
+  if (COMMIT_OUTCOME_CONTRAST_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "N-commits-却/只 outcome contrast is banned — say what landed and why it matters" });
+  }
+  if (COMMIT_MERGED_JUXTAPOSE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "commits↔merged-PR count juxtaposition is banned — write the work, not N提交/M合入" });
+  }
+  if (LONG_EN_QUOTE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "long English verbatim quote — paraphrase in Chinese or drop" });
   }
   if (PCT_OF_WORK_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "percent-of-PRs/work gotcha is banned — describe the work, not the share" });
@@ -528,11 +551,79 @@ export function validateCopy(index: FactIndex, copy: V13Copy, lang: "zh" | "en")
       issues.push({ kind: "repeat", field: `findings[${i}].headline`, detail: "repeats the title" });
     }
   });
+  issues.push(...metaphorOnceIssues(copy));
   return issues;
+}
+
+/** Any distinctive metaphor word may appear at most once across the whole report. */
+function metaphorOnceIssues(copy: V13Copy): V13Issue[] {
+  const prose = [
+    copy.roast_line.zh,
+    copy.verdict,
+    ...copy.findings.map((f) => `${f.headline}${f.text}`),
+    ...Object.values(copy.dimensions),
+    ...copy.advice,
+    copy.risk,
+  ].join("\n");
+  const out: V13Issue[] = [];
+  for (const word of METAPHOR_ONCE) {
+    let n = 0;
+    let from = 0;
+    while (from < prose.length) {
+      const i = prose.indexOf(word, from);
+      if (i < 0) break;
+      n++;
+      from = i + word.length;
+    }
+    if (n > 1) {
+      out.push({
+        kind: "repeat",
+        field: "report",
+        detail: `metaphor "${word}" used ${n} times — keep any distinctive metaphor to once per report`,
+      });
+    }
+  }
+  return out;
 }
 
 /** Remove sentences that still cite a repo/number/star count absent from the
  * data after the editor pass. Returns the cleaned copy and what was dropped. */
+/** Trim over-long slot prose to the last full sentence that fits max. Under-length left for the editor. */
+export function fitSlotLengths(copy: V13Copy, lang: "zh" | "en"): V13Copy {
+  const fit = (slot: SlotName, text: string): string => {
+    if (!text) return text;
+    const { max } = slotRange(slot, lang);
+    if ([...text].length <= max) return text;
+    const parts = sentences(text);
+    let acc = "";
+    for (const s of parts) {
+      const next = acc + s;
+      if ([...next].length > max) break;
+      acc = next;
+    }
+    const out = acc.trim() || [...text].slice(0, max).join("").trim();
+    return out;
+  };
+  return {
+    ...copy,
+    roast_line: {
+      zh: fit("roast_line", copy.roast_line.zh),
+      en: copy.roast_line.en, // en uses its own factor via slotRange only for zh-primary pipeline
+    },
+    title: fit("title", copy.title),
+    verdict: fit("verdict", copy.verdict),
+    findings: copy.findings.map((f) => ({
+      ...f,
+      headline: fit("finding_headline", f.headline),
+      text: fit("finding", f.text),
+    })),
+    dimensions: Object.fromEntries(
+      Object.entries(copy.dimensions).map(([k, v]) => [k, fit("dimension", v)]),
+    ) as V13Copy["dimensions"],
+    advice: copy.advice.map((a) => fit("advice", a)),
+  };
+}
+
 export function dropUnverifiedSentences(
   index: FactIndex,
   copy: V13Copy,

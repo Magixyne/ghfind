@@ -1,8 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { rewriteLegacyRoastMarkdown } from "@/lib/roast-report-legacy";
 
 /**
  * Profile / live / modal roast markdown with the v13l card layout:
@@ -11,6 +13,10 @@ import remarkGfm from "remark-gfm";
  *   (following <p> is the full-width note, styled via CSS sibling)
  * - ol/li with leading **title** → numbered finding + title chip
  * - ul → spaced advice bullets
+ *
+ * Legacy cached markdown (v12 3-col dimension table) is rewritten into the
+ * same h4 + note shape before render, so prod reports keep the new cards
+ * until the owner approves a re-roast.
  */
 const DIM_SCORE_RE = /^(.+?)\s*[·•|]\s*([\d.]+)\s*\/\s*([\d.]+)\s*$/;
 
@@ -39,6 +45,33 @@ function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest
   return { chip: null, rest: children };
 }
 
+function DimHead({ name, score, max }: { name: string; score: number; max: number }) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (score / max) * 100)) : 0;
+  return (
+    <div className="roast-dim-head mt-3 rounded-t-xl border border-b-0 border-white/10 bg-white/[0.03] px-3.5 pb-0 pt-3.5 sm:px-4 sm:pt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-semibold tracking-tight text-zinc-100">{name}</span>
+        <span className="shrink-0 font-mono text-xs tabular-nums text-orange-300/90">
+          {Number.isInteger(score) ? score : score.toFixed(1)}/{max}
+        </span>
+      </div>
+      <div
+        className="roast-dim-bar mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"
+        role="progressbar"
+        aria-valuenow={Math.round(pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${name} ${pct.toFixed(0)}%`}
+      >
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-orange-500/80 to-orange-400"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const components: Components = {
   h1: ({ children }) => (
     <h1 className="mb-3 mt-1 text-xl font-black tracking-tight text-zinc-100">{children}</h1>
@@ -53,32 +86,7 @@ const components: Components = {
     const raw = textOf(children).trim();
     const m = raw.match(DIM_SCORE_RE);
     if (m) {
-      const score = Number(m[2]);
-      const max = Number(m[3]);
-      const pct = max > 0 ? Math.max(0, Math.min(100, (score / max) * 100)) : 0;
-      return (
-        <div className="roast-dim-head mt-3 rounded-t-xl border border-b-0 border-white/10 bg-white/[0.03] px-3.5 pb-0 pt-3.5 sm:px-4 sm:pt-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-sm font-semibold tracking-tight text-zinc-100">{m[1].trim()}</span>
-            <span className="shrink-0 font-mono text-xs tabular-nums text-orange-300/90">
-              {Number.isInteger(score) ? score : score.toFixed(1)}/{max}
-            </span>
-          </div>
-          <div
-            className="roast-dim-bar mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"
-            role="progressbar"
-            aria-valuenow={Math.round(pct)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`${m[1].trim()} ${pct.toFixed(0)}%`}
-          >
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-orange-500/80 to-orange-400"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-      );
+      return <DimHead name={m[1].trim()} score={Number(m[2])} max={Number(m[3])} />;
     }
     return <h4 className="mb-1.5 mt-4 text-sm font-bold text-zinc-200">{children}</h4>;
   },
@@ -127,6 +135,7 @@ const components: Components = {
         {children}
       </code>
     ),
+  // Non-dimension tables (rare) still render; dimension tables are rewritten away.
   table: ({ children }) => <table className="my-3 w-full border-collapse text-sm">{children}</table>,
   th: ({ children }) => (
     <th className="border-b border-white/15 px-2 py-1.5 text-left font-semibold text-zinc-200">{children}</th>
@@ -136,10 +145,11 @@ const components: Components = {
 };
 
 export function RoastReport({ markdown, className = "" }: { markdown: string; className?: string }) {
+  const source = useMemo(() => rewriteLegacyRoastMarkdown(markdown ?? ""), [markdown]);
   return (
     <div dir="ltr" className={`report roast-report text-[0.95rem] text-zinc-200 ${className}`.trim()}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {markdown}
+        {source}
       </ReactMarkdown>
     </div>
   );
