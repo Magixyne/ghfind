@@ -306,7 +306,8 @@ export function PendingProfile({
                 <LiveRoast
                   username={metrics.username}
                   scan={scan}
-                  openModalOnMount
+                  // Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+                  openModalOnMount={false}
                   fallbackMeta={scanMeta}
                   advx={advx}
                   materialVersion={scoring.final_score}

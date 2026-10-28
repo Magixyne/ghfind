@@ -409,11 +409,11 @@
     "clown": "Can't even"
   },
   "rescan": {
-    "button": "🔄 Re-detect",
+    "button": "Re-evaluate",
     "scanning": "Scanning…",
     "roasting": "Roasting…",
-    "error": "Detection failed, try again later",
-    "cooldown": "Refresh available in {hours}h"
+    "error": "Evaluation failed, try again later",
+    "cooldown": "Available again in {hours}h"
   },
   "detailMeta": {
     "unratedTitle": "{username} · Developer profile",

@@ -3,7 +3,8 @@ import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
 import { aggregateLanguages, collectTopics } from "@/lib/profile-insights";
 import { LiveRoast } from "@/components/LiveRoast";
-import { RoastReveal } from "@/components/RoastReveal";
+// Profile popup disabled 2026-10-28 (owner request); keep import for possible re-enable
+// import { RoastReveal } from "@/components/RoastReveal";
 import { splitReport } from "@/lib/report";
 import { TIER_LABEL_EN } from "@/lib/badge";
 import type { RoastMeta } from "@/lib/types";
@@ -464,6 +465,13 @@ export function ProfileView({
         <div className="mt-1 text-sm font-medium text-zinc-300">
           {tTier(`${tierKey}.blurb`)}
         </div>
+        {isOwner && (
+          <RescanButton
+            username={d.username}
+            scannedAt={d.scanned_at}
+            className="mt-4 w-full max-w-xs"
+          />
+        )}
 
         {isAdvxCampaign && roastLine && (
           <p
@@ -598,9 +606,6 @@ export function ProfileView({
             {/* Watch this handle — feeds the homepage following module. */}
             <FollowButton username={d.username} className="mt-3" />
           </>
-        )}
-        {isOwner && (
-          <RescanButton username={d.username} scannedAt={d.scanned_at} className="mt-3" />
         )}
       </div>
 
@@ -962,7 +967,8 @@ export function ProfileView({
               username={d.username}
               scan={liveScan}
               refresh
-              openModalOnMount
+              // Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+              openModalOnMount={false}
               fallbackReport={revealBody}
               fallbackMeta={revealMeta ?? undefined}
               profileName={d.display_name}
@@ -973,6 +979,7 @@ export function ProfileView({
             />
           ) : (
             <>
+              {/* Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
               {fromHome && revealMeta && (
                 // Homepage handoff onto a fresh (<24h) roast: the SSR report
                 // stays, and the stored result pops as the share modal.
@@ -986,6 +993,7 @@ export function ProfileView({
                   materialVersion={d.scanned_at}
                 />
               )}
+              */}
               <div dir="ltr" className="report text-[0.95rem] text-zinc-200">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{roast}</ReactMarkdown>
               </div>
@@ -995,7 +1003,8 @@ export function ProfileView({
           <LiveRoast
             username={d.username}
             scan={liveScan}
-            openModalOnMount={fromHome}
+            // Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+            openModalOnMount={false}
             fallbackMeta={fromHome ? (revealMeta ?? undefined) : undefined}
             profileName={d.display_name}
             profileAvatarUrl={d.avatar_url}

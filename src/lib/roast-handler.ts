@@ -30,6 +30,7 @@ import { beatPercent } from "@/lib/percentile";
 import { buildRoastMessages } from "@/lib/prompt";
 import { reportMatchesLang } from "@/lib/report";
 import { sanitizeIdentityClaims } from "@/lib/identity";
+import { RESCAN_COOLDOWN_MS } from "@/lib/freshness";
 import {
   acquireRoastLock,
   checkRoastRequestRateLimit,
@@ -76,7 +77,8 @@ interface RoastBody {
   byoKey?: ByoKey;
   /** UI locale → report language. Defaults to zh (see {@link normLang}). */
   lang?: string;
-  /** Ask for a fresh scan; a compatible cached/archive roast is still replayed
+  /** Ask to regenerate when the stored scan is past the manual rescan cooldown;
+   * a compatible cached/archive roast is still replayed while the scan is fresh
    * when the score is unchanged, so this flag cannot burn LLM credit needlessly. */
   refresh?: boolean;
 }
@@ -775,7 +777,16 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
       );
     }
 
-    const cachedRoast = await getCachedRoast(username, lang);
+    // Align with Go `roastFreshness` (24h): honor refresh only when the stored
+    // scan is older than the manual rescan cooldown. A force-rescan that just
+    // published a new snapshot keeps refreshHonored=false so a compatible roast
+    // can still replay when the score itself did not change.
+    const refreshHonored =
+      body.refresh === true &&
+      (scoreIdentity.scannedAt == null ||
+        Date.now() - scoreIdentity.scannedAt > RESCAN_COOLDOWN_MS);
+
+    const cachedRoast = refreshHonored ? null : await getCachedRoast(username, lang);
     if (
       cachedRoast?.snapshot_hash === snapshotHash &&
       reportMatchesLang(cachedRoast.report, lang)
@@ -800,7 +811,7 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
     }
     if (cachedRoast) await clearCachedRoast(username, lang);
 
-    const archivedRoast = await getArchivedRoast(username, lang);
+    const archivedRoast = refreshHonored ? null : await getArchivedRoast(username, lang);
     if (archivedRoast && reportMatchesLang(archivedRoast.report, lang)) {
       const meta = await metaForStoredRoast(
         archivedRoast.final_score,

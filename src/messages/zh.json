@@ -409,11 +409,11 @@
     "clown": "绷不住"
   },
   "rescan": {
-    "button": "🔄 重新检测",
-    "scanning": "检测中…",
+    "button": "重新评测",
+    "scanning": "评测中…",
     "roasting": "生成点评中…",
-    "error": "检测失败，请稍后重试",
-    "cooldown": "{hours} 小时后可重新检测"
+    "error": "评测失败，请稍后重试",
+    "cooldown": "{hours} 小时后可重新评测"
   },
   "detailMeta": {
     "unratedTitle": "{username} · 开发者档案",

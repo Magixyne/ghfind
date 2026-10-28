@@ -409,10 +409,10 @@
     "clown": "草"
   },
   "rescan": {
-    "button": "🔄 再スキャン",
+    "button": "再評価する",
     "scanning": "スキャン中…",
-    "roasting": "ロースト中…",
-    "error": "スキャンに失敗しました。あとで再試行を",
+    "roasting": "コメント生成中…",
+    "error": "評価に失敗しました。後でもう一度お試しください",
     "cooldown": "再スキャンまであと {hours} 時間"
   },
   "detailMeta": {

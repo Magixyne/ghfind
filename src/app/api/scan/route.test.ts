@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   after: vi.fn(),
   getAccountDetail: vi.fn(),
   admitVersionUpgradeRescan: vi.fn(),
+  maybeScheduleVisitRefresh: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -50,6 +51,13 @@ vi.mock("@/lib/redis", () => ({
   tryAcquireScanRefresh: mocks.tryAcquireScanRefresh,
   rateLimitHeaders: mocks.rateLimitHeaders,
 }));
+vi.mock("@/lib/scan-background-refresh", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/scan-background-refresh")>();
+  return {
+    ...actual,
+    maybeScheduleVisitRefresh: mocks.maybeScheduleVisitRefresh,
+  };
+});
 vi.mock("next/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/server")>();
   return { ...actual, after: mocks.after };
