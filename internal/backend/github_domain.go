@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"encoding/json"
 	"math"
 	"regexp"
 	"sort"
@@ -104,6 +105,10 @@ type ScanResult struct {
 	PinnedRepos       []string            `json:"pinned_repos,omitempty"`
 	Organizations     []string            `json:"organizations,omitempty"`
 	Scoring           Scoring             `json:"scoring"`
+	// SourceStatus is the per-source ledger written to public_scan_runs.
+	// It stays off the snapshot JSON so a split and an in-process collect
+	// of the same facts keep the same snapshot hash.
+	SourceStatus json.RawMessage `json:"-"`
 }
 
 func repoDisplayName(repo TopRepo) string {

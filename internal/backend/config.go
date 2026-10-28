@@ -107,6 +107,11 @@ type Config struct {
 	GorseBaseURL            string
 	GorseServerAPIKey       string
 	GorseAdminAPIKey        string
+	// ScanFanoutEnabled splits a heavy scan into RabbitMQ part jobs after the
+	// seed. Default off: the worker keeps the in-process Collect path from
+	// collection v7. Rollback is unsetting the flag; collection and score
+	// versions stay put.
+	ScanFanoutEnabled bool
 }
 
 // LoadConfigFromEnv reads the existing Turso/Upstash names plus the new broker
@@ -158,6 +163,7 @@ func LoadConfigFromEnv() Config {
 		FeedSigningSecret:                strings.TrimSpace(os.Getenv("FEED_SIGNING_SECRET")),
 		FeedCanaryBPS:                    clampIntValueAllowZero(os.Getenv("FEED_CANARY_BPS"), 0, 0, 10_000),
 		FeedGorseLiveBPS:                 clampIntValueAllowZero(os.Getenv("FEED_GORSE_LIVE_BPS"), 0, 0, 10_000),
+		ScanFanoutEnabled:                envFlagEnabled("GHFIND_SCAN_FANOUT_ENABLED"),
 		FeedShadowOutcomeWindow:          boundedDurationValue(os.Getenv("FEED_SHADOW_OUTCOME_WINDOW"), defaultFeedShadowOutcomeWindow, minFeedShadowOutcomeWindow, maxFeedShadowOutcomeWindow),
 		FeedInternalAllowlist:            int64ListFromEnv(os.Getenv("FEED_INTERNAL_GITHUB_IDS")),
 		EmbeddingBaseURL:                 strings.TrimRight(strings.TrimSpace(os.Getenv("FEED_EMBEDDING_BASE_URL")), "/"),
@@ -315,6 +321,17 @@ func scanConcurrencyFromEnv(rawTokens string) int {
 		return maxScanConcurrency
 	}
 	return concurrency
+}
+
+// envFlagEnabled accepts 1, true, and on. Anything else, including an empty
+// value, stays off so a missing deploy variable cannot turn fan-out on.
+func envFlagEnabled(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func envOr(name, fallback string) string {
