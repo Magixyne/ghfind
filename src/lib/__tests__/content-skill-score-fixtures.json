@@ -98,7 +98,7 @@
       "tier_label": "普通账号 · 特征平庸存疑"
     },
     "calibration_contribution_quality": 6.9,
-    "calibration_ecosystem_impact": 3.3
+    "calibration_ecosystem_impact": 3.1
   },
   {
     "name": "fixture-external-maintainer",
@@ -300,7 +300,7 @@
       "tier_label": "优质贡献者 · 值得信任"
     },
     "calibration_contribution_quality": 21.4,
-    "calibration_ecosystem_impact": 13.4
+    "calibration_ecosystem_impact": 13.5
   },
   {
     "name": "fixture-application-author",
@@ -385,12 +385,12 @@
       "top_repo_pr_target": null
     },
     "expected": {
-      "final_score": 71.9,
+      "final_score": 72.3,
       "sub_scores": {
         "account_maturity": 10,
         "original_project_quality": 17.4,
         "contribution_quality": 20.3,
-        "ecosystem_impact": 2.5,
+        "ecosystem_impact": 2.9,
         "community_influence": 5.8,
         "activity_authenticity": 15.9
       },
@@ -401,7 +401,7 @@
       "tier_label": "优质贡献者 · 值得信任"
     },
     "calibration_contribution_quality": 21,
-    "calibration_ecosystem_impact": 2.5
+    "calibration_ecosystem_impact": 2.9
   },
   {
     "name": "fixture-code-tool-author",
@@ -501,6 +501,6 @@
       "tier_label": "优质贡献者 · 值得信任"
     },
     "calibration_contribution_quality": 18.4,
-    "calibration_ecosystem_impact": 8
+    "calibration_ecosystem_impact": 9.5
   }
 ]
