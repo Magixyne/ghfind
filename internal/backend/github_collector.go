@@ -35,6 +35,39 @@ func (c *GitHubCollector) CollectFull(ctx context.Context, username string) (Sca
 	return c.collect(ctx, username, true)
 }
 
+// SeedScan loads GetUser plus the contribution overview. The worker uses
+// those cheap totals to decide whether the rest of the scan stays in this
+// process or is split into part jobs. The returned client rate reading is
+// the tightest X-RateLimit-Remaining observed while seeding.
+func (c *GitHubCollector) SeedScan(ctx context.Context, username string) (scanSeedSignals, githubUser, contributionOverview, *contribStats, float64, *time.Time, error) {
+	var zero scanSeedSignals
+	if c == nil || c.github == nil || !c.github.HasToken() {
+		return zero, githubUser{}, contributionOverview{}, nil, 0, nil, ErrGitHubAuthRequired
+	}
+	user, err := c.github.GetUser(ctx, username)
+	if err != nil {
+		return zero, githubUser{}, contributionOverview{}, nil, 0, nil, err
+	}
+	if user.ID <= 0 || math.IsNaN(user.ID) || math.IsInf(user.ID, 0) || math.Trunc(user.ID) != user.ID || user.ID > 9007199254740991 || user.Login == "" {
+		return zero, githubUser{}, contributionOverview{}, nil, 0, nil, ErrGitHubAccountNotFound
+	}
+	overview, stats, lastYear, err := c.github.fetchContributionOverview(ctx, username)
+	if err != nil {
+		return zero, githubUser{}, contributionOverview{}, nil, 0, nil, err
+	}
+	latestEvent, _ := c.github.LatestPublicActivity(ctx, username)
+	remaining, known := c.github.MinObservedRateRemaining()
+	signals := scanSeedSignals{
+		PublicRepos:   user.PublicRepos,
+		MergedPRs:     overview.MergedPRCount,
+		ClosedPRs:     overview.ClosedPRCount,
+		ExternalAtCap: overview.MergedPRCount >= float64(externalMergedPRCap),
+		RateRemaining: remaining,
+		RateKnown:     known,
+	}
+	return signals, user, overview, stats, lastYear, latestEvent, nil
+}
+
 func (c *GitHubCollector) collect(ctx context.Context, username string, full bool) (ScanResult, error) {
 	if c == nil || c.github == nil || !c.github.HasToken() {
 		return ScanResult{}, ErrGitHubAuthRequired
@@ -108,6 +141,10 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 	if err := group.Wait(); err != nil {
 		return ScanResult{}, err
 	}
+	organizations, err := c.github.fetchOrganizations(ctx, login)
+	if err != nil {
+		return ScanResult{}, err
+	}
 	commitAggregationUnavailable := len(overview.ContributionYears) > 0 && commitContribs == nil
 	if full {
 		external = &externalMergedPRs{Nodes: []mergedPRNode{}}
@@ -117,10 +154,6 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 			}
 		}
 		external.Total = float64(len(external.Nodes))
-	}
-	externalNodes := []mergedPRNode{}
-	if external != nil {
-		externalNodes = external.Nodes
 	}
 	reasons := []string{}
 	if reposIncomplete {
@@ -143,6 +176,40 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 	}
 	reasons = append(reasons, commitScope.Reasons...)
 	reasons = append(reasons, workflowScope.Reasons...)
+	return c.finishCollectedScan(ctx, finishScanInput{
+		Full: full, Now: now, User: user, Login: login, LoginLower: loginLower,
+		Overview: overview, Stats: stats, LastYear: lastYearContributions, LatestEvent: latestEvent,
+		Repos: repos, ForkCount: forkCount, Organizations: organizations,
+		CommitContribs: commitContribs, WorkflowLanded: workflowLanded, External: external,
+		WindowNodes: windowNodes, Reasons: reasons,
+		MergedIncomplete: mergedAggregationIncomplete, CommitUnavailable: commitAggregationUnavailable,
+	})
+}
+
+func (c *GitHubCollector) finishCollectedScan(ctx context.Context, in finishScanInput) (ScanResult, error) {
+	full := in.Full
+	now := in.Now
+	user := in.User
+	login := in.Login
+	loginLower := in.LoginLower
+	overview := in.Overview
+	stats := in.Stats
+	lastYearContributions := in.LastYear
+	latestEvent := in.LatestEvent
+	repos := in.Repos
+	forkCount := in.ForkCount
+	organizations := in.Organizations
+	commitContribs := in.CommitContribs
+	workflowLanded := in.WorkflowLanded
+	external := in.External
+	windowNodes := in.WindowNodes
+	reasons := append([]string(nil), in.Reasons...)
+	mergedAggregationIncomplete := in.MergedIncomplete
+	commitAggregationUnavailable := in.CommitUnavailable
+	externalNodes := []mergedPRNode{}
+	if external != nil {
+		externalNodes = external.Nodes
+	}
 	collection := &CollectionCoverage{Mode: "quick", Coverage: "complete_public", TruncationReasons: reasons}
 	if full {
 		collection.Mode = "full"
@@ -150,7 +217,7 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 	if len(reasons) > 0 {
 		collection.Coverage = "partial_public"
 	}
-	mergedContribs := AggregateMergedPRNodes(append(windowNodes, externalNodes...))
+	mergedContribs := AggregateMergedPRNodes(append(append([]mergedPRNode{}, windowNodes...), externalNodes...))
 	workflowContribs := make([]ContribRepoAgg, 0, len(workflowLanded))
 	workflowIDs := map[string]bool{}
 	for _, workflow := range workflowLanded {
@@ -163,9 +230,12 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 		return ScanResult{}, err
 	}
 	signaledContributions := ApplyImpactRepoSignals(contributions, signals)
-	organizations, err := c.github.fetchOrganizations(ctx, login)
-	if err != nil {
-		return ScanResult{}, err
+	if organizations == nil {
+		var orgErr error
+		organizations, orgErr = c.github.fetchOrganizations(ctx, login)
+		if orgErr != nil {
+			return ScanResult{}, orgErr
+		}
 	}
 
 	original, forks, empty := []githubRepo{}, []githubRepo{}, []githubRepo{}

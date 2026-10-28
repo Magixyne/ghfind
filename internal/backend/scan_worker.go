@@ -90,11 +90,31 @@ func (w *ScanWorker) Run(ctx context.Context) error {
 	if err := channel.Qos(concurrency, 0, false); err != nil {
 		return fmt.Errorf("configure scan worker prefetch: %w", err)
 	}
-	deliveries, err := channel.Consume(scanQueue, "ghfind-scan-worker", false, false, false, false, nil)
+	parentDeliveries, err := channel.Consume(scanQueue, "ghfind-scan-worker", false, false, false, false, nil)
 	if err != nil {
 		return fmt.Errorf("consume scan jobs: %w", err)
 	}
-	return w.consumeDeliveries(ctx, deliveries, concurrency)
+	if !w.config.ScanFanoutEnabled {
+		return w.consumeDeliveries(ctx, parentDeliveries, concurrency)
+	}
+	partDeliveries, err := channel.Consume(scanPartQueue, "ghfind-scan-part", false, false, false, false, nil)
+	if err != nil {
+		return fmt.Errorf("consume scan part jobs: %w", err)
+	}
+	assembleDeliveries, err := channel.Consume(scanAssembleQueue, "ghfind-scan-assemble", false, false, false, false, nil)
+	if err != nil {
+		return fmt.Errorf("consume scan assemble jobs: %w", err)
+	}
+	errCh := make(chan error, 3)
+	go func() { errCh <- w.consumeDeliveries(ctx, parentDeliveries, concurrency) }()
+	go func() { errCh <- w.consumePartDeliveries(ctx, partDeliveries, concurrency) }()
+	go func() { errCh <- w.consumeAssembleDeliveries(ctx, assembleDeliveries, concurrency) }()
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
 
 // consumeDeliveries processes deliveries with bounded parallelism. Each job
@@ -177,6 +197,25 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 	if err := w.statuses.Put(ctx, running); err != nil {
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, "status store unavailable: " + err.Error()
+	}
+	if w.config.ScanFanoutEnabled {
+		if fanout, ok := w.collector.(scanFanoutCollector); ok {
+			if store, ok := w.results.(ScanPartStore); ok {
+				split, err := w.maybeSplitScan(ctx, job, fanout, store)
+				if err != nil {
+					if errors.Is(err, ErrGitHubAccountNotFound) || errors.Is(err, ErrGitHubAuthRequired) {
+						w.metrics.recordWorkerJobFailed(ScanJobKind, "permanent", time.Since(startedAt))
+						return workerDead, err.Error()
+					}
+					w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
+					return workerRetry, err.Error()
+				}
+				if split {
+					w.metrics.recordWorkerJobCompleted(ScanJobKind, "split", time.Since(startedAt))
+					return workerCompleted, ""
+				}
+			}
+		}
 	}
 	scan, err := w.collector.Collect(ctx, job.Username)
 	if err != nil {
