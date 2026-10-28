@@ -580,7 +580,7 @@ function findingSubjectIssues(copy: V13Copy): V13Issue[] {
     // Abrupt subject jump: 2+ distinct repos AND a mid-sentence pivot like "回到/另|隔壁仓已说过的另一仓"
     if (repos.length >= 2 && /[。；;]\s*(?:回到|另[一外]?边?|再看|至于|而在)/.test(text)) {
       out.push({
-        kind: "structure",
+        kind: "trivia",
         field: `findings[${i}].text`,
         detail: "finding jumps subjects mid-way — keep one subject per finding",
       });
@@ -593,7 +593,7 @@ function findingSubjectIssues(copy: V13Copy): V13Issue[] {
     // (loose: only when body uses vague 旁边/那边 without a named subject)
     if (head && /旁边|那边|那份|上述/.test(text) && !bodyHasRepo) {
       out.push({
-        kind: "structure",
+        kind: "trivia",
         field: `findings[${i}].text`,
         detail: "finding body must name the subject its title refers to (no dangling 旁边)",
       });
