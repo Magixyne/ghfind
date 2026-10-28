@@ -4,7 +4,18 @@ import { buildRoastPayload } from "../prompt";
 import { coerceCopy, generateRoastV13, parseJsonObject, type V13Complete } from "../roast-v13/chain";
 import { buildWriterFactCard, slimV13Payload } from "../roast-v13/facts";
 import { renderV13Report } from "../roast-v13/render";
-import { buildFactIndex, checkText, validateCopy, type V13Copy } from "../roast-v13/validate";
+import { buildFactCards } from "../roast-v13/cards";
+import {
+  BAD_QUOTE,
+  buildFactIndex,
+  checkSlots,
+  checkText,
+  checkTrivia,
+  dropUnverifiedSentences,
+  fillQuoteTokens,
+  validateCopy,
+  type V13Copy,
+} from "../roast-v13/validate";
 import type { ScanResult } from "../types";
 
 const scan = {
@@ -23,6 +34,7 @@ const scan = {
     impact_repo_count: 10,
     recent_merged_pr_sample: 50,
     last_year_contributions: 3611,
+    bio: "Building small tools for big teams.",
   },
   top_repos: [
     {
@@ -81,23 +93,23 @@ const scan = {
 const goodCopy = {
   title: "万星仓库只改两个词",
   roast_line: {
-    zh: "23551 星的 popular-org/word-trainer 只收到你改的两个词条,719 个 commit 全留给了 2 星的 sample-user/side-app。",
-    en: "A 23551-star repo got two word fixes; 719 commits went to a 2-star side app.",
+    zh: "主力 commit 全砸进 2 星的 sample-user/side-app,组件库 sample-user/widget-kit 反倒从年初起没再推送。",
+    en: "Most commits went into a 2-star side app while the component library sat idle.",
   },
   roast_line_candidates: ["候选一", "候选二"],
-  tags: { zh: ["词条外交", "粉丝倒挂"], en: ["Word Diplomat"] },
+  tags: { zh: ["词条外交", "自营荒地"], en: ["Word Diplomat", "Own-Repo Famine"] },
   verdict: "代码是真写,名气全靠别人家的仓库撑场。",
   findings: [
-    { headline: "最贵的两个词", text: "popular-org/word-trainer 有 23551 星,你在那里只有 1 个 PR。" },
-    { headline: "组件库下班了", text: "57 星的 sample-user/widget-kit 从 1 月起没再推送。" },
-    { headline: "关注比粉丝勤快", text: "粉丝 44,关注 55。" },
+    { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的,5 个 open Issue 等着。" },
+    { headline: "桌面代理在加班", text: "19 星的 sample-user/desk-agent 是 Rust 写的桌面代理,7 个 open Issue。" },
+    { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,最大的工具 57 星。" },
   ],
   dimensions: {
     account_maturity: "注册 6.1 年,贡献跨 7 个自然年。",
     original_project_quality: "最高星 sample-user/widget-kit 57 星。",
-    contribution_quality: "96 个合并 PR / 103 个总 PR。",
-    ecosystem_impact: "1191 个 commit,719 个在 sample-user/side-app。",
-    community_influence: "粉丝 44、关注 55。",
+    contribution_quality: "合并 PR 很勤,几乎都合进去了。",
+    ecosystem_impact: "提交大多砸在 sample-user/side-app。",
+    community_influence: "总星不高,开 issue 也不算勤。",
     activity_authenticity: "过去一年贡献日历 3611 次。",
   },
   risk: "",
@@ -191,10 +203,12 @@ describe("generateRoastV13", () => {
       stub({ angles: '{"angles":[]}', writer: JSON.stringify(goodCopy), editor: "```json\n" + JSON.stringify(edited) + "\n```" }),
       opts,
     );
-    expect(r.steps.map((s) => s.step)).toEqual(["angles", "writer", "editor"]);
+    expect(r.steps.map((s) => s.step)).toEqual(["writer", "editor"]);
     expect(r.report).toContain("编辑后的结论");
-    expect(r.tags.zh).toEqual(["词条外交", "粉丝倒挂"]);
-    expect(r.finalIssues.filter((i) => i.kind !== "cliche")).toEqual([]);
+    expect(r.tags.zh).toEqual(["词条外交", "自营荒地"]);
+    const hard = ["number", "repo", "repo_stars", "quote", "trivia", "repeat", "schema", "language"];
+    expect(r.finalIssues.filter((i) => hard.includes(i.kind))).toEqual([]);
+    expect(r.cards.length).toBeGreaterThan(3);
   });
 
   it("uses the draft when the editor fails and tolerates a failed angle step", async () => {
@@ -220,15 +234,12 @@ describe("generateRoastV13", () => {
       ...goodCopy,
       findings: [
         ...goodCopy.findings.slice(0, 2),
-        { headline: "编造", text: "你在 other-org/ghost 有 9999 星。粉丝 44。" },
+        { headline: "编造", text: "你在 other-org/ghost 有 9999 星。sample-user/desk-agent 用 Rust 写。" },
       ],
     };
-    const r = await generateRoastV13(scan, "zh", stub({ writer: JSON.stringify(bad), editor: "not json" }), {
-      ...opts,
-      skipAngles: true,
-    });
-    expect(r.copy.findings[2].text).toBe("粉丝 44。");
-    expect(r.dropped.length).toBe(1);
+    const r = await generateRoastV13(scan, "zh", stub({ writer: JSON.stringify(bad), editor: "not json" }), opts);
+    expect(r.copy.findings[2].text).toBe("sample-user/desk-agent 用 Rust 写。");
+    expect(r.dropped).toEqual(["findings[2].text: 你在 other-org/ghost 有 9999 星。"]);
   });
 
   it("refuses to start a step without budget", async () => {
@@ -263,5 +274,255 @@ describe("roast generator flag", () => {
     vi.stubEnv("ROAST_V13_SCOPE", "background");
     expect(roastGenerator()).toBe("v12");
     expect(roastGenerator({ background: true })).toBe("v13");
+  });
+});
+
+describe("roast v13 salience, quotes and repetition", () => {
+  const dropFrom = (findings: { headline: string; text: string }[]) =>
+    dropUnverifiedSentences(index, { ...goodCopy, findings } as V13Copy);
+
+  it("accepts a verbatim bio quote and rejects a translated or misattributed one", () => {
+    expect(checkText(index, "findings[0].text", "简介写着「Building small tools for big teams.」。")).toEqual([]);
+    expect(checkText(index, "findings[0].text", "简介写着「给大团队造小工具」。").map((i) => i.kind)).toEqual(["quote"]);
+    // The phrase exists, but in a repository description, not in the bio.
+    expect(checkText(index, "findings[0].text", "简介喊「lightweight component library」。").map((i) => i.kind)).toEqual(["quote"]);
+    expect(checkText(index, "findings[0].text", "sample-user/widget-kit 的描述写着「A lightweight component library」。")).toEqual([]);
+  });
+
+  it("rejects paraphrasing what the bio says without quoting it", () => {
+    expect(checkText(index, "findings[0].text", "简介写的是给大团队造工具,结果都很小。").map((i) => i.kind)).toEqual(["quote"]);
+    const { copy } = dropFrom([
+      { headline: "a", text: "简介喊 become one。sample-user/desk-agent 用 Rust 写。" },
+      ...goodCopy.findings.slice(0, 2),
+    ]);
+    expect(copy.findings[0].text).toBe("sample-user/desk-agent 用 Rust 写。");
+  });
+
+  it("drops a finding that restates the one-liner and a headline equal to the title", () => {
+    const { copy, dropped } = dropUnverifiedSentences(index, {
+      ...goodCopy,
+      findings: [
+        { headline: goodCopy.title, text: goodCopy.roast_line.zh },
+        ...goodCopy.findings.slice(0, 2),
+      ],
+    } as V13Copy);
+    expect(copy.findings).toHaveLength(2);
+    expect(dropped.some((d) => d.includes("restates the one-liner"))).toBe(true);
+    const issues = validateCopy(index, { ...goodCopy, findings: [{ headline: goodCopy.title, text: goodCopy.roast_line.zh }] } as V13Copy, "zh");
+    expect(issues.filter((i) => i.kind === "repeat").map((i) => i.field)).toEqual(
+      expect.arrayContaining(["findings[0].text", "findings[0].headline"]),
+    );
+    expect(issues.filter((i) => i.kind === "repeat").map((i) => i.field)).not.toContain("findings[1].text");
+  });
+
+  it("drops follower counts, time windows and token PRs to famous repos everywhere", () => {
+    const { copy } = dropFrom([
+      { headline: "a", text: "粉丝 44,关注 55。" },
+      { headline: "b", text: "23551 星的 popular-org/word-trainer 只有你 1 个 PR。sample-user/desk-agent 用 Rust 写。" },
+      goodCopy.findings[0],
+    ]);
+    expect(copy.findings.map((f) => f.text)).toEqual(["sample-user/desk-agent 用 Rust 写。", goodCopy.findings[0].text]);
+    // Follower sentence also dropped from community when injected.
+    const dims = dropUnverifiedSentences(index, {
+      ...goodCopy,
+      dimensions: {
+        ...goodCopy.dimensions,
+        community_influence: "粉丝 44。总星不高。",
+        ecosystem_impact: "word-trainer 上只有 1 个 PR。sample-user/side-app 有 719 个提交。",
+      },
+      advice: ["近 180 天提交很多,把 sample-user/widget-kit 的 5 个 open Issue 关掉。", "把 sample-user/desk-agent 打包发布,写清安装步骤。"],
+    } as V13Copy).copy;
+    expect(dims.dimensions.community_influence).toBe("总星不高。");
+    expect(dims.dimensions.ecosystem_impact).toBe("sample-user/side-app 有 719 个提交。");
+    expect(dims.advice).toEqual(["把 sample-user/desk-agent 打包发布,写清安装步骤。"]);
+    const trivia = validateCopy(index, { ...goodCopy, verdict: "近 180 天提交全在一个仓库。" } as V13Copy, "zh");
+    expect(trivia.some((i) => i.kind === "trivia" && i.field === "verdict")).toBe(true);
+  });
+
+  it("rejects follower-ratio tags and thickness / share-count trivia in copy", () => {
+    const tagIssues = validateCopy(
+      index,
+      { ...goodCopy, tags: { zh: ["关注倒挂", "核心修理工"], en: ["Follows>Fans", "Core Fixer"] } } as V13Copy,
+      "zh",
+    ).filter((i) => i.kind === "trivia" && i.field.startsWith("tags"));
+    expect(tagIssues.map((i) => i.field)).toEqual(expect.arrayContaining(["tags.zh[0]", "tags.en[0]"]));
+    expect(tagIssues.every((i) => /trivial stat/.test(i.detail))).toBe(true);
+
+    const thick = validateCopy(index, { ...goodCopy, verdict: "对外要人时卡在厚度,作品还撑得住。" } as V13Copy, "zh");
+    expect(thick.some((i) => i.kind === "trivia" && /厚度/.test(i.detail))).toBe(true);
+
+    const share = validateCopy(
+      index,
+      { ...goodCopy, findings: [{ headline: "a", text: "apache/big-repo 1863 个已合并 PR 里你 7 个,主战场在别处。" }, ...goodCopy.findings.slice(0, 2)] } as V13Copy,
+      "zh",
+    );
+    expect(share.some((i) => i.kind === "trivia" && /share-count contrast/.test(i.detail))).toBe(true);
+
+    // Broader share forms — including dimensions, "是你的", "第一名 N 个", "X of Y".
+    const forms = [
+      { field: "verdict", text: "362 个提交里 93 个是你的,方向清楚。" },
+      { field: "dimensions.contribution_quality", text: "400 个已合并 PR 里 178 个,很能打。" },
+      { field: "findings", text: "第一名 267 个,但主战场不在这。" },
+      { field: "advice", text: "5 个已合并 PR 里你只有 1 个,去把份额做大。" },
+      { field: "roast_line", text: "4972 星的 apache/dubbo-go 里你只有 4 个提交。" },
+    ] as const;
+    for (const f of forms) {
+      const copy =
+        f.field === "verdict"
+          ? ({ ...goodCopy, verdict: f.text } as V13Copy)
+          : f.field === "dimensions.contribution_quality"
+            ? ({ ...goodCopy, dimensions: { ...goodCopy.dimensions, contribution_quality: f.text } } as V13Copy)
+            : f.field === "findings"
+              ? ({ ...goodCopy, findings: [{ headline: "x", text: f.text }, ...goodCopy.findings.slice(0, 2)] } as V13Copy)
+              : f.field === "advice"
+                ? ({ ...goodCopy, advice: [f.text] } as V13Copy)
+                : ({ ...goodCopy, roast_line: { ...goodCopy.roast_line, zh: f.text } } as V13Copy);
+      const issues = validateCopy(index, copy, "zh");
+      expect(issues.some((i) => i.kind === "trivia" && /share-count contrast|gamey advice/.test(i.detail))).toBe(true);
+    }
+
+    // Number density + days-since + follower count.
+    expect(
+      validateCopy(index, { ...goodCopy, verdict: "注册 6 年,7 个仓库,96 个 PR。" } as V13Copy, "zh").some(
+        (i) => i.kind === "trivia" && /number density/.test(i.detail),
+      ),
+    ).toBe(true);
+    // ISO dates count as one number, not three.
+    expect(
+      validateCopy(index, { ...goodCopy, verdict: "2022-07-21 注册,主线还在长。" } as V13Copy, "zh").some(
+        (i) => i.kind === "trivia" && /number density/.test(i.detail),
+      ),
+    ).toBe(false);
+    expect(
+      validateCopy(index, { ...goodCopy, verdict: "距上次活动 12 天,该动了。" } as V13Copy, "zh").some(
+        (i) => i.kind === "trivia" && /days-since|time window/.test(i.detail),
+      ),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, dimensions: { ...goodCopy.dimensions, community_influence: "粉丝 44、关注 55。" } } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /follower/.test(i.detail)),
+    ).toBe(true);
+
+    const { copy } = dropUnverifiedSentences(index, {
+      ...goodCopy,
+      tags: { zh: ["关注倒挂", "核心修理工"], en: ["Follows>Fans"] },
+      verdict: "对外要人时卡在厚度。",
+    } as V13Copy);
+    expect(copy.tags.zh).toEqual(["核心修理工"]);
+    expect(copy.tags.en).toEqual([]);
+  });
+
+  it("flags PR-count contrasts and description wordplay in the one-liner only", () => {
+    const kinds = (text: string, field = "roast_line.zh") =>
+      validateCopy(index, { ...goodCopy, roast_line: { ...goodCopy.roast_line, zh: text } } as V13Copy, "zh")
+        .filter((i) => i.field === field && i.kind === "trivia");
+    expect(kinds("sample-user/side-app 有 719 个提交,合进去的那个 PR 只改了导航。")).toHaveLength(1);
+    expect(kinds("sample-user/widget-kit 的描述写着「A lightweight component library」,轻的是推送。")).toHaveLength(1);
+    expect(kinds(goodCopy.roast_line.zh)).toEqual([]);
+    expect(checkTrivia(index, "findings[0].text", "sample-user/side-app 只有 1 个 PR。")).toEqual([]);
+  });
+
+  it("renders up to four advice lines and names the findings count", () => {
+    const report = renderV13Report(scan, "zh", {
+      ...goodCopy,
+      findings: goodCopy.findings.slice(0, 2),
+      advice: ["一", "二", "三", "四", "五"],
+    } as V13Copy);
+    expect(report).toContain("**扎心两连**");
+    expect(report.match(/^- /gm)?.length).toBe(4);
+  });
+});
+
+describe("roast v13 fact cards and slots", () => {
+  const cards = buildFactCards(payload, { username: "sample-user", scan });
+  const byKind = (k: string) => cards.filter((c) => c.kind === k);
+
+  it("turns the scan into weighted cards with verbatim quotes and no trivia hooks", () => {
+    expect(cards.map((c) => c.id)).toEqual(cards.map((_, i) => `c${i + 1}`));
+    const widget = cards.find((c) => c.facts.repo === "sample-user/widget-kit")!;
+    expect(widget.kind).toBe("project");
+    expect(widget.quotes?.[0]).toEqual({ text: "A lightweight component library", source: "description", repo: "sample-user/widget-kit" });
+    expect(byKind("bio")[0].quotes?.[0].text).toBe("Building small tools for big teams.");
+    // A token PR to a famous repo is not a card when the account has real work elsewhere.
+    expect(cards.some((c) => c.facts.repo === "popular-org/word-trainer")).toBe(false);
+    expect(cards.find((c) => c.facts.repo === "sample-user/side-app")?.kind).toBe("maintenance");
+    // Community context card must not feed follower counts into hooks.
+    const community = cards.filter((c) => c.kind === "community");
+    expect(community.length).toBe(1);
+    expect(community[0].hook).toBe(false);
+    expect(community[0].claim).toMatch(/禁止写入锐评正文/);
+    // Project/maintenance claims never use share-contrast phrasing.
+    for (const c of cards.filter((c) => c.kind === "project" || c.kind === "maintenance")) {
+      expect(c.claim).not.toMatch(/\d+\s*个(?:已合并\s*)?(?:PR|提交)[^。]{0,20}里/);
+      expect(c.claim).not.toMatch(/是 TA 的/);
+    }
+    const weights = cards.filter((c) => c.hook && c.kind !== "bio").map((c) => c.weight);
+    expect(weights).toEqual([...weights].sort((a, b) => b - a));
+  });
+
+  it("never turns the username/username profile README repo into a project card", () => {
+    const withProfile = {
+      ...payload,
+      top_repos: [
+        ...(payload as { top_repos: unknown[] }).top_repos,
+        { name_with_owner: "sample-user/sample-user", owner_login: "sample-user", stars: 40, description: "Config files for my GitHub profile." },
+      ],
+    };
+    const built = buildFactCards(withProfile as typeof payload, { username: "sample-user", scan });
+    expect(built.some((c) => c.facts.repo === "sample-user/sample-user")).toBe(false);
+  });
+
+  it("fills quote tokens with the card's exact text and marks unknown tokens", () => {
+    const bio = byKind("bio")[0].id;
+    expect(fillQuoteTokens(`简介写着{{q:${bio}}}。`, cards, "zh")).toBe("简介写着「Building small tools for big teams.」。");
+    expect(fillQuoteTokens("the bio says {{ q:" + bio + " }}", cards, "en")).toBe("the bio says \u201cBuilding small tools for big teams.\u201d");
+    expect(fillQuoteTokens("简介写着{{q:c999}}。", cards, "zh")).toContain(BAD_QUOTE);
+  });
+
+  it("drops a sentence whose quote token named no card", async () => {
+    const withToken = {
+      ...goodCopy,
+      findings: [...goodCopy.findings.slice(0, 2), { headline: "x", text: "简介写着{{q:c999}}。sample-user/desk-agent 用 Rust 写。" }],
+    };
+    const r = await generateRoastV13(scan, "zh", stub({ writer: JSON.stringify(withToken), editor: "not json" }), {
+      deadlineMs: Date.now() + 600_000,
+    });
+    expect(r.copy.findings[2].text).toBe("sample-user/desk-agent 用 Rust 写。");
+  });
+
+  it("checks slot lengths, citations and distinct main cards", () => {
+    const hook = cards.find((c) => c.hook)!.id;
+    const context = cards.find((c) => !c.hook)!.id;
+    const copy = coerceCopy({
+      ...goodCopy,
+      roast_line: { ...goodCopy.roast_line, cards: [context] },
+      verdict: { text: goodCopy.verdict, cards: [hook] },
+      findings: goodCopy.findings.map((f) => ({ ...f, cards: [hook] })),
+      advice: [{ text: "短", cards: ["c999"] }],
+    })!;
+    const issues = checkSlots(copy, cards, "zh");
+    const at = (field: string) => issues.filter((i) => i.field === field).map((i) => i.kind);
+    expect(at("roast_line")).toEqual(["trivia"]);
+    expect(at("findings[1]")).toEqual(["repeat"]);
+    expect(at("advice[0]")).toEqual(expect.arrayContaining(["cite"]));
+    expect(at("advice[0]")).toContain("length");
+    expect(issues.some((i) => i.kind === "length" && i.field === "dimensions.account_maturity")).toBe(true);
+  });
+
+  it("accepts slot-shaped writer output with per-slot card citations", () => {
+    const hook = cards.find((c) => c.hook)!.id;
+    const copy = coerceCopy({
+      ...goodCopy,
+      verdict: { text: "x".repeat(40), cards: [hook] },
+      dimensions: { account_maturity: { text: "y".repeat(70), cards: [hook] } },
+      advice: [{ text: "z".repeat(50), cards: [hook] }],
+    })!;
+    expect(copy.verdict).toBe("x".repeat(40));
+    expect(copy.dimensions.account_maturity).toBe("y".repeat(70));
+    expect(copy.advice).toEqual(["z".repeat(50)]);
+    expect(copy.cites?.["advice[0]"]).toEqual([hook]);
   });
 });

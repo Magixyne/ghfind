@@ -17,7 +17,11 @@ import { FeedAvatar } from "./FeedAvatar";
 import { XMark } from "@/components/stream/StreamPost";
 import { relativeTime } from "@/components/stream/format";
 
+import { feedReferences } from "./references";
+import { FeedReferenceCard } from "./FeedReferenceCard";
+
 interface FeedPostCardProps {
+  posts?: Record<string, FeedPost>;
   post: FeedPost;
   now: number;
   pending: boolean;
@@ -65,7 +69,7 @@ function useQualifiedView(post: FeedPost) {
   return ref;
 }
 
-export function FeedPostCard({ post, now, pending, onOpen, onReply, onAction, onFollow, onCopy, focused = false, connected = false }: FeedPostCardProps) {
+export function FeedPostCard({ post, posts = {}, now, pending, onOpen, onReply, onAction, onFollow, onCopy, focused = false, connected = false }: FeedPostCardProps) {
   const t = useTranslations("stream");
   const locale = useLocale();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -77,6 +81,7 @@ export function FeedPostCard({ post, now, pending, onOpen, onReply, onAction, on
   // The API omits translations for the source language; the locale check also guards a stale cached post.
   const translation = available && post.translation?.locale === locale ? post.translation : null;
   const translated = Boolean(translation) && !showOriginal;
+  const content = feedReferences(post, translated ? translation!.text : post.text, posts);
   const actions: { label: string; icon: typeof Heart; action?: FeedAction; count?: number; active?: boolean; run?: () => void }[] = [
     { label: t(available ? "replySend" : "feed.viewReplies"), icon: MessageCircle, count: post.metrics.direct_replies, run: () => available ? onReply(post.id) : onOpen(post.id) },
     { label: t(viewer?.reposted ? "feed.undoRepost" : "feed.repost"), icon: Repeat2, count: post.metrics.reposts, action: "repost", active: viewer?.reposted },
@@ -121,11 +126,12 @@ export function FeedPostCard({ post, now, pending, onOpen, onReply, onAction, on
             {focused ? postMenu : null}
           </div>
           {available ? <>
-            <div dir="auto" lang={translated ? translation!.locale : post.source_lang ?? undefined} className={cn("mt-1 whitespace-pre-wrap break-words leading-6 text-foreground [overflow-wrap:anywhere]", focused ? "col-span-2 mt-4 text-xl leading-7" : "text-[15px]")}><PostText text={translated ? translation!.text : post.text} /></div>
+            <div dir="auto" lang={translated ? translation!.locale : post.source_lang ?? undefined} className={cn("mt-1 whitespace-pre-wrap break-words leading-6 text-foreground [overflow-wrap:anywhere]", focused ? "col-span-2 mt-4 text-xl leading-7" : "text-[15px]")}><PostText text={content.text} /></div>
             {translation ? <ToggleGroup type="single" value={translated ? "translated" : "original"} onValueChange={(value) => { if (value) setShowOriginal(value === "original"); }} aria-label={t("feed.translationToggle")} className={cn("mt-1.5 w-fit", focused && "col-span-2")}>
               <ToggleGroupItem value="original" className="h-6 px-2 text-xs">{t("feed.showOriginal")}</ToggleGroupItem>
               <ToggleGroupItem value="translated" className="h-6 px-2 text-xs">{t("feed.showTranslated")}</ToggleGroupItem>
             </ToggleGroup> : null}
+            {content.references.length ? <div className={focused ? "col-span-2" : undefined}>{content.references.map((reference) => <FeedReferenceCard key={reference.url} reference={reference} now={now} />)}</div> : null}
             {post.media.length ? <div className={cn("mt-2 grid gap-1 overflow-hidden rounded-xl border border-border", post.media.length > 1 && "grid-cols-2", focused && "col-span-2")}>
               {/* eslint-disable-next-line @next/next/no-img-element -- original media is shared by Astro and Next, without Next image optimization */}
               {post.media.map((media) => <a key={media.id} href={media.url} target="_blank" rel="noopener noreferrer" aria-label={media.alt_text || t("feed.openImage")}><img src={media.url} alt={media.alt_text ?? ""} width={media.width ?? undefined} height={media.height ?? undefined} loading="lazy" className="max-h-96 w-full object-cover" /></a>)}

@@ -73,7 +73,7 @@
     "cliApi": "CLI & API",
     "jobs": "招聘",
     "talentMatch": "人才匹配",
-    "feed": "推荐流"
+    "feed": "社区动态"
   },
   "globalSearch": {
     "open": "打开全局搜索",
@@ -345,6 +345,7 @@
     "similarSub": "画像最接近、分数相近的账号",
     "impactHeading": "🏆 贡献过的明星项目",
     "impactSub": "TA 参与过的高星开源仓库（提交 + PR）",
+    "impactDisclosure": "贡献过的明星项目 ({count})",
     "worksHeading": "🛠 代表作",
     "worksSub": "按实质贡献优先、高星影响辅助排序的代表项目",
     "stackHeading": "🧬 技术栈 & 领域",
@@ -2064,6 +2065,10 @@
       "undoDislike": "取消不喜欢",
       "undoRepost": "取消转发",
       "unfollow": "取消关注",
+      "viewQuotedPost": "查看引用推文",
+      "quotedPostPreviewUnavailable": "引用内容暂不可预览",
+      "viewAttachedLink": "查看附带链接",
+      "attachedLinkPreviewUnavailable": "打开链接查看内容",
       "viewOnX": "在 X 查看原帖",
       "showOriginal": "原文",
       "showTranslated": "译文",
