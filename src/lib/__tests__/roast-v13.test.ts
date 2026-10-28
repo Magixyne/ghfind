@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { roastGenerator } from "../cache-version";
 import { buildRoastPayload } from "../prompt";
 import { coerceCopy, generateRoastV13, parseJsonObject, type V13Complete } from "../roast-v13/chain";
-import { buildWriterFactCard, slimV13Payload } from "../roast-v13/facts";
+import { buildWriterFactCard, redactV13PayloadForCoverage, slimV13Payload } from "../roast-v13/facts";
 import { renderV13Report } from "../roast-v13/render";
-import { buildFactCards } from "../roast-v13/cards";
+import { buildFactCards, cardsForPrompt } from "../roast-v13/cards";
 import {
   BAD_QUOTE,
   buildFactIndex,
@@ -18,6 +18,7 @@ import {
   type V13Copy,
 } from "../roast-v13/validate";
 import { rewriteLegacyRoastMarkdown } from "../roast-report-legacy";
+import { roastWriterSkill } from "../roast-v13/skill";
 import type { ScanResult } from "../types";
 
 const scan = {
@@ -817,5 +818,88 @@ describe("buildFactCards partial_public guard", () => {
     };
     const cards = buildFactCards(payload, { username: "sample-user", scan });
     expect(cards.some((c) => c.kind === "project")).toBe(true);
+  });
+});
+
+describe("generateRoastV13 partial_public scan", () => {
+  const opts = { deadlineMs: Date.now() + 600_000 };
+
+  // Distinctive truncated totals so derived index diffs cannot collide with them.
+  const partialScan = {
+    ...scan,
+    metrics: {
+      ...scan.metrics,
+      public_repos: 7777,
+      merged_pr_count: 8888,
+    },
+    collection: {
+      mode: "quick",
+      coverage: "partial_public",
+      truncation_reasons: ["public_repos_quick_limit", "merged_pr_window"],
+    },
+  } as unknown as ScanResult;
+
+  it("omits inventory cards and redacts incomplete numbers from the validator index", () => {
+    const payload = slimV13Payload(buildRoastPayload(partialScan, "zh"));
+    const cards = buildFactCards(payload, { username: "sample-user", scan: partialScan });
+    expect(cards.some((c) => c.kind === "project")).toBe(false);
+    expect(cards.some((c) => c.kind === "maintenance")).toBe(false);
+    expect(cards.some((c) => c.kind === "core_change")).toBe(false);
+    const redacted = redactV13PayloadForCoverage(payload, partialScan);
+    const index = buildFactIndex({ ...redacted, fact_cards: cardsForPrompt(cards) }, partialScan);
+    // Truncated inventory totals must not be allowlisted (metrics or context_notes).
+    expect(index.numbers).not.toContain(7777);
+    expect(index.numbers).not.toContain(8888);
+    expect(index.repos.has("sample-user/widget-kit")).toBe(false);
+  });
+
+  it("drops copy that states truncated inventory totals as complete", async () => {
+    // Partial scans omit owned-repo cards, so keep the rest of the copy on
+    // bio / activity facts that remain allowlisted; only the inventory claims
+    // should be stripped.
+    const partialSafe = {
+      title: "日历很忙仓库很空",
+      roast_line: {
+        zh: "贡献日历 3611 次刷得很勤,简介还写着 Building small tools。",
+        en: "Busy contribution calendar, quiet inventory story.",
+      },
+      roast_line_candidates: ["候选一", "候选二"],
+      tags: { zh: ["日历战士", "简介画饼"], en: ["Calendar Warrior", "Bio Painter"] },
+      verdict: "过去一年贡献日历 3611 次,真仓库账却还没扫完。",
+      findings: [
+        { headline: "仓库账", text: "你名下只有 7777 个公开仓库,已合并 PR 共 8888 个。" },
+        { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,听起来像工具人。" },
+        { headline: "日历很勤", text: "过去一年贡献日历共 3611 次,忙是真忙。" },
+      ],
+      dimensions: {
+        account_maturity: "注册不短,公开仓库 7777 个是全量库存。",
+        original_project_quality: "原创仓库名单还在补扫,先别夸成完整作品集。",
+        contribution_quality: "贡献日历 3611 次说明手没停,只是库存窗口未闭合。",
+        ecosystem_impact: "生态侧还缺完整合并窗口,先不写死总量。",
+        community_influence: "简介在撑场,社区声量先看资料原文。",
+        activity_authenticity: "日历 3611 次是真的,别把它说成已合并 PR 总数。",
+      },
+      risk: "",
+      advice: ["等完整扫描后再数仓库和合并 PR。", "先把简介里的 small tools 落到一个真在推的仓库。"],
+    };
+    const r = await generateRoastV13(
+      partialScan,
+      "zh",
+      stub({ writer: JSON.stringify(partialSafe), editor: "not json" }),
+      opts,
+    );
+    expect(r.cards.some((c) => c.kind === "project")).toBe(false);
+    const joined = [
+      ...r.copy.findings.map((f) => f.text),
+      ...Object.values(r.copy.dimensions),
+      r.copy.verdict,
+      r.copy.roast_line.zh,
+    ].join("\n");
+    expect(joined).not.toMatch(/7777/);
+    expect(joined).not.toMatch(/8888/);
+    expect(r.copy.findings.some((f) => /3611/.test(f.text))).toBe(true);
+    expect(r.dropped.some((d) => /7777|8888/.test(d))).toBe(true);
+    expect(roastWriterSkill("zh", { partialCoverage: true, reasons: ["merged_pr_window"] })).toMatch(/partial_public/);
+    expect(roastWriterSkill("zh", { partialCoverage: true, reasons: ["merged_pr_window"] })).toMatch(/名下只有/);
   });
 });

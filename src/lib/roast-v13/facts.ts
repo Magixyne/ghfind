@@ -4,6 +4,9 @@
  * a glance (stars, PR/commit counts, years, repo names, titles), which keeps it
  * from dumping internal metrics into the copy.
  */
+
+import { v13CoverageFlags } from "./cards";
+
 const METRIC_KEYS = [
   "account_age_years",
   "created_at",
@@ -118,5 +121,79 @@ export function slimV13Payload(payload: unknown): Rec {
   };
   p.recent_prs = arr(p.recent_prs).map(slimPr);
   p.verified_impact_prs = arr(p.verified_impact_prs).slice(0, 10).map(slimPr);
+  return p;
+}
+
+/**
+ * Strip inventory / merged-PR / commit numbers from the validator allowlist when
+ * the scan is still partial_public. The writer only sees fact cards, but
+ * validateCopy still indexes the full payload — without this, a model can invent
+ * "公开仓库 N 个" using a truncated metric and pass the number check.
+ */
+export function redactV13PayloadForCoverage(payload: unknown, scan?: unknown): Rec {
+  const p: Rec = isRec(payload) ? { ...payload } : {};
+  const flags = v13CoverageFlags(scan, p);
+  if (!flags.partial) return p;
+  const metrics: Rec = isRec(p.metrics) ? { ...p.metrics } : {};
+  const notes: Rec = isRec(p.context_notes) ? { ...p.context_notes } : {};
+  const impactSummary: Rec = isRec(p.impact_summary) ? { ...p.impact_summary } : {};
+  if (flags.repoIncomplete) {
+    p.top_repos = [];
+    for (const k of [
+      "public_repos",
+      "original_repo_count",
+      "nonempty_original_repo_count",
+      "fork_repo_count",
+      "empty_original_repo_count",
+      "max_stars",
+      "total_stars",
+    ]) {
+      delete metrics[k];
+    }
+  }
+  if (flags.mergedIncomplete) {
+    p.verified_impact_prs = [];
+    p.recent_prs = [];
+    if (isRec(p.signature_work)) {
+      p.signature_work = {
+        ...p.signature_work,
+        work_clusters: [],
+        impact_repo_representatives: [],
+      };
+    }
+    for (const k of [
+      "merged_pr_count",
+      "total_pr_count",
+      "external_merged_pr_count",
+      "maintainer_closed_unmerged_pr_count",
+      "pr_rejection_rate",
+      "impact_pr_count",
+      "recent_doc_like_pr_ratio",
+      "recent_external_doc_like_pr_ratio",
+      "external_trivial_pr_count",
+      "recent_merged_pr_sample",
+    ]) {
+      delete metrics[k];
+    }
+    delete notes.total_merged_pr_count;
+    delete notes.recent_prs_sample_size;
+    delete impactSummary.popular_repo_pr_count;
+  }
+  if (flags.commitIncomplete) {
+    delete metrics.impact_commit_count;
+    delete impactSummary.popular_repo_commit_count;
+  }
+  if (flags.mergedIncomplete && flags.commitIncomplete) {
+    p.impact_repos = [];
+    delete metrics.impact_repo_count;
+    delete impactSummary.popular_repo_count;
+  } else if (flags.mergedIncomplete) {
+    p.impact_repos = arr(p.impact_repos).map((r) => ({ ...r, prs: 0 }));
+  } else if (flags.commitIncomplete) {
+    p.impact_repos = arr(p.impact_repos).map((r) => ({ ...r, commits: 0 }));
+  }
+  p.metrics = metrics;
+  if (Object.keys(notes).length) p.context_notes = notes;
+  if (Object.keys(impactSummary).length) p.impact_summary = impactSummary;
   return p;
 }

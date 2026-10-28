@@ -81,6 +81,39 @@ function parseShare(evidence: string[], unit: RegExp): { mine: number; total: nu
   return null;
 }
 
+
+export type V13CoverageFlags = {
+  partial: boolean;
+  repoIncomplete: boolean;
+  mergedIncomplete: boolean;
+  commitIncomplete: boolean;
+  reasons: string[];
+};
+
+/** Map scan.collection coverage / truncation_reasons to which fact families are unsafe. */
+export function v13CoverageFlags(scan: unknown, payload?: unknown): V13CoverageFlags {
+  const fromScan = isRec(scan) && isRec(scan.collection) ? scan.collection : null;
+  const fromPayload = isRec(payload) && isRec(payload.collection) ? payload.collection : null;
+  const collection = fromScan ?? fromPayload;
+  const partial = collection?.coverage === "partial_public";
+  const listed = Array.isArray(collection?.truncation_reasons)
+    ? (collection!.truncation_reasons as unknown[]).map(String)
+    : [];
+  const reasons = partial ? (listed.length ? listed : ["partial_public"]) : [];
+  // Any partial_public snapshot is incomplete for inventory / merged-PR /
+  // commit totals — omit those card families rather than stating a truncated
+  // window as complete. Specific truncation_reasons stay in `reasons` for the
+  // skill coverage hint; they do not carve out exceptions while coverage is
+  // still partial_public.
+  return {
+    partial,
+    reasons,
+    repoIncomplete: partial,
+    mergedIncomplete: partial,
+    commitIncomplete: partial,
+  };
+}
+
 export function buildFactCards(payload: unknown, opts: { username?: string; scan?: unknown } = {}): FactCard[] {
   const p = isRec(payload) ? payload : {};
   const m = isRec(p.metrics) ? p.metrics : {};
@@ -89,29 +122,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   // #594 incremental / quick scans can surface as partial_public while deepen
   // runs. Never mint inventory or merged-PR facts from an incomplete snapshot;
   // omit those cards rather than stating a truncated inventory as complete.
-  const collection = isRec(opts.scan) && isRec((opts.scan as Rec).collection)
-    ? ((opts.scan as Rec).collection as Rec)
-    : isRec(p.collection) ? (p.collection as Rec) : null;
-  const partialPublic = collection?.coverage === "partial_public";
-  const listedReasons = Array.isArray(collection?.truncation_reasons)
-    ? (collection!.truncation_reasons as unknown[]).map(String)
-    : [];
-  const trunc = new Set(partialPublic ? (listedReasons.length ? listedReasons : ["partial_public"]) : []);
-  const repoIncomplete =
-    partialPublic &&
-    [...trunc].some((r) =>
-      /^(partial_public|public_repos_quick_limit|original_repos_page_limit)$/.test(r),
-    );
-  const mergedIncomplete =
-    partialPublic &&
-    [...trunc].some((r) =>
-      /^(partial_public|merged_pr_window|external_merged_pr_cap|external_merged_unavailable)$/.test(r),
-    );
-  const commitIncomplete =
-    partialPublic &&
-    [...trunc].some((r) =>
-      /^(partial_public|commit_year_cap|commit_resource_limit|commit_repository_cap|commit_aggregation_unavailable)$/.test(r),
-    );
+  const { repoIncomplete, mergedIncomplete, commitIncomplete } = v13CoverageFlags(opts.scan, p);
 
   const impact = arr(p.impact_repos).map((r) => ({
     repo: txt(r.repo),

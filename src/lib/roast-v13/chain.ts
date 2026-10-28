@@ -15,9 +15,9 @@ import type { ChatMessage } from "../llm";
 import type { Lang } from "../lang";
 import { buildRoastPayload } from "../prompt";
 import type { RoastLine, ScanResult, Tags } from "../types";
-import { buildFactCards, cardsForPrompt, type FactCard } from "./cards";
+import { buildFactCards, cardsForPrompt, v13CoverageFlags, type FactCard } from "./cards";
 import { SUBSCORE_MAX } from "../score-presentation";
-import { slimV13Payload } from "./facts";
+import { redactV13PayloadForCoverage, slimV13Payload } from "./facts";
 import { renderV13Report, V13_DIMENSIONS, hasRiskSignals } from "./render";
 import { editorSkill, roastWriterSkill, slotRange } from "./skill";
 
@@ -194,7 +194,11 @@ export async function generateRoastV13(
   const payload = slimV13Payload(buildRoastPayload(scan, lang));
   const cards = buildFactCards(payload, { username: scan.metrics.username, scan });
   const promptCards = cardsForPrompt(cards);
-  const index = buildFactIndex({ ...payload, fact_cards: promptCards }, scan);
+  const coverage = v13CoverageFlags(scan, payload);
+  // Writer/editor only see cards, but the number/repo validator indexes the
+  // payload — redact incomplete inventory so invented "全量" counts cannot pass.
+  const indexedPayload = redactV13PayloadForCoverage(payload, scan);
+  const index = buildFactIndex({ ...indexedPayload, fact_cards: promptCards }, scan);
   const steps: V13StepLog[] = [];
   const dims = Object.fromEntries(
     V13_DIMENSIONS.map((k) => {
@@ -242,7 +246,7 @@ export async function generateRoastV13(
   // 1) Writer, from the fixed skill and the fact cards (one retry when the
   // provider returns an empty or unparseable body).
   const writerMessages: ChatMessage[] = [
-    { role: "system", content: roastWriterSkill(lang) },
+    { role: "system", content: roastWriterSkill(lang, coverage.partial ? { partialCoverage: true, reasons: coverage.reasons } : undefined) },
     {
       role: "user",
       content: buildV13UserMessage("按 skill 填满每个槽位。直接输出 JSON 对象,第一个字符必须是 {,不要任何开场白。", { account: header, cards: promptCards }),
@@ -258,7 +262,7 @@ export async function generateRoastV13(
   // 2) Editor repairs what code flagged and polishes. Falls back to the draft.
   let edited: V13Copy = draft;
   const editorMessages: ChatMessage[] = [
-    { role: "system", content: editorSkill(lang) },
+    { role: "system", content: editorSkill(lang, coverage.partial ? { partialCoverage: true, reasons: coverage.reasons } : undefined) },
     {
       role: "user",
       content: buildV13UserMessage("终审这份草稿。直接输出最终 JSON 对象,第一个字符必须是 {,不要任何开场白。", {

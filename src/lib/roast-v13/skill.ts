@@ -159,7 +159,25 @@ const SKILL_CORE = `# ghfind 锐评写手 skill(固定文档)
  "advice": [{"text": "<建议>", "cards": ["cN"]}]
 }`;
 
-export function roastWriterSkill(lang: "zh" | "en"): string {
+export type RoastWriterSkillOpts = {
+  /** Scan is still partial_public; inventory / merged-PR windows are not complete. */
+  partialCoverage?: boolean;
+  reasons?: string[];
+};
+
+function partialCoverageRule(opts?: RoastWriterSkillOpts): string {
+  if (!opts?.partialCoverage) return "";
+  const reasons = (opts.reasons ?? []).filter(Boolean).slice(0, 6).join(", ") || "partial_public";
+  return (
+    "\n\n## 数据完整度(partial_public)\n" +
+    `当前扫描尚未 complete_public(截断原因: ${reasons})。` +
+    "只用下方 fact cards 里的事实;禁止把未完成的库存/合并 PR 窗口说成全量。" +
+    '禁止"名下只有/全部仓库/一共 N 个公开仓/已合并 PR 共 N/唯一仓库"这类绝对库存句;' +
+    "没有对应 card 就不要写仓库数量、合并 PR 总量或提交总量。"
+  );
+}
+
+export function roastWriterSkill(lang: "zh" | "en", opts?: RoastWriterSkillOpts): string {
   const languageRule =
     lang === "en"
       ? "\n\n## 报告语言\ntitle/verdict/findings/dimensions/risk/advice 全部用地道口语的**英文**写;roast_line.zh 仍用中文。英文长度按槽位表的英文区间。"
@@ -169,12 +187,13 @@ export function roastWriterSkill(lang: "zh" | "en"): string {
       .replace("{{SAFETY}}", lang === "en" ? SAFETY_EN : SAFETY_ZH)
       .replace("{{PRECISION}}", lang === "en" ? PRECISION_EN : PRECISION_ZH) +
     (lang === "en" ? `\n\nAlso avoid: ${[...V13_CLICHE_PHRASES_EN].join(", ")}.` : "") +
-    languageRule
+    languageRule +
+    partialCoverageRule(opts)
   );
 }
 
-export function editorSkill(lang: "zh" | "en"): string {
-  return `${roastWriterSkill(lang)}
+export function editorSkill(lang: "zh" | "en", opts?: RoastWriterSkillOpts): string {
+  return `${roastWriterSkill(lang, opts)}
 
 # 你这一步的角色:终审编辑
 你拿到同样的事实卡、写手草稿和代码校验器列出的问题(validator_issues)。输出**修改后的完整 JSON**(同一 schema,外加 "edits": ["<改了什么,每条≤20字>"])。
