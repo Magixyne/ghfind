@@ -7,6 +7,7 @@ import {
   score,
 } from "../score";
 import type { RawMetrics } from "../types";
+import archetypes from "./smooth-impact-archetypes.json";
 
 /** Established account with no impact evidence. Archetype tests fill that in. */
 const BASE: RawMetrics = {
@@ -62,6 +63,22 @@ describe("v19 smooth contribution ceiling", () => {
     expect(saturateToward(30, 20)).toBeGreaterThan(19.5);
     expect(saturateToward(30, 20)).toBeLessThan(20);
     expect(saturateToward(40, 20)).toBeGreaterThan(saturateToward(30, 20));
+  });
+});
+
+describe("v19 shared archetype fixtures", () => {
+  it.each(archetypes)("$name locks ecosystem and final score", (row) => {
+    const got = score(row.metrics as RawMetrics);
+    expect(got.sub_scores.ecosystem_impact).toBe(row.ecosystem_impact);
+    expect(got.sub_scores.contribution_quality).toBe(row.contribution_quality);
+    expect(got.final_score).toBe(row.final_score);
+  });
+
+  it("keeps one repository below the same work spread across four", () => {
+    const byName = Object.fromEntries(archetypes.map((row) => [row.name, row]));
+    expect(byName["one-repo-sustained"].ecosystem_impact).toBeLessThan(byName["four-repo-spread"].ecosystem_impact);
+    expect(byName["few-tiny-prs-mega-repo"].ecosystem_impact).toBeLessThan(6);
+    expect(byName["five-repo-core"].ecosystem_impact).toBeGreaterThan(15);
   });
 });
 
