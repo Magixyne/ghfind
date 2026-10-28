@@ -134,8 +134,10 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     // Absolute counts + role only — never "N 里 M 个是 TA 的" share contrasts.
     if (commits) {
       parts.push(`TA 在这里有 ${commits.mine} 个提交`);
-      if (commits.leader !== undefined && commits.leader === commits.mine) parts.push("提交数第一");
-      else if (commits.leader !== undefined && commits.leader > commits.mine) parts.push("不是提交数第一");
+      // Qualitative depth only — never "提交数第一 / 不是提交数第一" rank talk
+      // (rank contrasts leak into roast copy). Maintainer/role comes from facts.role.
+      if (commits.leader !== undefined && commits.leader === commits.mine) parts.push("是这边主笔量级的提交");
+      else if (commits.leader !== undefined && commits.leader > commits.mine) parts.push("是客座量级的提交");
     } else if (w?.commits) {
       parts.push(`TA 在这里有 ${w.commits} 个提交`);
     }
@@ -321,7 +323,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     weight: 0.1,
     hook: false,
     dims: ["community_influence"],
-    claim: `总星 ${num(m.total_stars)},开过 ${num(m.issues_created)} 个 issue(粉丝/关注数禁止写入锐评正文)`,
+    claim: `折算计入星 ${num(m.total_stars)}(按主导/共建份额与活性折算,不是名下仓库原始加总),开过 ${num(m.issues_created)} 个 issue(粉丝/关注数禁止写入锐评正文;禁止把折算星写成名下总星/名下仓库总星)`,
     facts: { total_stars: num(m.total_stars), issues_created: num(m.issues_created) },
     source: "metrics",
   });

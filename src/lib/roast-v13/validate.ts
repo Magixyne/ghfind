@@ -361,6 +361,51 @@ const SHARE_CONTRAST_RE =
 /** Advice that chases commit share / stars / followers instead of the work. */
 const GAMEY_ADVICE_RE =
   /坐上主提交|协作者份额|做成主提交|多拿(?:点)?(?:提交|commit)|冲(?:提交|commit)份额|涨粉|互关|多攒(?:点)?星|追星数|get more (?:commits?|stars?|followers?)/i;
+/** Treating metrics.total_stars (credited/折算) as owned-repo star sum. */
+const CREDITED_AS_OWNED_STARS_RE =
+  /名下(?:仓库)?总星|个人自攒(?:的)?星|自己攒(?:的)?(?:总)?星|owned(?:-repo)? total stars/i;
+/** Inventing why maintainers closed PRs (scan has counts, not reasons). */
+const INVENTED_CLOSE_REASON_RE =
+  /(?:被?(?:维护者)?关闭|未合并|拒收|弹回)[^。！？!?\n]{0,40}(?:因为|由于|说明|都是|多是|全是)[^。！？!?\n]{0,40}(?:文档|说明文字|门槛|质量|太水|没实质)|(?:文档型|说明型|水(?:PR|pr)|琐碎)(?:改动|PR|pr)[^。！？!?\n]{0,24}(?:弹回|拒|关)/i;
+
+/** Stars vs commits/PRs juxtaposition, or "提交数(不是)第一" rank talk. */
+const STAR_COMMIT_JUXTAPOSE_RE =
+  /\d[\d,]*\s*星[^。！？!?\n]{0,48}(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|堆进去|打满)|(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|打满|堆进去)[^。！？!?\n]{0,48}\d[\d,]*\s*星|不是?\s*提交数\s*第一|提交数\s*(?:不是)?第一|top\s*committer|not\s+the\s+top\s+committer/i;
+/** "N commits … 却/只 …" outcome contrast (commits vs what landed). */
+const COMMIT_OUTCOME_CONTRAST_RE =
+  /(?:\d+\s*(?:个|次)?\s*(?:提交|commits?)|(?:提交|commits?)\s*(?:到了|了)?\s*\d+)[^。！？!?\n]{0,64}(?:却|只)(?:是|留下|合[入进]|落地|做成|改成)?/i;
+/** "N 个提交、合进 M 个 PR" commits↔merged-count juxtaposition. */
+const COMMIT_MERGED_JUXTAPOSE_RE =
+  /\d+\s*个?\s*提交[^。！？!?\n]{0,28}(?:合进|已合并|合并了?)\s*\d+\s*个?\s*(?:已合并\s*)?PR|\d+\s*commits?[^.\n]{0,40}\d+\s*(?:merged\s*)?PRs?/i;
+/** Long predominantly-English quotes — paraphrase in Chinese; do not paste repo blurbs. */
+const LONG_EN_QUOTE_RE =
+  /[「""]\s*[A-Za-z][^」""]{39,}[」""]/;
+/** Distinctive metaphor words that must appear at most once per report. */
+const METAPHOR_ONCE = [
+  "家务", "刻度", "秒表", "发条", "抽屉", "样品瓶", "铭牌", "屏保", "工位",
+  "裁判", "便利店", "化石", "后院", "连续剧", "季播",
+] as const;
+/** Percent-of-work gotchas ("约 65% 是文档", "六成是站点"). */
+const PCT_OF_WORK_RE =
+  /约?\s*\d+\s*%\s*(?:是|为|都在)|(?:约|接近)?\s*[一二三四五六七八九十两\d]+\s*成\s*(?:是|都|在)|percent\s+of\s+(?:PRs?|commits?|work)/i;
+/** Language-share figures — prefer drop; judges flag as fabricated. */
+const LANG_SHARE_RE =
+  /(?:TypeScript|JavaScript|Python|Go|Rust|Java|C\+\+|C#|Ruby|PHP|Swift|Kotlin|Dart|Shell|HTML|CSS|Vue|Astro|GDScript|Handlebars|SCSS)\s*\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*%\s*(?:TypeScript|JavaScript|Python|Go|Rust|Java)|语言[^。！？!?\n]{0,24}\d+\s*%/i;
+/** Score-tier restating / meta filler the owner rejected. */
+const SCORE_META_FILLER_RE =
+  /所以(?:高|低|中|停在|这个分)[^。！？!?\n]{0,24}(?:没到头|没到顶|到不了|停在中段|上不去)|这是日历总数[,，]?不是\s*PR\s*数|这是评分口径本身[,，]?不是界面抛光|不是界面抛光/i;
+/** Stiff knife/craft metaphors that pile up. */
+const STIFF_METAPHOR_RE =
+  /亮仓刀|刀却都在|刀口在|砍一刀|客座刀|(?:你的)?手艺/;
+/** Jokes that punch down on a low merged-PR count ("只合了 1 个 PR"). */
+const LOW_MERGED_PR_JOKE_RE =
+  /(?:只|才|就)\s*(?:合[了进入]?|合并了?|合进了?)\s*\d+\s*个?\s*(?:已合并\s*)?PR|已合并\s*PR\s*就\s*\d+|合进去的已合并\s*PR\s*就\s*\d+|PR\s*就\s*1\s*个|作业交了一份/;
+/** Meta filler about the scanner itself ("扫描没有关闭原因"). */
+const SCAN_META_FILLER_RE =
+  /扫描没有[^。！？!?\n]{0,16}原因|扫描(?:只|仅)有计数|没有关闭原因|扫描仪?没有|scan\s+has\s+no\s+clos(?:e|ing)\s+reason/i;
+/** Third-person gendered pronouns — always address as 你. Skip 其他/他人. */
+const GENDERED_PRONOUN_RE =
+  /(?<![其])她|(?<![其])他(?![人们])/;
 
 function countNumbers(text: string): number {
   // Collapse ISO dates so "2022-07-21" counts as one evidence token, not three.
@@ -372,15 +417,16 @@ function numberDensityIssues(field: string, text: string): V13Issue[] {
   const out: V13Issue[] = [];
   for (const s of sentences(text)) {
     const n = countNumbers(s);
-    if (n > 2) {
+    const sentMax = field.startsWith("findings") ? 1 : field.startsWith("dimensions.") ? 2 : 2;
+    if (n > sentMax) {
       out.push({
         kind: "trivia",
         field,
-        detail: `number density: sentence has ${n} numbers (max 2) — "${s.slice(0, 48)}"`,
+        detail: `number density: sentence has ${n} numbers (max ${sentMax}) — "${s.slice(0, 48)}"`,
       });
     }
   }
-  const cap = field.startsWith("dimensions.") ? 4 : field.startsWith("findings") ? 3 : field === "roast_line" || field.endsWith(".zh") || field.endsWith(".en") ? 2 : 4;
+  const cap = field.startsWith("dimensions.") ? 2 : field.startsWith("findings") ? 1 : field === "roast_line" || field.endsWith(".zh") || field.endsWith(".en") ? 2 : 3;
   const total = countNumbers(text);
   if (total > cap) {
     out.push({ kind: "trivia", field, detail: `number density: field has ${total} numbers (max ${cap})` });
@@ -391,7 +437,8 @@ function numberDensityIssues(field: string, text: string): V13Issue[] {
 /**
  * Trivia hooks the owner rejected: follower counts (everywhere), activity time
  * windows, days-since filler, vague "厚度", ANY share-count contrast (including
- * dimensions), gamey advice, number-density caps, and token PRs to famous repos.
+ * dimensions), mislabeling credited/折算 stars as 名下总星, invented PR close
+ * reasons, gamey advice, number-density caps, and token PRs to famous repos.
  */
 /** "只合了 1 个 PR" / "那个 PR" / "only one PR" in a one-liner. */
 const PR_COUNT_RE = /(只|仅|就|才|那)(合进去?的?|合并的?|有|提了?|开了?)?(你|她|他)?\s*(那|一|1|两|2|三|3|几)?\s*个\s*PR|\bonly (one|two|three|a few|\d) (merged )?PRs?\b/i;
@@ -400,8 +447,8 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   const issues: V13Issue[] = [];
   // Tags: reject follower-ratio / time-window / thickness gotchas by name.
   if (field.startsWith("tags")) {
-    if (isTriviaTag(text)) {
-      issues.push({ kind: "trivia", field, detail: "tag names a trivial stat, not substance" });
+    if (isTriviaTag(text) || /^(?:协作者|维护者|贡献者|Owner|OWNER|Collaborator|Maintainer|Contributor|Committer)$/i.test(text.trim())) {
+      issues.push({ kind: "trivia", field, detail: "tag names a trivial stat or bare role, not substance" });
     }
     return issues;
   }
@@ -417,6 +464,48 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   }
   if (SHARE_CONTRAST_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "share-count contrast (N里M个 / M个是你的 / X of Y) is banned — absolute counts and qualitative roles only" });
+  }
+  if (STAR_COMMIT_JUXTAPOSE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "stars-vs-commits juxtaposition or 提交数第一 rank talk is banned — write what the work is" });
+  }
+  if (COMMIT_OUTCOME_CONTRAST_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "N-commits-却/只 outcome contrast is banned — say what landed and why it matters" });
+  }
+  if (COMMIT_MERGED_JUXTAPOSE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "commits↔merged-PR count juxtaposition is banned — write the work, not N提交/M合入" });
+  }
+  if (LONG_EN_QUOTE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "long English verbatim quote — paraphrase in Chinese or drop" });
+  }
+  if (PCT_OF_WORK_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "percent-of-PRs/work gotcha is banned — describe the work, not the share" });
+  }
+  if (LANG_SHARE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "language-share percentages are banned — name the stack without % figures" });
+  }
+  if (SCORE_META_FILLER_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "score-tier restating / meta filler (所以高但没到头 / 日历总数不是PR数) is banned" });
+  }
+  if (STIFF_METAPHOR_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "stiff knife/手艺 metaphors are banned — witty framing from the work itself" });
+  }
+  if (LOW_MERGED_PR_JOKE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "low merged-PR-count joke is banned — write what the one PR did, not that there was only one" });
+  }
+  if (SCAN_META_FILLER_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "scan-meta filler (扫描没有关闭原因) is banned — omit the reason or drop the clause" });
+  }
+  if (GENDERED_PRONOUN_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "never infer gender — address the subject as 你 / you" });
+  }
+  if (CREDITED_AS_OWNED_STARS_RE.test(text) && !/折算|计入|credited/i.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "metrics.total_stars is credited/折算 stars — say 折算/计入, never 名下总星/名下仓库总星" });
+  }
+  if (INVENTED_CLOSE_REASON_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "do not invent why PRs were closed — count only, no fabricated close reasons" });
+  }
+  if (/\bOWNER\b|标成\s*OWNER|标成所有者/i.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "do not claim OWNER — only state roles from the card facts.role field in plain words" });
   }
   if (field.startsWith("advice") && GAMEY_ADVICE_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "gamey advice (chase commits/stars/followers) — suggest what to build/ship/write/OSS next" });
@@ -474,11 +563,114 @@ export function validateCopy(index: FactIndex, copy: V13Copy, lang: "zh" | "en")
       issues.push({ kind: "repeat", field: `findings[${i}].headline`, detail: "repeats the title" });
     }
   });
+  issues.push(...metaphorOnceIssues(copy));
+  issues.push(...findingSubjectIssues(copy));
   return issues;
+}
+
+
+/** Each finding must stay on one subject; body must name what the headline points at. */
+function findingSubjectIssues(copy: V13Copy): V13Issue[] {
+  const out: V13Issue[] = [];
+  const repoRe = /`?[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+`?/g;
+  copy.findings.forEach((f, i) => {
+    const text = f.text || "";
+    const head = f.headline || "";
+    const repos = [...new Set((text.match(repoRe) || []).map((r) => r.replace(/`/g, "").toLowerCase()))];
+    // Abrupt subject jump: 2+ distinct repos AND a mid-sentence pivot like "回到/另|隔壁仓已说过的另一仓"
+    if (repos.length >= 2 && /[。；;]\s*(?:回到|另[一外]?边?|再看|至于|而在)/.test(text)) {
+      out.push({
+        kind: "trivia",
+        field: `findings[${i}].text`,
+        detail: "finding jumps subjects mid-way — keep one subject per finding",
+      });
+    }
+    // Title mentions a notes/blog-ish noun but body never names a concrete repo/subject token from title
+    const titleTokens = head.replace(/[的与和及]/g, " ").split(/\s+/).filter((w) => w.length >= 2);
+    const bodyHasTitleHook = titleTokens.some((tok) => text.includes(tok));
+    const bodyHasRepo = repos.length > 0;
+    // If headline is non-empty and body has neither a title token nor any named repo, flag.
+    // (loose: only when body uses vague 旁边/那边 without a named subject)
+    if (head && /旁边|那边|那份|上述/.test(text) && !bodyHasRepo) {
+      out.push({
+        kind: "trivia",
+        field: `findings[${i}].text`,
+        detail: "finding body must name the subject its title refers to (no dangling 旁边)",
+      });
+    }
+  });
+  return out;
+}
+
+/** Any distinctive metaphor word may appear at most once across the whole report. */
+function metaphorOnceIssues(copy: V13Copy): V13Issue[] {
+  const prose = [
+    copy.roast_line.zh,
+    copy.verdict,
+    ...copy.findings.map((f) => `${f.headline}${f.text}`),
+    ...Object.values(copy.dimensions),
+    ...copy.advice,
+    copy.risk,
+  ].join("\n");
+  const out: V13Issue[] = [];
+  for (const word of METAPHOR_ONCE) {
+    let n = 0;
+    let from = 0;
+    while (from < prose.length) {
+      const i = prose.indexOf(word, from);
+      if (i < 0) break;
+      n++;
+      from = i + word.length;
+    }
+    if (n > 1) {
+      out.push({
+        kind: "repeat",
+        field: "report",
+        detail: `metaphor "${word}" used ${n} times — keep any distinctive metaphor to once per report`,
+      });
+    }
+  }
+  return out;
 }
 
 /** Remove sentences that still cite a repo/number/star count absent from the
  * data after the editor pass. Returns the cleaned copy and what was dropped. */
+/** Trim over-long slot prose to the last full sentence that fits max. Under-length left for the editor. */
+export function fitSlotLengths(copy: V13Copy, lang: "zh" | "en"): V13Copy {
+  const fit = (slot: SlotName, text: string): string => {
+    if (!text) return text;
+    const { max } = slotRange(slot, lang);
+    if ([...text].length <= max) return text;
+    const parts = sentences(text);
+    let acc = "";
+    for (const s of parts) {
+      const next = acc + s;
+      if ([...next].length > max) break;
+      acc = next;
+    }
+    const out = acc.trim() || [...text].slice(0, max).join("").trim();
+    return out;
+  };
+  return {
+    ...copy,
+    roast_line: {
+      zh: fit("roast_line", copy.roast_line.zh),
+      en: copy.roast_line.en, // en uses its own factor via slotRange only for zh-primary pipeline
+    },
+    title: fit("title", copy.title),
+    verdict: fit("verdict", copy.verdict),
+    findings: copy.findings.map((f) => ({
+      ...f,
+      headline: fit("finding_headline", f.headline),
+      text: fit("finding", f.text),
+    })),
+    dimensions: Object.fromEntries(
+      Object.entries(copy.dimensions).map(([k, v]) => [k, fit("dimension", v)]),
+    ) as V13Copy["dimensions"],
+    advice: copy.advice.map((a) => fit("advice", a)),
+  };
+}
+
 export function dropUnverifiedSentences(
   index: FactIndex,
   copy: V13Copy,

@@ -20,6 +20,7 @@ import { SUBSCORE_MAX } from "../score-presentation";
 import { slimV13Payload } from "./facts";
 import { renderV13Report, V13_DIMENSIONS, hasRiskSignals } from "./render";
 import { editorSkill, roastWriterSkill, slotRange } from "./skill";
+
 import { sanitizeRoastTags } from "../roast-tags";
 import {
   BAD_QUOTE,
@@ -30,6 +31,7 @@ import {
   checkText,
   dropUnverifiedSentences,
   validateCopy,
+  fitSlotLengths,
   type V13Copy,
   type V13Issue,
 } from "./validate";
@@ -297,12 +299,13 @@ export async function generateRoastV13(
   if (!verified.roast_line.zh || verified.findings.length === 0 || !verified.verdict) {
     throw new RoastV13Error("copy failed verification", steps);
   }
-  const finalIssues = [...checkSlots(verified, cards, lang), ...validateCopy(index, verified, lang)];
+  const fitted = fitSlotLengths(verified, lang);
+  const finalIssues = [...checkSlots(fitted, cards, lang), ...validateCopy(index, fitted, lang)];
   return {
-    tags: verified.tags,
-    roastLine: verified.roast_line,
-    report: renderV13Report(scan, lang, verified),
-    copy: verified,
+    tags: fitted.tags,
+    roastLine: fitted.roast_line,
+    report: renderV13Report(scan, lang, fitted),
+    copy: fitted,
     steps,
     cards,
     draftIssues,

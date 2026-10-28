@@ -13,9 +13,11 @@ import {
   checkTrivia,
   dropUnverifiedSentences,
   fillQuoteTokens,
+  fitSlotLengths,
   validateCopy,
   type V13Copy,
 } from "../roast-v13/validate";
+import { rewriteLegacyRoastMarkdown } from "../roast-report-legacy";
 import type { ScanResult } from "../types";
 
 const scan = {
@@ -93,15 +95,15 @@ const scan = {
 const goodCopy = {
   title: "万星仓库只改两个词",
   roast_line: {
-    zh: "主力 commit 全砸进 2 星的 sample-user/side-app,组件库 sample-user/widget-kit 反倒从年初起没再推送。",
-    en: "Most commits went into a 2-star side app while the component library sat idle.",
+    zh: "主力活全砸进 sample-user/side-app,组件库 sample-user/widget-kit 反倒从年初起没再推送。",
+    en: "The real work went into the side app while the component library sat idle.",
   },
   roast_line_candidates: ["候选一", "候选二"],
   tags: { zh: ["词条外交", "自营荒地"], en: ["Word Diplomat", "Own-Repo Famine"] },
   verdict: "代码是真写,名气全靠别人家的仓库撑场。",
   findings: [
     { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的,5 个 open Issue 等着。" },
-    { headline: "桌面代理在加班", text: "19 星的 sample-user/desk-agent 是 Rust 写的桌面代理,7 个 open Issue。" },
+    { headline: "桌面代理在加班", text: "sample-user/desk-agent 是 Rust 写的桌面代理,还堆着一串 open Issue。" },
     { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,最大的工具 57 星。" },
   ],
   dimensions: {
@@ -155,12 +157,14 @@ describe("roast v13 rendering", () => {
     const copy = coerceCopy(goodCopy) as V13Copy;
     const md = renderV13Report(scan, "zh", copy);
     expect(md.startsWith("## sample-user — 73.60/100  ·  人上人 (优质贡献者 · 值得信任)")).toBe(true);
-    expect(md).toContain("| 原创与主导项目质量 | 12.2/18 |");
-    expect(md).toContain("**扎心三连**");
-    expect(md).toContain("**风险标记**\n无。");
+    expect(md).toContain("#### 原创与主导项目质量 · 12.2/18");
+    expect(md).toContain("### 扎心三连");
+    expect(md).toContain("> **一句话结论**");
+    expect(md).toMatch(/#### .+ · \d/);
+    expect(md).toContain("**风险标记**：无");
     const en = renderV13Report(scan, "en", copy);
     expect(en).toContain("SOLID (Solid · Trustworthy)");
-    expect(en).toContain("| Account maturity | 10/10 |");
+    expect(en).toContain("#### Account maturity · 10/10");
   });
 });
 
@@ -182,7 +186,8 @@ describe("roast v13 risk section", () => {
       },
     } as unknown as ScanResult;
     const md = renderV13Report(risky, "zh", { ...(coerceCopy(goodCopy) as V13Copy), risk: "" });
-    expect(md).toContain("**风险标记**\n- 公开仓库以 Fork 为主（提示）");
+    expect(md).toContain("### 风险标记");
+    expect(md).toContain("- 公开仓库以 Fork 为主（提示）");
     expect(md).not.toContain("不代表任何问题");
   });
 
@@ -406,6 +411,102 @@ describe("roast v13 salience, quotes and repetition", () => {
       ).some((i) => i.kind === "trivia" && /follower/.test(i.detail)),
     ).toBe(true);
 
+    // Stars-vs-commits / rank talk / lang share / gender / OWNER.
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, roast_line: { ...goodCopy.roast_line, zh: "84213 星的 org/app 上堆了 100 个提交。" } } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /stars-vs-commits|提交数第一/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, verdict: "你在那边不是提交数第一,只是客座。" } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /stars-vs-commits|提交数第一/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, findings: [{ headline: "x", text: "约 65% 是文档和站点皮肤。", cards: ["c1"] }, ...goodCopy.findings.slice(0, 2)] } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /percent-of/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, activity_authenticity: "语言落在 TypeScript 32%、Go 19%。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /language-share/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(index, { ...goodCopy, verdict: "她把导航补丁合进主干。" } as V13Copy, "zh").some(
+        (i) => i.kind === "trivia" && /gender/.test(i.detail),
+      ),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, account_maturity: "仓把你标成 OWNER 和维护者。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /OWNER/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, tags: { zh: ["协作者", "导航补丁"], en: ["Collaborator", "Nav"] } } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && i.field.startsWith("tags") && /role|trivial/.test(i.detail)),
+    ).toBe(true);
+
+    // Credited/折算 stars must not be mislabeled as owned-repo totals.
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, community_influence: "名下仓库总星 272,另外开过 55 个 issue。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /credited|折算/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, community_influence: "折算计入星 272,另外开过 55 个 issue。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /credited|折算/.test(i.detail)),
+    ).toBe(false);
+
+    // Closed-PR counts only — no invented close reasons.
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          risk: "有 79 个 PR 被维护者关闭且未合并,说明文档型改动会被门槛直接弹回。",
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, risk: "有 79 个 PR 被维护者关闭且未合并。" } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
+    ).toBe(false);
+
     const { copy } = dropUnverifiedSentences(index, {
       ...goodCopy,
       tags: { zh: ["关注倒挂", "核心修理工"], en: ["Follows>Fans"] },
@@ -419,7 +520,7 @@ describe("roast v13 salience, quotes and repetition", () => {
     const kinds = (text: string, field = "roast_line.zh") =>
       validateCopy(index, { ...goodCopy, roast_line: { ...goodCopy.roast_line, zh: text } } as V13Copy, "zh")
         .filter((i) => i.field === field && i.kind === "trivia");
-    expect(kinds("sample-user/side-app 有 719 个提交,合进去的那个 PR 只改了导航。")).toHaveLength(1);
+    expect(kinds("sample-user/side-app 有 719 个提交,合进去的那个 PR 只改了导航。").length).toBeGreaterThanOrEqual(1);
     expect(kinds("sample-user/widget-kit 的描述写着「A lightweight component library」,轻的是推送。")).toHaveLength(1);
     expect(kinds(goodCopy.roast_line.zh)).toEqual([]);
     expect(checkTrivia(index, "findings[0].text", "sample-user/side-app 只有 1 个 PR。")).toEqual([]);
@@ -431,7 +532,7 @@ describe("roast v13 salience, quotes and repetition", () => {
       findings: goodCopy.findings.slice(0, 2),
       advice: ["一", "二", "三", "四", "五"],
     } as V13Copy);
-    expect(report).toContain("**扎心两连**");
+    expect(report).toContain("### 扎心两连");
     expect(report.match(/^- /gm)?.length).toBe(4);
   });
 });
@@ -442,6 +543,9 @@ describe("roast v13 fact cards and slots", () => {
 
   it("turns the scan into weighted cards with verbatim quotes and no trivia hooks", () => {
     expect(cards.map((c) => c.id)).toEqual(cards.map((_, i) => `c${i + 1}`));
+    const communityCard = byKind("community")[0];
+    expect(communityCard.claim).toMatch(/折算计入星/);
+    expect(communityCard.claim).not.toMatch(/^总星 /);
     const widget = cards.find((c) => c.facts.repo === "sample-user/widget-kit")!;
     expect(widget.kind).toBe("project");
     expect(widget.quotes?.[0]).toEqual({ text: "A lightweight component library", source: "description", repo: "sample-user/widget-kit" });
@@ -524,5 +628,95 @@ describe("roast v13 fact cards and slots", () => {
     expect(copy.dimensions.account_maturity).toBe("y".repeat(70));
     expect(copy.advice).toEqual(["z".repeat(50)]);
     expect(copy.cites?.["advice[0]"]).toEqual([hook]);
+  });
+});
+
+describe("roast report legacy markdown rewrite", () => {
+  it("turns v12 dimension tables into h4 score cards", () => {
+    const legacy = `## sample-user — 82.90/100
+
+**一句话结论**: 分数站得住，招牌却薄。
+
+| 维度 | 得分 | 说明 |
+|------|------|------|
+| 账号成熟度 | 8/10 | 注册多年，合入稳定。 |
+| 贡献质量 | 23.8/27 | 合进评分器和放槽家务。 |
+
+**风险标记**
+无。
+
+**建议**
+把归属规则写成公开规格。
+
+给 ScriptForge 补可跑 demo。
+`;
+    const out = rewriteLegacyRoastMarkdown(legacy);
+    expect(out).toContain("> **一句话结论**");
+    expect(out).toContain("#### 账号成熟度 · 8/10");
+    expect(out).toContain("#### 贡献质量 · 23.8/27");
+    expect(out).toContain("### 风险标记");
+    expect(out).toContain("### 建议");
+    expect(out).toContain("- 把归属规则写成公开规格。");
+    expect(out).toContain("- 给 ScriptForge 补可跑 demo。");
+    expect(out).not.toMatch(/\|\s*维度\s*\|/);
+  });
+});
+
+describe("roast v13 commit-contrast and metaphor bans", () => {
+  const index = buildFactIndex(buildRoastPayload(scan as ScanResult, "zh"), scan as ScanResult);
+
+  it("bans N-commits-却 outcome contrast and commits↔merged juxtaposition", () => {
+    const a = checkTrivia(index, "roast_line.zh", "提交到了 100,方向是 agent harness,留下的合入却是导航过期状态。");
+    expect(a.some((i) => /commits-却|outcome contrast/i.test(i.detail))).toBe(true);
+    const a2 = checkTrivia(index, "roast_line.zh", "磨成主笔量级的 847 次提交,自己名下星数最高的作品却是一份没检出语言的清单。");
+    expect(a2.some((i) => /commits-却|outcome contrast/i.test(i.detail))).toBe(true);
+    const b = checkTrivia(index, "advice[0]", "你有 93 个提交、合进 1 个 PR。把改动收成插件。");
+    expect(b.some((i) => /commits↔merged|提交↔合入/i.test(i.detail))).toBe(true);
+  });
+
+  it("bans low merged-PR-count jokes and scan-meta filler", () => {
+    const a = checkTrivia(index, "findings[1].text", "隔壁讲原理课,你是协作者,合进去的已合并 PR 就 1 个。作业交了一份。");
+    expect(a.some((i) => /low merged-PR|合入数量|only one/i.test(i.detail))).toBe(true);
+    const b = checkTrivia(index, "findings[2].text", "另有 8 个 PR 被维护者关闭且未合并,扫描没有关闭原因。");
+    expect(b.some((i) => /scan-meta|扫描没有/i.test(i.detail))).toBe(true);
+  });
+
+    it("bans long English verbatim quotes", () => {
+    const issues = checkTrivia(
+      index,
+      "findings[2].text",
+      "描述却是 「AI-powered Novel-to-Screenplay Workspace for authors」。应意译。",
+    );
+    expect(issues.some((i) => /long English/i.test(i.detail))).toBe(true);
+  });
+
+  it("flags a distinctive metaphor used more than once across the report", () => {
+    const copy = coerceCopy({
+      ...goodCopy,
+      verdict: "家务做得密。",
+      findings: [
+        { headline: "一", text: "又在评分器里做家务，把放槽修好。" + "证".repeat(50) },
+        { headline: "二", text: "第三处还是家务：相位切换。" + "据".repeat(50) },
+        goodCopy.findings[2],
+      ],
+    })!;
+    const issues = validateCopy(index, copy, "zh");
+    expect(issues.some((i) => i.kind === "repeat" && /家务/.test(i.detail))).toBe(true);
+  });
+
+  it("fitSlotLengths trims over-long findings to the slot max", () => {
+    const copy = coerceCopy({
+      ...goodCopy,
+      findings: [
+        { headline: "标题够长了", text: "甲。" + "这是填充句用来超过一百五十字限制的内容。".repeat(8) },
+        goodCopy.findings[1],
+        goodCopy.findings[2],
+      ],
+    })!;
+    // coerce may already trim — force long text
+    copy.findings[0].text = "这是一句用来撑长度的中文证据。".repeat(12);
+    expect([...copy.findings[0].text].length).toBeGreaterThan(150);
+    const fitted = fitSlotLengths(copy, "zh");
+    expect([...fitted.findings[0].text].length).toBeLessThanOrEqual(150);
   });
 });
