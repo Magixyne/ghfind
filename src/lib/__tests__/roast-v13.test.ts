@@ -97,7 +97,7 @@ const goodCopy = {
     en: "719 commits went into a 2-star side app while the 57-star component library sat idle.",
   },
   roast_line_candidates: ["候选一", "候选二"],
-  tags: { zh: ["词条外交", "粉丝倒挂"], en: ["Word Diplomat"] },
+  tags: { zh: ["词条外交", "自营荒地"], en: ["Word Diplomat", "Own-Repo Famine"] },
   verdict: "代码是真写,名气全靠别人家的仓库撑场。",
   findings: [
     { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的,5 个 open Issue 等着。" },
@@ -332,6 +332,34 @@ describe("roast v13 salience, quotes and repetition", () => {
     expect(dims.advice).toEqual(["把 sample-user/desk-agent 打包发布,写清安装步骤。"]);
     const trivia = validateCopy(index, { ...goodCopy, verdict: "近 180 天提交全在一个仓库。" } as V13Copy, "zh");
     expect(trivia.some((i) => i.kind === "trivia" && i.field === "verdict")).toBe(true);
+  });
+
+  it("rejects follower-ratio tags and thickness / share-count trivia in copy", () => {
+    const tagIssues = validateCopy(
+      index,
+      { ...goodCopy, tags: { zh: ["关注倒挂", "核心修理工"], en: ["Follows>Fans", "Core Fixer"] } } as V13Copy,
+      "zh",
+    ).filter((i) => i.kind === "trivia" && i.field.startsWith("tags"));
+    expect(tagIssues.map((i) => i.field)).toEqual(expect.arrayContaining(["tags.zh[0]", "tags.en[0]"]));
+    expect(tagIssues.every((i) => /trivial stat/.test(i.detail))).toBe(true);
+
+    const thick = validateCopy(index, { ...goodCopy, verdict: "对外要人时卡在厚度,作品还撑得住。" } as V13Copy, "zh");
+    expect(thick.some((i) => i.kind === "trivia" && /厚度/.test(i.detail))).toBe(true);
+
+    const share = validateCopy(
+      index,
+      { ...goodCopy, findings: [{ headline: "a", text: "apache/big-repo 1863 个已合并 PR 里你 7 个,主战场在别处。" }, ...goodCopy.findings.slice(0, 2)] } as V13Copy,
+      "zh",
+    );
+    expect(share.some((i) => i.kind === "trivia" && /tiny share/.test(i.detail))).toBe(true);
+
+    const { copy } = dropUnverifiedSentences(index, {
+      ...goodCopy,
+      tags: { zh: ["关注倒挂", "核心修理工"], en: ["Follows>Fans"] },
+      verdict: "对外要人时卡在厚度。",
+    } as V13Copy);
+    expect(copy.tags.zh).toEqual(["核心修理工"]);
+    expect(copy.tags.en).toEqual([]);
   });
 
   it("flags PR-count contrasts and description wordplay in the one-liner only", () => {
