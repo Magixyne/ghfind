@@ -54,65 +54,65 @@
     },
     "before": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 27.0,
+        "contribution_quality": 27,
         "ecosystem_impact": 11.2,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
       "base_score": 88.4,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
+      "total_penalty": 0,
       "final_score": 88.4,
       "tier": "顶级",
       "tier_label": "顶级开发者 · 一线水准"
     },
     "expected": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 20.0,
-        "ecosystem_impact": 11.2,
+        "contribution_quality": 20,
+        "ecosystem_impact": 12.6,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
-      "base_score": 81.4,
+      "base_score": 82.8,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
-      "final_score": 81.4,
+      "total_penalty": 0,
+      "final_score": 82.8,
       "tier": "顶级",
       "tier_label": "顶级开发者 · 一线水准"
     },
-    "cap": 20.0
+    "cap": 20
   },
   {
     "name": "真实外部贡献者",
@@ -169,61 +169,61 @@
     },
     "before": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 12.8,
-        "contribution_quality": 27.0,
+        "contribution_quality": 27,
         "ecosystem_impact": 19.1,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
       "base_score": 91.7,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
+      "total_penalty": 0,
       "final_score": 91.7,
       "tier": "夯",
       "tier_label": "封神 · 殿堂级标杆"
     },
     "expected": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 12.8,
-        "contribution_quality": 27.0,
-        "ecosystem_impact": 19.1,
+        "contribution_quality": 26.8,
+        "ecosystem_impact": 17.6,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
-      "base_score": 91.7,
+      "base_score": 90,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
-      "final_score": 91.7,
+      "total_penalty": 0,
+      "final_score": 90,
       "tier": "夯",
       "tier_label": "封神 · 殿堂级标杆"
     },
@@ -284,65 +284,65 @@
     },
     "before": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 27.0,
+        "contribution_quality": 27,
         "ecosystem_impact": 11.2,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
       "base_score": 88.4,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
+      "total_penalty": 0,
       "final_score": 88.4,
       "tier": "顶级",
       "tier_label": "顶级开发者 · 一线水准"
     },
     "expected": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 20.0,
-        "ecosystem_impact": 11.2,
+        "contribution_quality": 20,
+        "ecosystem_impact": 12.6,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
-      "base_score": 81.4,
+      "base_score": 82.8,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
-      "final_score": 81.4,
+      "total_penalty": 0,
+      "final_score": 82.8,
       "tier": "顶级",
       "tier_label": "顶级开发者 · 一线水准"
     },
-    "cap": 20.0
+    "cap": 20
   },
   {
     "name": "高拒收率",
@@ -399,12 +399,12 @@
     },
     "before": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
         "contribution_quality": 23.3,
         "ecosystem_impact": 13.4,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
       "base_score": 86.9,
       "red_flags": [
@@ -418,7 +418,7 @@
         "version": "v10",
         "risk_score": 9.84,
         "level": "none",
-        "confidence": 84.0,
+        "confidence": 84,
         "applied_penalty": 2.46,
         "signals": [
           {
@@ -431,29 +431,29 @@
             "detail": "维护者关闭未合并的 PR 的 Wilson 95% 下界达到量化阈值。",
             "evidence": {
               "observed": {
-                "maintainer_closed_unmerged_pr_count": 277.0,
-                "merged_pr_count": 123.0,
-                "decided_pr_count": 400.0,
+                "maintainer_closed_unmerged_pr_count": 277,
+                "merged_pr_count": 123,
+                "decided_pr_count": 400,
                 "wilson_lower": 0.6456
               },
               "coverage": {
-                "repo": 1.0,
+                "repo": 1,
                 "merged_pr": 0.6,
-                "all_pr": 1.0
+                "all_pr": 1
               },
               "window": "bounded public snapshot: up to 200 repositories, up to 50 merged PRs, up to 30 all-state PRs",
-              "sample_size": 400.0,
+              "sample_size": 400,
               "threshold": {
-                "minimum_decisions": 20.0,
+                "minimum_decisions": 20,
                 "wilson_lower": 0.4
               }
             }
           }
         ],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
@@ -464,14 +464,14 @@
     },
     "expected": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
         "contribution_quality": 23.3,
-        "ecosystem_impact": 13.4,
+        "ecosystem_impact": 14.8,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
-      "base_score": 86.9,
+      "base_score": 88.3,
       "red_flags": [
         {
           "flag": "high_pr_rejection",
@@ -483,7 +483,7 @@
         "version": "v10",
         "risk_score": 9.84,
         "level": "none",
-        "confidence": 84.0,
+        "confidence": 84,
         "applied_penalty": 2.46,
         "signals": [
           {
@@ -496,34 +496,34 @@
             "detail": "维护者关闭未合并的 PR 的 Wilson 95% 下界达到量化阈值。",
             "evidence": {
               "observed": {
-                "maintainer_closed_unmerged_pr_count": 277.0,
-                "merged_pr_count": 123.0,
-                "decided_pr_count": 400.0,
+                "maintainer_closed_unmerged_pr_count": 277,
+                "merged_pr_count": 123,
+                "decided_pr_count": 400,
                 "wilson_lower": 0.6456
               },
               "coverage": {
-                "repo": 1.0,
+                "repo": 1,
                 "merged_pr": 0.6,
-                "all_pr": 1.0
+                "all_pr": 1
               },
               "window": "bounded public snapshot: up to 200 repositories, up to 50 merged PRs, up to 30 all-state PRs",
-              "sample_size": 400.0,
+              "sample_size": 400,
               "threshold": {
-                "minimum_decisions": 20.0,
+                "minimum_decisions": 20,
                 "wilson_lower": 0.4
               }
             }
           }
         ],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
       "total_penalty": 2.46,
-      "final_score": 84.44,
+      "final_score": 85.84,
       "tier": "顶级",
       "tier_label": "顶级开发者 · 一线水准"
     },
@@ -585,7 +585,7 @@
     "before": {
       "sub_scores": {
         "account_maturity": 1.6,
-        "original_project_quality": 6.0,
+        "original_project_quality": 6,
         "contribution_quality": 9.9,
         "ecosystem_impact": 2.1,
         "community_influence": 2.9,
@@ -595,19 +595,19 @@
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 100.0,
-        "applied_penalty": 0.0,
+        "confidence": 100,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
-          "merged_pr": 1.0,
-          "all_pr": 1.0
+          "repo": 1,
+          "merged_pr": 1,
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
+      "total_penalty": 0,
       "final_score": 35.1,
       "tier": "拉完了",
       "tier_label": "低价值 · 疑似刷量/AI 机器人"
@@ -615,30 +615,30 @@
     "expected": {
       "sub_scores": {
         "account_maturity": 1.6,
-        "original_project_quality": 6.0,
+        "original_project_quality": 6,
         "contribution_quality": 9.9,
-        "ecosystem_impact": 2.1,
+        "ecosystem_impact": 0.8,
         "community_influence": 2.9,
         "activity_authenticity": 12.6
       },
-      "base_score": 35.1,
+      "base_score": 33.8,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 100.0,
-        "applied_penalty": 0.0,
+        "confidence": 100,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
-          "merged_pr": 1.0,
-          "all_pr": 1.0
+          "repo": 1,
+          "merged_pr": 1,
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
-      "final_score": 35.1,
+      "total_penalty": 0,
+      "final_score": 33.8,
       "tier": "拉完了",
       "tier_label": "低价值 · 疑似刷量/AI 机器人"
     },
@@ -700,61 +700,61 @@
     },
     "before": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 27.0,
-        "ecosystem_impact": 20.0,
+        "contribution_quality": 27,
+        "ecosystem_impact": 20,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
       "base_score": 97.2,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
+      "total_penalty": 0,
       "final_score": 97.2,
       "tier": "夯",
       "tier_label": "封神 · 殿堂级标杆"
     },
     "expected": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 27.0,
-        "ecosystem_impact": 20.0,
+        "contribution_quality": 26.8,
+        "ecosystem_impact": 18.5,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
-      "base_score": 97.2,
+      "base_score": 95.5,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
-      "final_score": 97.2,
+      "total_penalty": 0,
+      "final_score": 95.5,
       "tier": "夯",
       "tier_label": "封神 · 殿堂级标杆"
     },
@@ -815,61 +815,61 @@
     },
     "before": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 27.0,
+        "contribution_quality": 27,
         "ecosystem_impact": 19.1,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
       "base_score": 96.3,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
+      "total_penalty": 0,
       "final_score": 96.3,
       "tier": "夯",
       "tier_label": "封神 · 殿堂级标杆"
     },
     "expected": {
       "sub_scores": {
-        "account_maturity": 10.0,
+        "account_maturity": 10,
         "original_project_quality": 17.4,
-        "contribution_quality": 27.0,
-        "ecosystem_impact": 19.1,
+        "contribution_quality": 26.8,
+        "ecosystem_impact": 17.6,
         "community_influence": 5.8,
-        "activity_authenticity": 17.0
+        "activity_authenticity": 17
       },
-      "base_score": 96.3,
+      "base_score": 94.6,
       "red_flags": [],
       "risk_assessment": {
         "version": "v10",
-        "risk_score": 0.0,
+        "risk_score": 0,
         "level": "none",
-        "confidence": 84.0,
-        "applied_penalty": 0.0,
+        "confidence": 84,
+        "applied_penalty": 0,
         "signals": [],
         "coverage": {
-          "repo": 1.0,
+          "repo": 1,
           "merged_pr": 0.6,
-          "all_pr": 1.0
+          "all_pr": 1
         }
       },
       "risk_notes": [],
-      "total_penalty": 0.0,
-      "final_score": 96.3,
+      "total_penalty": 0,
+      "final_score": 94.6,
       "tier": "夯",
       "tier_label": "封神 · 殿堂级标杆"
     },

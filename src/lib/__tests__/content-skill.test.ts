@@ -28,9 +28,11 @@ for(const f of scoreFixtures)it(`content calibration and current score parity: $
  expect(result.final_score).toBe(f.expected.final_score);
  if(f.name==='fixture-skill-influencer')expect(result.final_score).toBeGreaterThanOrEqual(46);
  else {
-  // Preserve the v16 content-only calibration bound while v18 independently
-  // tightens contribution quality; the golden above locks the new full score.
-  const contentCalibratedScore = result.final_score - result.sub_scores.contribution_quality + f.calibration_contribution_quality;
+  // v16 calibrated content only. Later contribution and ecosystem curves have
+  // their own goldens, so this bound puts those dimensions back first.
+  const contentCalibratedScore = result.final_score
+    - result.sub_scores.contribution_quality + f.calibration_contribution_quality
+    - result.sub_scores.ecosystem_impact + f.calibration_ecosystem_impact;
   expect(Math.abs(contentCalibratedScore-f.before_score)).toBeLessThanOrEqual(1.5);
  }
 });

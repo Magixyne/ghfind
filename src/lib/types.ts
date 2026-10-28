@@ -248,6 +248,8 @@ export interface RawMetrics {
   unverified_impact_pr_count?: number;
   // All-time per-repo impact aggregates (commits + PRs into popular repos).
   // Optional so existing RawMetrics literals / fixtures stay valid.
+  /** Per-repo landed work used for the v19 breadth curve. Missing on old snapshots. */
+  impact_repos?: ImpactRepo[];
   impact_repo_count?: number;
   impact_commit_count?: number;
   /** GitHub rejected the per-repository commit contribution graph for this

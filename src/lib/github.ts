@@ -5274,6 +5274,7 @@ export async function collect(username: string, options: CollectOptions = {}): P
     doc_like_impact_pr_count: impact.doc_like_impact_pr_count,
     unverified_impact_pr_count: impact.unverified_impact_pr_count,
     impact_repo_count: impact.impact_repo_count,
+    impact_repos: impact.impact_repos,
     impact_commit_count: impact.impact_commit_count,
     commit_contribution_aggregation_unavailable: commitContributionAggregationUnavailable,
     merged_pr_contribution_aggregation_incomplete: mergedPrContributionAggregationIncomplete,
