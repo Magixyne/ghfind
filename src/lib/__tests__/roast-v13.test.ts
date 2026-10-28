@@ -720,3 +720,102 @@ describe("roast v13 commit-contrast and metaphor bans", () => {
     expect([...fitted.findings[0].text].length).toBeLessThanOrEqual(150);
   });
 });
+
+describe("buildFactCards partial_public guard", () => {
+  it("omits inventory and merged-PR cards when coverage is partial_public", () => {
+    const scan = {
+      collection: {
+        mode: "quick",
+        coverage: "partial_public",
+        truncation_reasons: ["public_repos_quick_limit", "merged_pr_window"],
+      },
+      metrics: { username: "sample-user" },
+    };
+    const payload = {
+      metrics: {
+        username: "sample-user",
+        created_at: "2020-01-01T00:00:00Z",
+        public_repos: 40,
+        original_repo_count: 12,
+        merged_pr_count: 9,
+        last_year_contributions: 100,
+        days_since_last_activity: 1,
+        total_stars: 10,
+        issues_created: 2,
+        bio: "hello",
+        maintainer_closed_unmerged_pr_count: 6,
+        recent_external_doc_like_pr_ratio: 0.5,
+      },
+      top_repos: [
+        {
+          name_with_owner: "sample-user/demo",
+          owner_login: "sample-user",
+          stars: 20,
+          description: "demo app",
+          language: "Go",
+          pushed_at: "2024-01-01T00:00:00Z",
+          attributed_original: true,
+        },
+      ],
+      impact_repos: [{ repo: "other/lib", stars: 1000, commits: 80, prs: 12 }],
+      verified_impact_prs: [
+        { repo: "other/lib", title: "fix crash", changed_files: 3, repo_stars: 1000, trivial: false },
+      ],
+      signature_work: {
+        work_clusters: [
+          { repo: "other/lib", stars: 1000, recent_merged_prs_in_sample: 5, examples: ["a", "b", "c"] },
+        ],
+      },
+    };
+    const cards = buildFactCards(payload, { username: "sample-user", scan });
+    const kinds = cards.map((c) => c.kind);
+    expect(kinds).not.toContain("project");
+    expect(kinds).not.toContain("maintenance");
+    expect(kinds).not.toContain("core_change");
+    expect(kinds).not.toContain("work_cluster");
+    expect(kinds).not.toContain("gap");
+    expect(kinds).not.toContain("doc_share");
+    expect(kinds).toContain("bio");
+    expect(kinds).toContain("activity");
+    const activity = cards.find((c) => c.kind === "activity")!;
+    expect(activity.claim).not.toMatch(/公开仓库/);
+    expect(activity.claim).not.toMatch(/已合并 PR/);
+    expect(activity.facts.public_repos).toBeUndefined();
+    expect(activity.facts.merged_prs).toBeUndefined();
+  });
+
+  it("keeps inventory cards when coverage is complete_public", () => {
+    const scan = {
+      collection: { mode: "full", coverage: "complete_public", truncation_reasons: [] },
+      metrics: { username: "sample-user" },
+    };
+    const payload = {
+      metrics: {
+        username: "sample-user",
+        created_at: "2020-01-01T00:00:00Z",
+        public_repos: 4,
+        original_repo_count: 2,
+        merged_pr_count: 3,
+        last_year_contributions: 10,
+        days_since_last_activity: 1,
+        total_stars: 5,
+        issues_created: 1,
+      },
+      top_repos: [
+        {
+          name_with_owner: "sample-user/demo",
+          owner_login: "sample-user",
+          stars: 20,
+          description: "demo app",
+          language: "Go",
+          pushed_at: "2024-01-01T00:00:00Z",
+          attributed_original: true,
+        },
+      ],
+      impact_repos: [],
+      verified_impact_prs: [],
+    };
+    const cards = buildFactCards(payload, { username: "sample-user", scan });
+    expect(cards.some((c) => c.kind === "project")).toBe(true);
+  });
+});

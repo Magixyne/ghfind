@@ -86,6 +86,33 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   const m = isRec(p.metrics) ? p.metrics : {};
   const user = (opts.username ?? txt(m.username)).toLowerCase();
   const cards: Omit<FactCard, "id">[] = [];
+  // #594 incremental / quick scans can surface as partial_public while deepen
+  // runs. Never mint inventory or merged-PR facts from an incomplete snapshot;
+  // omit those cards rather than stating a truncated inventory as complete.
+  const collection = isRec(opts.scan) && isRec((opts.scan as Rec).collection)
+    ? ((opts.scan as Rec).collection as Rec)
+    : isRec(p.collection) ? (p.collection as Rec) : null;
+  const partialPublic = collection?.coverage === "partial_public";
+  const listedReasons = Array.isArray(collection?.truncation_reasons)
+    ? (collection!.truncation_reasons as unknown[]).map(String)
+    : [];
+  const trunc = new Set(partialPublic ? (listedReasons.length ? listedReasons : ["partial_public"]) : []);
+  const repoIncomplete =
+    partialPublic &&
+    [...trunc].some((r) =>
+      /^(partial_public|public_repos_quick_limit|original_repos_page_limit)$/.test(r),
+    );
+  const mergedIncomplete =
+    partialPublic &&
+    [...trunc].some((r) =>
+      /^(partial_public|merged_pr_window|external_merged_pr_cap|external_merged_unavailable)$/.test(r),
+    );
+  const commitIncomplete =
+    partialPublic &&
+    [...trunc].some((r) =>
+      /^(partial_public|commit_year_cap|commit_resource_limit|commit_repository_cap|commit_aggregation_unavailable)$/.test(r),
+    );
+
   const impact = arr(p.impact_repos).map((r) => ({
     repo: txt(r.repo),
     stars: num(r.stars),
@@ -97,7 +124,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   const covered = new Set<string>();
 
   // Projects they own or are attributed with, and what each one does.
-  for (const r of arr(p.top_repos).slice(0, 10)) {
+  if (!repoIncomplete) for (const r of arr(p.top_repos).slice(0, 10)) {
     const repo = txt(r.name_with_owner) || txt(r.name);
     if (!repo) continue;
     const owner = txt(r.owner_login).toLowerCase() || repo.split("/")[0].toLowerCase();
@@ -174,7 +201,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   }
 
   // Long-term work in other repos (maintenance depth), excluding token touches.
-  for (const r of impact) {
+  if (!repoIncomplete && !commitIncomplete && !mergedIncomplete) for (const r of impact) {
     const key = r.repo.toLowerCase();
     if (covered.has(key) || key === `${user}/${user}`) continue;
     const total = r.commits + r.prs;
@@ -193,7 +220,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   }
 
   // What the code changes actually were.
-  for (const r of arr(p.verified_impact_prs).filter((x) => x.trivial !== true).slice(0, 8)) {
+  if (!mergedIncomplete) for (const r of arr(p.verified_impact_prs).filter((x) => x.trivial !== true).slice(0, 8)) {
     const repo = txt(r.repo);
     const title = txt(r.title);
     if (!repo || !title) continue;
@@ -212,7 +239,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   }
 
   const sig = isRec(p.signature_work) ? p.signature_work : {};
-  for (const c of arr(sig.work_clusters).slice(0, 4)) {
+  if (!mergedIncomplete) for (const c of arr(sig.work_clusters).slice(0, 4)) {
     const repo = txt(c.repo);
     const n = num(c.recent_merged_prs_in_sample);
     const examples = (Array.isArray(c.examples) ? c.examples : []).map(String).filter(Boolean).slice(0, 3);
@@ -233,7 +260,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   const scan = isRec(opts.scan) ? opts.scan : {};
   const langSrc = isRec(p.estimated_contribution_languages) ? p.estimated_contribution_languages : scan.estimated_contribution_languages;
   const scanLangs = isRec(langSrc) ? arr(langSrc.languages).filter((l) => num(l.pct) >= 3) : [];
-  if (scanLangs.length) {
+  if (!commitIncomplete && !mergedIncomplete && scanLangs.length) {
     const top = scanLangs.slice(0, 4).map((l) => `${txt(l.name)} ${num(l.pct)}%`);
     cards.push({
       kind: "direction",
@@ -247,7 +274,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   }
 
   const docRatio = num(m.recent_external_doc_like_pr_ratio);
-  if (docRatio >= 0.4) {
+  if (!mergedIncomplete && docRatio >= 0.4) {
     cards.push({
       kind: "doc_share",
       weight: clamp01(0.3 + docRatio * 0.4),
@@ -260,7 +287,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
   }
 
   // Gaps advice can be built on.
-  for (const r of arr(p.top_repos)) {
+  if (!repoIncomplete) for (const r of arr(p.top_repos)) {
     const repo = txt(r.name_with_owner);
     if (!repo || repo.split("/")[0].toLowerCase() !== user) continue;
     const stars = num(r.stars);
@@ -278,7 +305,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     }
   }
   const rejected = num(m.maintainer_closed_unmerged_pr_count);
-  if (rejected >= 5) {
+  if (!mergedIncomplete && rejected >= 5) {
     cards.push({
       kind: "gap",
       weight: 0.35,
@@ -327,25 +354,33 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     facts: { total_stars: num(m.total_stars), issues_created: num(m.issues_created) },
     source: "metrics",
   });
-  cards.push({
-    kind: "activity",
-    weight: 0.1,
-    hook: false,
-    dims: ["account_maturity", "activity_authenticity"],
-    claim:
-      `账号 ${day(m.created_at)} 注册,公开仓库 ${num(m.public_repos)} 个(原创 ${num(m.original_repo_count)}),` +
-      `已合并 PR ${num(m.merged_pr_count)} 个,过去一年贡献日历共 ${num(m.last_year_contributions)} 次` +
-      `(禁止写"距上次活动 N 天"这类考勤填充)`,
-    facts: {
+  {
+    const parts = [`账号 ${day(m.created_at)} 注册`];
+    const facts: FactCard["facts"] = {
       created_at: day(m.created_at),
-      public_repos: num(m.public_repos),
-      original_repos: num(m.original_repo_count),
-      merged_prs: num(m.merged_pr_count),
       last_year_contributions: num(m.last_year_contributions),
       days_since_last_activity: num(m.days_since_last_activity),
-    },
-    source: "metrics",
-  });
+    };
+    if (!repoIncomplete) {
+      parts.push(`公开仓库 ${num(m.public_repos)} 个(原创 ${num(m.original_repo_count)})`);
+      facts.public_repos = num(m.public_repos);
+      facts.original_repos = num(m.original_repo_count);
+    }
+    if (!mergedIncomplete) {
+      parts.push(`已合并 PR ${num(m.merged_pr_count)} 个`);
+      facts.merged_prs = num(m.merged_pr_count);
+    }
+    parts.push(`过去一年贡献日历共 ${num(m.last_year_contributions)} 次`);
+    cards.push({
+      kind: "activity",
+      weight: 0.1,
+      hook: false,
+      dims: ["account_maturity", "activity_authenticity"],
+      claim: parts.join(",") + `(禁止写"距上次活动 N 天"这类考勤填充)`,
+      facts,
+      source: "metrics",
+    });
+  }
 
   // Hooks by weight (capped), then the bio and context cards, which always ship.
   const always = (c: Omit<FactCard, "id">) => !c.hook || c.kind === "bio";

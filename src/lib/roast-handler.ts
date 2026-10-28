@@ -31,6 +31,7 @@ import { buildRoastMessages } from "@/lib/prompt";
 import { reportMatchesLang } from "@/lib/report";
 import { sanitizeIdentityClaims } from "@/lib/identity";
 import { RESCAN_COOLDOWN_MS } from "@/lib/freshness";
+import { needsFullScan } from "@/lib/scan-coverage";
 import {
   acquireRoastLock,
   checkRoastRequestRateLimit,
@@ -742,7 +743,24 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
     getCurrentCanonicalQuickScan(username),
     getCachedScan(username),
   ]);
-  const scan = canonicalQuick?.scan ?? cachedScan ?? (body.scan ? sanitizeScan(body.scan) : null);
+  // Prefer the verified complete_public snapshot. Redis / body.scan can still
+  // hold a partial_public quick result while #594 incremental deepen runs;
+  // never feed that truncated inventory to the roast / v13 card chain.
+  const rawScan = canonicalQuick?.scan ?? cachedScan ?? (body.scan ? sanitizeScan(body.scan) : null);
+  const scanIncomplete =
+    rawScan != null &&
+    (rawScan.collection?.coverage === "partial_public" || needsFullScan(rawScan));
+  const scan = scanIncomplete ? canonicalQuick?.scan ?? null : rawScan;
+  if (scanIncomplete && !scan) {
+    if (body.refresh !== true && !isMachineCaller) {
+      const legacy = await legacyRoastResponse(username, lang, requestId, reqT0);
+      if (legacy) return legacy;
+    }
+    return NextResponse.json(
+      { error: "score_materialization_pending" },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   // If the new scanner has not produced a usable snapshot, replay the immutable
   // previous-release report without resolving model config or spending quota.
   if (!scan && body.refresh !== true && !body.scan && !isMachineCaller) {
