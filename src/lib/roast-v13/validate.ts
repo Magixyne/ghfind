@@ -363,7 +363,9 @@ const GAMEY_ADVICE_RE =
   /坐上主提交|协作者份额|做成主提交|多拿(?:点)?(?:提交|commit)|冲(?:提交|commit)份额|涨粉|互关|多攒(?:点)?星|追星数|get more (?:commits?|stars?|followers?)/i;
 
 function countNumbers(text: string): number {
-  return (text.match(/\d+(?:\.\d+)?/g) ?? []).length;
+  // Collapse ISO dates so "2022-07-21" counts as one evidence token, not three.
+  const normalized = text.replace(/\d{4}-\d{2}-\d{2}/g, "DATE");
+  return (normalized.match(/\d+(?:\.\d+)?/g) ?? []).length;
 }
 
 function numberDensityIssues(field: string, text: string): V13Issue[] {

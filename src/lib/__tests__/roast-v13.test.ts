@@ -387,6 +387,12 @@ describe("roast v13 salience, quotes and repetition", () => {
         (i) => i.kind === "trivia" && /number density/.test(i.detail),
       ),
     ).toBe(true);
+    // ISO dates count as one number, not three.
+    expect(
+      validateCopy(index, { ...goodCopy, verdict: "2022-07-21 注册,主线还在长。" } as V13Copy, "zh").some(
+        (i) => i.kind === "trivia" && /number density/.test(i.detail),
+      ),
+    ).toBe(false);
     expect(
       validateCopy(index, { ...goodCopy, verdict: "距上次活动 12 天,该动了。" } as V13Copy, "zh").some(
         (i) => i.kind === "trivia" && /days-since|time window/.test(i.detail),

@@ -14,7 +14,8 @@
 /** Metaphors and hedges that v12 reused across unrelated accounts. The writer
  * and editor must avoid them; the validator reports any that slip through. */
 export const V13_CLICHE_PHRASES = [
-  "样本",
+  "样本太少",
+  "样本不足",
   "自家后院",
   "宅基地",
   "自留地",
