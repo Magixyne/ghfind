@@ -916,6 +916,19 @@ describe("roast v13 tone and open-issue bans", () => {
     expect(issues.some((i) => i.kind === "snark")).toBe(true);
   });
 
+  it("allows neutral issues_created counts without backlog framing", () => {
+    const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
+    const ok = {
+      ...goodCopy,
+      dimensions: {
+        ...goodCopy.dimensions,
+        community_influence: "你开过 55 个 issue,上游合入比个人仓更撑得起这块影响,社区影响落在中位。",
+      },
+    };
+    const issues = validateCopy(index, ok, "zh");
+    expect(issues.some((i) => /open-issue count as backlog/i.test(i.detail))).toBe(false);
+  });
+
   it("bans open-issue backlog framing in copy", () => {
     const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
     const bad = {

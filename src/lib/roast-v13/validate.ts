@@ -411,9 +411,10 @@ const SCAN_META_FILLER_RE =
 /** Third-person gendered pronouns — always address as 你. Skip 其他/他人. */
 const GENDERED_PRONOUN_RE =
   /(?<![其])她|(?<![其])他(?![人们])/;
-/** Open-issue backlog framed as a flaw — users read this as "issues hurt the score". */
+/** Open-issue backlog framed as a flaw — users read this as "issues hurt the score".
+ *  Do NOT match neutral "开过 N 个 issue" (issues_created); require backlog/open/pending framing. */
 const ISSUE_BACKLOG_RE =
-  /(?:\d+\s*个?(?:开放|待清|挂着的?)?\s*(?:Issue|issue|议题)|(?:开放|待清|挂着)\s*\d+\s*个?(?:Issue|issue|议题)|(?:Issue|issue|议题)\s*(?:堆肥|积压|欠账|清道夫)|待清\s*(?:Issue|issue)|清一批\s*(?:Issue|issue|开放)|(?:Issue|issue)\s*Composter|issue\s*backlog|(?:挂着|堆着)\s*(?:一串|[\d]+\s*个?)?\s*(?:open\s*)?(?:Issue|issue)|再加功能[，,].{0,24}(?:Issue|issue)|清(?:掉|完|理)?(?:一批)?\s*(?:开放\s*)?(?:Issue|issue).{0,16}(?:再谈|再发|再做|release)|(?:\d+\s*个\s*)?open\s*Issue\s*等着|关掉那\s*\d+\s*个\s*open\s*Issue)/i;
+  /(?:\d+\s*个?(?:开放|待清|挂着的?)\s*(?:Issue|issue|议题)|(?:开放|待清|挂着)\s*\d+\s*个?(?:Issue|issue|议题)|(?:Issue|issue|议题)\s*(?:堆肥|积压|欠账|清道夫)|待清\s*(?:Issue|issue)|清一批\s*(?:Issue|issue|开放)|(?:Issue|issue)\s*Composter|issue\s*backlog|(?:挂着|堆着)\s*(?:一串|[\d]+\s*个?)?\s*(?:open\s*)?(?:Issue|issue)|再加功能[，,].{0,24}(?:Issue|issue)|清(?:掉|完|理)?(?:一批)?\s*(?:开放\s*)?(?:Issue|issue).{0,16}(?:再谈|再发|再做|release)|(?:\d+\s*个\s*)?open\s*(?:Issue|issue)s?(?:\s*等着)?|关掉那\s*\d+\s*个\s*open\s*(?:Issue|issue)|\d+\s*(?:open\s+)?(?:issues?)\s*(?:still\s+)?(?:open|pending|hanging)|(?:open|pending)\s+\d+\s*(?:open\s+)?(?:issues?))/i;
 /** Implying a metric caused a score deduction — scores are opaque to copy. */
 const SCORE_ATTRIBUTION_RE =
   /(?:因此|所以|于是).{0,12}(?:被)?(?:扣分|减分|拉低|压分|扣了|降分)|(?:扣分|减分|拉低分数|评分引擎|被评分).{0,8}(?:因为|由于|源自)|(?:因为|由于).{0,20}(?:被)?(?:扣分|减分|拉低|压到)/;
