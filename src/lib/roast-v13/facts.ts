@@ -66,7 +66,6 @@ export function buildWriterFactCard(payload: unknown): Rec {
       topics: Array.isArray(r.topics) ? r.topics.slice(0, 6) : [],
       stack: langNames(r.languages),
       pushed: typeof r.pushed_at === "string" ? r.pushed_at.slice(0, 10) : null,
-      open_issue_count: r.open_issue_count,
       attributed_original: r.attributed_original,
     })),
     impact_repos: arr(p.impact_repos).slice(0, 10).map((r) => ({
@@ -98,7 +97,7 @@ export function buildWriterFactCard(payload: unknown): Rec {
   return card;
 }
 
-const REPO_DROP = ["readme", "readme_excerpt", "root_paths", "content_skill_share", "size"];
+const REPO_DROP = ["readme", "readme_excerpt", "root_paths", "content_skill_share", "size", "open_issues", "open_issue_count"];
 
 /** v13 payload: the v12 writer payload minus the v12 output contract and the
  * bulky README/file-list evidence the copy never needs verbatim. */

@@ -25,11 +25,11 @@
     "signOutFailed": "ログアウトできませんでした。接続を確認して再試行してください。"
   },
   "meta": {
-    "title": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
-    "description": "ghfind（毒舌GitHub採点）：GitHubアカウントを入力すると、30秒で0-100点の価値・信頼スコアと辛口ローストが出ます。自分の弱点を直視して成長の方向を掴み、発見ボードで注目すべき優良開発者を見つけ、自分も見つけてもらう。水増しアカウント・AI botの検出にも対応。",
-    "ogTitle": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
-    "ogDescription": "ghfind：GitHubアカウントを採点してトップ開発者を発見。30秒で0-100点の実力スコア + 容赦ない毒舌ロースト、開発者ランキングも。",
-    "twDescription": "30秒でGitHubアカウントを採点 + 毒舌ロースト。ghfindで最強の開発者を発見しよう。",
+    "title": "ghfind | GitHub風趣採点・自己診断で成長・トップ開発者を発見",
+    "description": "ghfind（GitHub風趣採点）：GitHubアカウントを入力すると、30秒で0-100点の価値・信頼スコアとウィットなローストが出ます。自分の弱点を直視して成長の方向を掴み、発見ボードで注目すべき優良開発者を見つけ、自分も見つけてもらう。水増しアカウント・AI botの検出にも対応。",
+    "ogTitle": "ghfind | GitHub風趣採点・自己診断で成長・トップ開発者を発見",
+    "ogDescription": "ghfind：GitHubアカウントを採点してトップ開発者を発見。30秒で0-100点の実力スコア + 客観的でウィットに富むロースト、開発者ランキングも。",
+    "twDescription": "30秒でGitHubアカウントを採点 + ウィットロースト。ghfindで最強の開発者を発見しよう。",
     "siteName": "ghfind"
   },
   "nav": {
@@ -126,7 +126,7 @@
     "title": "ソースコードと採点アルゴリズムはオープンソース · GitHubで見る"
   },
   "home": {
-    "brand": "毒舌",
+    "brand": "風趣",
     "headline": "最強の開発者を見つけろ。そして、その一人になれ。",
     "subtitle": "まずは忖度ゼロの0–100点診断から。今の立ち位置と、進むべき方向が見える。",
     "boardHeading": "🏆 最強の開発者たち",
@@ -431,7 +431,7 @@
     "byoLink": "自分のモデル / APIキーを使う",
     "scanning": "{username} の身辺調査中…コミットを読み、PRを漁り、スターを数え、水増しの痕跡を嗅ぎ回っています",
     "roastLabel": "🔥 ロースト",
-    "roastThinking": "AIが渾身の毒舌を練っています。もうすぐお出しします…",
+    "roastThinking": "AIがウィットな観察を練っています。もうすぐお出しします…",
     "roastPending": "ローストを準備中",
     "firstJudged": "🥇 最初に審判された一人目、まさに開拓者",
     "rankLine": "<hl>📊 全体 {rank} 位</hl><muted> / 開発者 {total} 人中</muted>",
@@ -446,7 +446,7 @@
     "errEmpty": "まずGitHubユーザー名かプロフィールURLを入力してください。",
     "errNeedTurnstile": "先に下の認証を完了してください。",
     "errRoastFailed": "ローストの生成に失敗。あとで再試行するか、自分のキーをどうぞ。",
-    "errNetworkRoast": "接続が切れて、毒舌が途中で止まりました。",
+    "errNetworkRoast": "接続が切れて、ローストが途中で止まりました。",
     "errScanFailed": "スキャンに失敗しました。あとで再試行を。",
     "largeAccountCollecting": "大規模アカウントのデータを収集中…",
     "errScanPending": "公開 PR と commit の全履歴を収集中です。準備でき次第、自動的に続行します。",
@@ -896,7 +896,7 @@
     "summonRoasting": "ロースト中…",
     "summonError": "召喚に失敗しました。あとで再試行を",
     "bothMissing": "どちらもまだ審判されていません。先に召喚してから対決を。",
-    "verdictGenerating": "🤖 AIが渾身の毒舌ジャッジを練っています…",
+    "verdictGenerating": "🤖 AIがウィットなジャッジを練っています…",
     "adviceHeading": "💡 レベルアップのヒント",
     "saveImage": "📸 対戦画像を保存",
     "saving": "レンダリング中…",
@@ -904,7 +904,7 @@
     "embedCopied": "✅ コピー済み。READMEに貼ってください",
     "shareText": "{a} vs {b} —— どっちがガチ？このGitHub対決を ghfind.com で観戦 ⚔️",
     "trendingHeading": "🔥 話題の対戦",
-    "trendingSub": "いちばん観戦されているGitHub開発者PK。毒舌ジャッジを見に行こう",
+    "trendingSub": "いちばん観戦されているGitHub開発者PK。ウィットなジャッジを見に行こう",
     "trendingEmpty": "まだ対戦がありません。ホームで「a vs b」と入力して、最初の一発を撃ちましょう。",
     "notRated": "未審判",
     "verdictMissing": "判定はまだお預け。まずはリングに召喚してから。",

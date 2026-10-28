@@ -37,6 +37,12 @@ const TRIVIA_TAG_RE: readonly RegExp[] = [
   /卡在厚度|没有厚度/,
   // Bare role labels are not substance.
   /^(?:协作者|维护者|贡献者|Owner|OWNER|Collaborator|Maintainer|Contributor|Committer)$/i,
+  // Open-issue backlog gotchas — many open issues usually mean an active project.
+  /Issue\s*堆肥|Issue堆肥|议题堆肥|issue\s*composter/i,
+  /Issue\s*积压|议题积压|Issue\s*欠账|issue\s*backlog/i,
+  /待清\s*Issue|清\s*Issue|Issue\s*清道夫|issue\s*janitor/i,
+  /^Issue\s*\d+/i,
+  /\d+\s*个?(?:开放)?Issue/,
 ];
 
 export function isTriviaTag(tag: string): boolean {

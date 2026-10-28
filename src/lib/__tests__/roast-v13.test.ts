@@ -10,6 +10,7 @@ import {
   buildFactIndex,
   checkSlots,
   checkText,
+  checkSnark,
   checkTrivia,
   dropUnverifiedSentences,
   fillQuoteTokens,
@@ -103,8 +104,8 @@ const goodCopy = {
   tags: { zh: ["词条外交", "自营荒地"], en: ["Word Diplomat", "Own-Repo Famine"] },
   verdict: "代码是真写,名气全靠别人家的仓库撑场。",
   findings: [
-    { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的,5 个 open Issue 等着。" },
-    { headline: "桌面代理在加班", text: "sample-user/desk-agent 是 Rust 写的桌面代理,还堆着一串 open Issue。" },
+    { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的组件库还在迭代。" },
+    { headline: "桌面代理在加班", text: "sample-user/desk-agent 是 Rust 写的桌面代理,最近推送还很勤。" },
     { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,最大的工具 57 星。" },
   ],
   dimensions: {
@@ -116,7 +117,7 @@ const goodCopy = {
     activity_authenticity: "过去一年贡献日历 3611 次。",
   },
   risk: "",
-  advice: ["给 sample-user/widget-kit 关掉那 5 个 open Issue。"],
+  advice: ["给 sample-user/widget-kit 补一条可演示的安装路径再推一版。"],
 };
 
 const payload = slimV13Payload(buildRoastPayload(scan, "zh"));
@@ -159,7 +160,7 @@ describe("roast v13 rendering", () => {
     const md = renderV13Report(scan, "zh", copy);
     expect(md.startsWith("## sample-user — 73.60/100  ·  人上人 (优质贡献者 · 值得信任)")).toBe(true);
     expect(md).toContain("#### 原创与主导项目质量 · 12.2/18");
-    expect(md).toContain("### 扎心三连");
+    expect(md).toContain("### 笑点三连");
     expect(md).toContain("> **一句话结论**");
     expect(md).toMatch(/#### .+ · \d/);
     expect(md).toContain("**风险标记**：无");
@@ -336,7 +337,7 @@ describe("roast v13 salience, quotes and repetition", () => {
         community_influence: "粉丝 44。总星不高。",
         ecosystem_impact: "word-trainer 上只有 1 个 PR。sample-user/side-app 有 719 个提交。",
       },
-      advice: ["近 180 天提交很多,把 sample-user/widget-kit 的 5 个 open Issue 关掉。", "把 sample-user/desk-agent 打包发布,写清安装步骤。"],
+      advice: ["近 180 天提交很多,把 sample-user/widget-kit 收成一条可演示安装路径。", "把 sample-user/desk-agent 打包发布,写清安装步骤。"],
     } as V13Copy).copy;
     expect(dims.dimensions.community_influence).toBe("总星不高。");
     expect(dims.dimensions.ecosystem_impact).toBe("sample-user/side-app 有 719 个提交。");
@@ -533,7 +534,7 @@ describe("roast v13 salience, quotes and repetition", () => {
       findings: goodCopy.findings.slice(0, 2),
       advice: ["一", "二", "三", "四", "五"],
     } as V13Copy);
-    expect(report).toContain("### 扎心两连");
+    expect(report).toContain("### 笑点两连");
     expect(report.match(/^- /gm)?.length).toBe(4);
   });
 });
@@ -633,6 +634,11 @@ describe("roast v13 fact cards and slots", () => {
 });
 
 describe("roast report legacy markdown rewrite", () => {
+  it("maps 扎心 headings to 笑点 for stored reports", () => {
+    const md = "### 扎心三连\n\n1. **x**\n";
+    expect(rewriteLegacyRoastMarkdown(md)).toContain("### 笑点三连");
+  });
+
   it("turns v12 dimension tables into h4 score cards", () => {
     const legacy = `## sample-user — 82.90/100
 
@@ -901,5 +907,41 @@ describe("generateRoastV13 partial_public scan", () => {
     expect(r.dropped.some((d) => /7777|8888/.test(d))).toBe(true);
     expect(roastWriterSkill("zh", { partialCoverage: true, reasons: ["merged_pr_window"] })).toMatch(/partial_public/);
     expect(roastWriterSkill("zh", { partialCoverage: true, reasons: ["merged_pr_window"] })).toMatch(/名下只有/);
+  });
+});
+
+describe("roast v13 tone and open-issue bans", () => {
+  it("flags snark lexicon", () => {
+    const issues = checkSnark("findings[0].text", "这波嘴臭扎心毒舌真菜", "zh");
+    expect(issues.some((i) => i.kind === "snark")).toBe(true);
+  });
+
+  it("bans open-issue backlog framing in copy", () => {
+    const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
+    const bad = {
+      ...goodCopy,
+      tags: { zh: ["Issue堆肥", "评分主笔"], en: ["Issue Composter", "Score Lead"] },
+      findings: [
+        { headline: "待清", text: "那边还挂着 48 个待清 Issue,再加功能清一批再谈下一个 release。" },
+        goodCopy.findings[1],
+        goodCopy.findings[2],
+      ],
+      advice: ["再加功能，48 个开放 issue 清一批再谈下一个 release。"],
+    };
+    const issues = validateCopy(index, bad, "zh");
+    expect(issues.some((i) => /open-issue count as backlog/i.test(i.detail))).toBe(true);
+  });
+
+  it("bans attributing score deductions to a metric", () => {
+    const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
+    const bad = {
+      ...goodCopy,
+      dimensions: {
+        ...goodCopy.dimensions,
+        community_influence: "因为粉丝少因此被扣分,社区分上不去。",
+      },
+    };
+    const issues = validateCopy(index, bad, "zh");
+    expect(issues.some((i) => /attribute a score deduction/i.test(i.detail))).toBe(true);
   });
 });
