@@ -84,7 +84,7 @@ function splitDimensionSection(md: string): { before: string; dims: DimCard[]; a
       max: Number(m[3]),
       note: note
         .replace(/^>\s?/gm, "")
-        .replace(/\n\n\*\*(?:风险标记|Red flags)\*\*[：:].*$/s, "")
+        .replace(/\n\n\*\*(?:风险标记|Red flags)\*\*[：:][\s\S]*$/, "")
         .trim(),
     });
   }
