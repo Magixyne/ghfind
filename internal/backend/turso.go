@@ -37,10 +37,10 @@ type ScoreSnapshotStore interface {
 // TursoStore uses the official remote libSQL driver and existing credentials.
 type TursoStore struct {
 	db *sql.DB
-	// cursorSchema runs CREATE TABLE IF NOT EXISTS once per store. Later
-	// cursor reads and writes reuse that result.
-	cursorSchema sync.Once
-	cursorErr    error
+	// cursorSchema remembers a successful CREATE TABLE. A failure leaves the
+	// flag clear so the next call can retry.
+	cursorSchemaMu sync.Mutex
+	cursorSchemaOK bool
 }
 
 func OpenTursoStore(config Config) (*TursoStore, error) {

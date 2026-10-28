@@ -26,10 +26,17 @@ Merged and external PR connections are ordered by created time, not
 Commit years and workflow landings also stay on their existing full pull.
 A fan-out repos part may carry the `pushedAt` watermark. Other parts do not.
 
-Cursors are written only after the public scan row commits. If that write
-fails, the next scan reconciles from the previous cursor. A compare-and-swap
-on the cursor row's `updated_at` rejects a stale writer. A cursor book whose
-schema version is not the current one is treated as missing.
+Cursors are written only after the public scan row commits. The pending
+book stays on the call that collected the scan, so concurrent parent and
+assemble jobs cannot share it. A compare-and-swap conflict reloads the row
+once and writes again. A second failure is logged and does not fail the
+scan. A cursor book whose schema version is not the current one is treated
+as missing.
+
+Fan-out also publishes the dependents part after the last independent part
+finishes. That publish is claimed once per parent, so two parts completing
+together do not enqueue dependents or assemble twice. This holds whenever
+`GHFIND_SCAN_FANOUT_ENABLED` is on, including when incremental cursors are off.
 
 If the merged quick scan is still `partial_public`, the worker discards
 that run's incremental cursor and runs the existing fullscan deepen. The

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 )
@@ -141,14 +142,16 @@ func quickCoverageExceeded(scan ScanResult) bool {
 // then scores that merged page with the same finish path as Collect.
 // A missing cursor, or a delta that still exceeds quick coverage, falls
 // through to Collect / CollectFull so the published row matches a full pull.
-func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanResult, error) {
+func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanResult, *pendingScanCursors, error) {
 	collector, ok := w.collector.(*GitHubCollector)
 	if !ok {
-		return w.collector.Collect(ctx, job.Username)
+		scan, err := w.collector.Collect(ctx, job.Username)
+		return scan, nil, err
 	}
 	store, ok := w.results.(ScanCursorStore)
 	if !ok {
-		return collector.Collect(ctx, job.Username)
+		scan, err := collector.Collect(ctx, job.Username)
+		return scan, nil, err
 	}
 	now := time.Now().UTC()
 	if collector.clock != nil {
@@ -156,7 +159,7 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 	}
 	book, err := store.LoadScanCursors(ctx, job.Username)
 	if err != nil {
-		return ScanResult{}, err
+		return ScanResult{}, nil, err
 	}
 	book.Username = strings.ToLower(job.Username)
 	plans := planScanCursors(book, now)
@@ -172,16 +175,17 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 		var forkCount float64
 		scan, err := collector.Collect(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 		if err != nil {
-			return ScanResult{}, err
+			return ScanResult{}, nil, err
 		}
+		var pending *pendingScanCursors
 		if !quickCoverageExceeded(scan) {
-			w.pendingCursors = &pendingScanCursors{book: book, plans: plans, repos: captured, forkCount: forkCount, now: now}
+			pending = &pendingScanCursors{book: book, plans: plans, repos: captured, forkCount: forkCount, now: now}
 		}
-		return scan, nil
+		return scan, pending, nil
 	}
 	_, user, overview, stats, lastYear, latest, err := collector.SeedScan(ctx, job.Username)
 	if err != nil {
-		return ScanResult{}, err
+		return ScanResult{}, nil, err
 	}
 	baseline := baselineFromBook(book)
 	payloads := map[string]scanPartPayload{}
@@ -190,7 +194,7 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 		plan := plans[part]
 		payload, delta, err := collector.collectCursorPart(ctx, job.Username, part, false, user, overview, plan)
 		if err != nil {
-			return ScanResult{}, err
+			return ScanResult{}, nil, err
 		}
 		if delta {
 			incrementalParts[part] = true
@@ -203,7 +207,7 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 	}
 	scan, sources, err := collector.assembleCollectedScan(ctx, false, user, overview, stats, lastYear, latest, payloads)
 	if err != nil {
-		return ScanResult{}, err
+		return ScanResult{}, nil, err
 	}
 	scan.SourceStatus = mergedSourceStatus(scan, sources)
 	if quickCoverageExceeded(scan) {
@@ -215,20 +219,18 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 		var forkCount float64
 		fullScan, fullErr := collector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 		if fullErr != nil {
-			return ScanResult{}, fullErr
+			return ScanResult{}, nil, fullErr
 		}
 		repoPlan := plans[scanCursorRepos]
 		repoPlan.Source = scanCursorRepos
 		repoPlan.Full = true
 		repoPlan.Since = ""
-		w.pendingCursors = &pendingScanCursors{
+		return fullScan, &pendingScanCursors{
 			book: book, plans: map[string]scanCursorPlan{scanCursorRepos: repoPlan},
 			repos: captured, forkCount: forkCount, now: now,
-		}
-		return fullScan, nil
+		}, nil
 	}
-	w.pendingCursors = &pendingScanCursors{book: book, plans: plans, baseline: baseline, now: now, useBaseline: true}
-	return scan, nil
+	return scan, &pendingScanCursors{book: book, plans: plans, baseline: baseline, now: now, useBaseline: true}, nil
 }
 
 // pendingScanCursors is the cursor book for the scan that just finished.
@@ -243,11 +245,10 @@ type pendingScanCursors struct {
 	now         time.Time
 }
 
-// commitPendingCursors writes the staged book. The caller runs it only
-// after PersistCollectedScan succeeds.
-func (w *ScanWorker) commitPendingCursors(ctx context.Context) error {
-	pending := w.pendingCursors
-	w.pendingCursors = nil
+// commitPendingCursors writes the book passed by this scan. A compare-and-swap
+// conflict reloads once and writes again. The public scan already committed,
+// so a second conflict is logged and does not fail the scan.
+func (w *ScanWorker) commitPendingCursors(ctx context.Context, pending *pendingScanCursors) error {
 	if pending == nil || !w.config.ScanIncrementalEnabled {
 		return nil
 	}
@@ -268,5 +269,14 @@ func (w *ScanWorker) commitPendingCursors(ctx context.Context) error {
 	if strings.TrimSpace(book.Username) == "" {
 		return nil
 	}
+	err := store.SaveScanCursors(ctx, book)
+	if !errors.Is(err, ErrScanCursorConflict) {
+		return err
+	}
+	fresh, loadErr := store.LoadScanCursors(ctx, book.Username)
+	if loadErr != nil {
+		return loadErr
+	}
+	book.Revision = fresh.Revision
 	return store.SaveScanCursors(ctx, book)
 }

@@ -204,6 +204,15 @@ func (w *ScanWorker) publishReady(ctx context.Context, parent scanParentRecord, 
 			}
 		}
 		if independentDone {
+			// Two parts can finish together. Only the first claim publishes
+			// dependents, so assemble runs once.
+			claimed, claimErr := w.claimReadyPublish(ctx, parent.ID, scanPartDependents)
+			if claimErr != nil {
+				return workerRetry, claimErr.Error()
+			}
+			if !claimed {
+				return workerCompleted, ""
+			}
 			err := w.publisher.PublishScanPart(ctx, ScanPartJob{
 				ParentID: job.ParentID, Username: job.Username, Phase: scanPhasePart, Part: scanPartDependents,
 				RequestedAt: job.RequestedAt, Full: parent.Full,
@@ -221,6 +230,13 @@ func (w *ScanWorker) publishReady(ctx context.Context, parent scanParentRecord, 
 }
 
 func (w *ScanWorker) publishAssemble(ctx context.Context, parent scanParentRecord, job ScanPartJob) (workerDisposition, string) {
+	claimed, claimErr := w.claimReadyPublish(ctx, parent.ID, scanPhaseAssemble)
+	if claimErr != nil {
+		return workerRetry, claimErr.Error()
+	}
+	if !claimed {
+		return workerCompleted, ""
+	}
 	err := w.publisher.PublishScanAssemble(ctx, ScanAssembleJob{
 		ParentID: parent.ID, Username: parent.Username, Phase: scanPhaseAssemble,
 		RequestedAt: job.RequestedAt, Full: parent.Full,
@@ -298,15 +314,15 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 		return workerRetry, err.Error()
 	}
 	scan.SourceStatus = mergedSourceStatus(scan, sources)
-	w.pendingCursors = nil
+	var pending *pendingScanCursors
 	if w.config.ScanIncrementalEnabled {
-		w.pendingCursors = w.stageIncrementalCursors(ctx, parent.Username, payloads, incrementalParts)
+		pending = w.stageIncrementalCursors(ctx, parent.Username, payloads, incrementalParts)
 	}
 	if !parent.Full && quickCoverageExceeded(scan) {
 		// The delta left quick coverage. Discard this run's incremental
 		// cursor and let #582 deepen. Only the captured inventory page is
 		// a truthful watermark; PR nodes are not rewritten from the delta.
-		w.pendingCursors = nil
+		pending = nil
 		if fullCollector, ok := w.collector.(interface {
 			CollectFull(context.Context, string) (ScanResult, error)
 		}); ok {
@@ -326,7 +342,7 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 						now = collector.clock().UTC()
 					}
 					repoPlan := scanCursorPlan{Source: scanCursorRepos, Full: true}
-					w.pendingCursors = &pendingScanCursors{
+					pending = &pendingScanCursors{
 						book: book, plans: map[string]scanCursorPlan{scanCursorRepos: repoPlan},
 						repos: captured, forkCount: forkCount, now: now,
 					}
@@ -334,7 +350,7 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 			}
 		}
 	}
-	return w.persistFinishedScan(ctx, job.asScanJob(), scan)
+	return w.persistFinishedScan(ctx, job.asScanJob(), scan, pending)
 }
 
 // collectPart uses the cursor plan when the flag is on and the part carries
@@ -422,7 +438,7 @@ func (w *ScanWorker) stageIncrementalCursors(ctx context.Context, username strin
 	return &pendingScanCursors{book: book, plans: plans, baseline: baseline, useBaseline: true, now: now}
 }
 
-func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan ScanResult) (workerDisposition, string) {
+func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan ScanResult, pending *pendingScanCursors) (workerDisposition, string) {
 	startedAt := time.Now()
 	created, err := w.results.PersistCollectedScan(ctx, job, scan)
 	if errors.Is(err, ErrScanJobConflict) {
@@ -430,11 +446,12 @@ func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan 
 		return workerDead, err.Error()
 	}
 	if err != nil {
-		w.pendingCursors = nil
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, err.Error()
 	}
-	if err := w.commitPendingCursors(ctx); err != nil {
+	// Cursor save is best-effort after the public row commits. One CAS retry
+	// lives in commitPendingCursors. A remaining error does not fail the scan.
+	if err := w.commitPendingCursors(ctx, pending); err != nil {
 		w.log.Warn("save scan cursors", "job_id", job.ID, "error", err)
 	}
 	if w.scanCache != nil {
@@ -451,6 +468,9 @@ func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan 
 	}
 	if err := w.statuses.Put(ctx, completed); err != nil {
 		return workerRetry, "status store unavailable: " + err.Error()
+	}
+	if !created {
+		return workerCompleted, "duplicate_delivery"
 	}
 	return workerCompleted, ""
 }

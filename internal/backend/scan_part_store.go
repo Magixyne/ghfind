@@ -69,6 +69,14 @@ func (s *TursoStore) EnsureScanPartSchema(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ensure scan parent table: %w", err)
 	}
+	_, err = s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS scan_part_ready (
+      parent_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      PRIMARY KEY (parent_id, kind)
+    )`)
+	if err != nil {
+		return fmt.Errorf("ensure scan ready table: %w", err)
+	}
 	return nil
 }
 
@@ -188,6 +196,34 @@ func (s *TursoStore) LoadScanParent(ctx context.Context, parentID string) (scanP
 		}
 	}
 	return record, nil
+}
+
+// claimReadyPublish returns true for the first caller of this parent and
+// kind. Later callers are duplicates and must not publish again.
+func (s *TursoStore) claimReadyPublish(ctx context.Context, parentID, kind string) (bool, error) {
+	if err := s.EnsureScanPartSchema(ctx); err != nil {
+		return false, err
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO scan_part_ready (parent_id, kind) VALUES (?, ?)
+      ON CONFLICT(parent_id, kind) DO NOTHING`, parentID, kind)
+	if err != nil {
+		return false, fmt.Errorf("claim scan publish: %w", err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read scan publish claim: %w", err)
+	}
+	return inserted > 0, nil
+}
+
+func (w *ScanWorker) claimReadyPublish(ctx context.Context, parentID, kind string) (bool, error) {
+	store, ok := w.results.(interface {
+		claimReadyPublish(context.Context, string, string) (bool, error)
+	})
+	if !ok {
+		return true, nil
+	}
+	return store.claimReadyPublish(ctx, parentID, kind)
 }
 
 func timeNowMillis() int64 {

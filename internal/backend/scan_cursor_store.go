@@ -26,17 +26,21 @@ func (s *TursoStore) EnsureScanCursorSchema(ctx context.Context) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("scan cursor store unavailable")
 	}
-	s.cursorSchema.Do(func() {
-		_, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS scan_source_cursors (
+	s.cursorSchemaMu.Lock()
+	defer s.cursorSchemaMu.Unlock()
+	if s.cursorSchemaOK {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS scan_source_cursors (
       username TEXT PRIMARY KEY,
       book TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )`)
-		if err != nil {
-			s.cursorErr = fmt.Errorf("ensure scan cursor table: %w", err)
-		}
-	})
-	return s.cursorErr
+	if err != nil {
+		return fmt.Errorf("ensure scan cursor table: %w", err)
+	}
+	s.cursorSchemaOK = true
+	return nil
 }
 
 // LoadScanCursors returns an empty book when the user has no row. A row
