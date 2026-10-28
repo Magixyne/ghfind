@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // These are the pre-v7 quick inventory/window bounds, not account-specific
@@ -27,10 +28,18 @@ func scanCoverage(scan ScanResult) string {
 // List originals server-side: REST type=owner alone still includes forks.
 // Keep the cheap fork count so filtering cannot erase the footprint signal.
 func (c *GitHubClient) ownedOriginalInventory(ctx context.Context, login string, full bool) ([]githubRepo, float64, bool, error) {
+	return c.ownedOriginalInventorySince(ctx, login, full, "")
+}
+
+// ownedOriginalInventorySince lists originals with pushedAt strictly after
+// since. An empty since is the existing full or quick page. The caller
+// merges the delta into the stored snapshot; this function does not.
+func (c *GitHubClient) ownedOriginalInventorySince(ctx context.Context, login string, full bool, since string) ([]githubRepo, float64, bool, error) {
 	repos := []githubRepo{}
 	var after *string
 	forks := 0.0
-	for page := 0; full || page < quickRepoPages; page++ {
+	incremental := strings.TrimSpace(since) != ""
+	for page := 0; full || incremental || page < quickRepoPages; page++ {
 		var result struct {
 			User *struct {
 				Forks struct {
@@ -98,6 +107,21 @@ func (c *GitHubClient) ownedOriginalInventory(ctx context.Context, login string,
 				repo.Topics = append(repo.Topics, topic.Topic.Name)
 			}
 			repos = append(repos, repo)
+		}
+		if incremental {
+			stopped := false
+			kept := repos[:0]
+			for _, repo := range repos {
+				if repo.PushedAt == nil || !cursorAfterWatermark(*repo.PushedAt, since) {
+					stopped = true
+					continue
+				}
+				kept = append(kept, repo)
+			}
+			repos = kept
+			if stopped || !connection.PageInfo.HasNextPage {
+				return repos, forks, false, nil
+			}
 		}
 		if !connection.PageInfo.HasNextPage {
 			return repos, forks, false, nil
