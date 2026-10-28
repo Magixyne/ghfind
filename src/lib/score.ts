@@ -157,7 +157,7 @@ const OWN_PR_COMMUNITY_BONUS = 6;
  * `external_merged_pr_count` keep the v10 single-pool score (credit 0).
  */
 export function ownPrCommunityCredit(m: RawMetrics): number {
-  if (m.external_merged_pr_count === undefined) return 0;
+  if (m.external_merged_pr_count == null) return 0;
   const community = Math.max(0, Math.min(m.own_pr_community ?? 0, 1));
   if (community === 0) return 0;
   const external = Math.max(0, Math.min(m.external_merged_pr_count, m.merged_pr_count));
@@ -176,21 +176,27 @@ export function impactPrestigeSignal(m: RawMetrics): number {
 }
 
 /**
- * Many merged PRs are not automatically top-tier contribution quality. If the
- * history is bulk-heavy but lacks either a 10k-star external repo signal or a
- * genuinely popular own project, cap the PR/issue-derived contribution score.
- * This still lets small-community work score well, but prevents low-stakes PR
- * volume from outranking fewer high-impact core PRs.
+ * Bulk volume needs prestige and independent adoption to approach full credit.
+ * Own project stars cannot bypass either constraint. Own PRs earn adoption
+ * through the measured outside community, including attributed org projects.
+ * Missing external counts are unknown: retain the prestige cap alone.
  */
 export function lowPrestigeBulkContributionCap(m: RawMetrics): number | undefined {
   const smooth = (value: number) => { const x = Math.max(0, Math.min(1, value)); return x*x*(3-2*x); };
   const volume = smooth((m.merged_pr_count - 40) / 80);
-  const projectProtection = smooth((m.max_stars - 950) / 100);
   const prestige = impactPrestigeSignal(m);
   const strongPrestige = smooth((prestige - .65) / .15);
   const coreProtection = smooth(((m.core_impact_pr_count ?? 0) - 40) / 60);
   const prestigeCap = 20 + 3*smooth((prestige-.3)/.5) + 4*strongPrestige + 2.5*coreProtection*(1-strongPrestige);
-  return 27 - (27 - prestigeCap) * volume * (1 - projectProtection);
+  const cap = 27 - (27 - prestigeCap) * volume;
+  if (m.external_merged_pr_count == null) return cap;
+  const external = Math.max(0, Math.min(m.external_merged_pr_count, m.merged_pr_count));
+  const own = Math.max(0, m.merged_pr_count - external);
+  const community = Math.max(0, Math.min(m.own_pr_community ?? 0, 1));
+  // 80 effective landings earn 63% of the seven points above the legacy floor;
+  // roughly 396 are needed for this cap to round to 27.0.
+  const recognitionCap = 20 + 7 * (1 - Math.exp(-(external + own * community) / 80));
+  return Math.min(cap, recognitionCap);
 }
 
 /**
