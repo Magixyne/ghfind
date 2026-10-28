@@ -361,6 +361,12 @@ const SHARE_CONTRAST_RE =
 /** Advice that chases commit share / stars / followers instead of the work. */
 const GAMEY_ADVICE_RE =
   /坐上主提交|协作者份额|做成主提交|多拿(?:点)?(?:提交|commit)|冲(?:提交|commit)份额|涨粉|互关|多攒(?:点)?星|追星数|get more (?:commits?|stars?|followers?)/i;
+/** Treating metrics.total_stars (credited/折算) as owned-repo star sum. */
+const CREDITED_AS_OWNED_STARS_RE =
+  /名下(?:仓库)?总星|个人自攒(?:的)?星|自己攒(?:的)?(?:总)?星|owned(?:-repo)? total stars/i;
+/** Inventing why maintainers closed PRs (scan has counts, not reasons). */
+const INVENTED_CLOSE_REASON_RE =
+  /(?:被?(?:维护者)?关闭|未合并|拒收|弹回)[^。！？!?\n]{0,40}(?:因为|由于|说明|都是|多是|全是)[^。！？!?\n]{0,40}(?:文档|说明文字|门槛|质量|太水|没实质)|(?:文档型|说明型|水(?:PR|pr)|琐碎)(?:改动|PR|pr)[^。！？!?\n]{0,24}(?:弹回|拒|关)/i;
 
 function countNumbers(text: string): number {
   // Collapse ISO dates so "2022-07-21" counts as one evidence token, not three.
@@ -391,7 +397,8 @@ function numberDensityIssues(field: string, text: string): V13Issue[] {
 /**
  * Trivia hooks the owner rejected: follower counts (everywhere), activity time
  * windows, days-since filler, vague "厚度", ANY share-count contrast (including
- * dimensions), gamey advice, number-density caps, and token PRs to famous repos.
+ * dimensions), mislabeling credited/折算 stars as 名下总星, invented PR close
+ * reasons, gamey advice, number-density caps, and token PRs to famous repos.
  */
 /** "只合了 1 个 PR" / "那个 PR" / "only one PR" in a one-liner. */
 const PR_COUNT_RE = /(只|仅|就|才|那)(合进去?的?|合并的?|有|提了?|开了?)?(你|她|他)?\s*(那|一|1|两|2|三|3|几)?\s*个\s*PR|\bonly (one|two|three|a few|\d) (merged )?PRs?\b/i;
@@ -417,6 +424,12 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   }
   if (SHARE_CONTRAST_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "share-count contrast (N里M个 / M个是你的 / X of Y) is banned — absolute counts and qualitative roles only" });
+  }
+  if (CREDITED_AS_OWNED_STARS_RE.test(text) && !/折算|计入|credited/i.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "metrics.total_stars is credited/折算 stars — say 折算/计入, never 名下总星/名下仓库总星" });
+  }
+  if (INVENTED_CLOSE_REASON_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "do not invent why PRs were closed — count only, no fabricated close reasons" });
   }
   if (field.startsWith("advice") && GAMEY_ADVICE_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "gamey advice (chase commits/stars/followers) — suggest what to build/ship/write/OSS next" });

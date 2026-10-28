@@ -406,6 +406,47 @@ describe("roast v13 salience, quotes and repetition", () => {
       ).some((i) => i.kind === "trivia" && /follower/.test(i.detail)),
     ).toBe(true);
 
+    // Credited/折算 stars must not be mislabeled as owned-repo totals.
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, community_influence: "名下仓库总星 272,另外开过 55 个 issue。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /credited|折算/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          dimensions: { ...goodCopy.dimensions, community_influence: "折算计入星 272,另外开过 55 个 issue。" },
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /credited|折算/.test(i.detail)),
+    ).toBe(false);
+
+    // Closed-PR counts only — no invented close reasons.
+    expect(
+      validateCopy(
+        index,
+        {
+          ...goodCopy,
+          risk: "有 79 个 PR 被维护者关闭且未合并,说明文档型改动会被门槛直接弹回。",
+        } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
+    ).toBe(true);
+    expect(
+      validateCopy(
+        index,
+        { ...goodCopy, risk: "有 79 个 PR 被维护者关闭且未合并。" } as V13Copy,
+        "zh",
+      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
+    ).toBe(false);
+
     const { copy } = dropUnverifiedSentences(index, {
       ...goodCopy,
       tags: { zh: ["关注倒挂", "核心修理工"], en: ["Follows>Fans"] },
@@ -442,6 +483,9 @@ describe("roast v13 fact cards and slots", () => {
 
   it("turns the scan into weighted cards with verbatim quotes and no trivia hooks", () => {
     expect(cards.map((c) => c.id)).toEqual(cards.map((_, i) => `c${i + 1}`));
+    const communityCard = byKind("community")[0];
+    expect(communityCard.claim).toMatch(/折算计入星/);
+    expect(communityCard.claim).not.toMatch(/^总星 /);
     const widget = cards.find((c) => c.facts.repo === "sample-user/widget-kit")!;
     expect(widget.kind).toBe("project");
     expect(widget.quotes?.[0]).toEqual({ text: "A lightweight component library", source: "description", repo: "sample-user/widget-kit" });

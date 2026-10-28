@@ -321,7 +321,7 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     weight: 0.1,
     hook: false,
     dims: ["community_influence"],
-    claim: `总星 ${num(m.total_stars)},开过 ${num(m.issues_created)} 个 issue(粉丝/关注数禁止写入锐评正文)`,
+    claim: `折算计入星 ${num(m.total_stars)}(按主导/共建份额与活性折算,不是名下仓库原始加总),开过 ${num(m.issues_created)} 个 issue(粉丝/关注数禁止写入锐评正文;禁止把折算星写成名下总星/名下仓库总星)`,
     facts: { total_stars: num(m.total_stars), issues_created: num(m.issues_created) },
     source: "metrics",
   });
