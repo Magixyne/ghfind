@@ -45,6 +45,7 @@ export const V13_CLICHE_PHRASES = [
   "作者主动关闭",
   "贡献日历聚合",
   "近一年贡献日历", "停更", "弃坑", "熄火", "冬眠",
+  "两间仓库", "那间仓库", "这间仓库", "坐上主提交", "协作者份额", "做成主提交",
 ] as const;
 
 export const V13_CLICHE_PHRASES_EN = [
@@ -58,6 +59,9 @@ export const V13_CLICHE_PHRASES_EN = [
   "not cheating",
   "to be fair",
   "solid contributor",
+  "sit on top commits",
+  "claim the commit lead",
+  "grow your share",
 ] as const;
 
 export const SAFETY_ZH = `## 安全底线(违反任何一条整篇作废)

@@ -124,7 +124,7 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function Sha
           {shownTags.map((t, i) => (
             <span
               key={`${t}-${i}`}
-              className="rounded-full border border-orange-400/30 bg-orange-500/10 px-3 py-1 text-sm font-medium text-orange-200"
+              className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2.5 py-0.5 text-xs font-medium text-zinc-400"
             >
               #{t}
             </span>

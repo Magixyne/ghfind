@@ -131,19 +131,15 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     if (maintainerDoc) facts.listed_as_maintainer = true;
     const parts = [`${repo}(${stars} 星${language ? `,${language}` : stack.length ? `,${stack[0]}` : ",未检出语言"})`];
     parts.push(description ? "它是做什么的见 quotes(仓库描述原文)" : "仓库没有描述");
-    if (!commits && w?.commits) parts.push(`TA 在这里有 ${w.commits} 个提交`);
+    // Absolute counts + role only — never "N 里 M 个是 TA 的" share contrasts.
     if (commits) {
-      const tinyCommitShare = commits.total >= 200 && commits.mine <= 30 && commits.mine / commits.total < 0.1;
-      if (tinyCommitShare) parts.push(`TA 在这里有 ${commits.mine} 个提交`);
-      else parts.push(`${commits.total} 个提交里 ${commits.mine} 个是 TA 的${commits.leader && commits.leader > commits.mine ? `(提交最多者 ${commits.leader} 个)` : commits.leader === commits.mine ? "(提交数第一)" : ""}`);
+      parts.push(`TA 在这里有 ${commits.mine} 个提交`);
+      if (commits.leader !== undefined && commits.leader === commits.mine) parts.push("提交数第一");
+      else if (commits.leader !== undefined && commits.leader > commits.mine) parts.push("不是提交数第一");
+    } else if (w?.commits) {
+      parts.push(`TA 在这里有 ${w.commits} 个提交`);
     }
-    // Skip "N 个已合并 PR 里你 M 个" when M is a token slice of a large repo —
-    // that contrast is trivia the owner rejected. Keep absolute counts instead.
-    if (prs) {
-      const tinyShare = prs.total >= 50 && prs.mine <= 15 && prs.mine / prs.total < 0.1;
-      if (tinyShare) parts.push(`TA 在这里合过 ${prs.mine} 个 PR`);
-      else parts.push(`${prs.total} 个已合并 PR 里 ${prs.mine} 个是 TA 的`);
-    }
+    if (prs) parts.push(`TA 在这里合过 ${prs.mine} 个已合并 PR`);
     if (pushed) parts.push(`最后推送 ${pushed}`);
     const share = commits ? commits.mine / Math.max(1, commits.total) : 0;
     covered.add(repo.toLowerCase());
@@ -325,8 +321,8 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     weight: 0.1,
     hook: false,
     dims: ["community_influence"],
-    claim: `粉丝 ${num(m.followers)},总星 ${num(m.total_stars)},开过 ${num(m.issues_created)} 个 issue`,
-    facts: { followers: num(m.followers), total_stars: num(m.total_stars), issues_created: num(m.issues_created) },
+    claim: `总星 ${num(m.total_stars)},开过 ${num(m.issues_created)} 个 issue(粉丝/关注数禁止写入锐评正文)`,
+    facts: { total_stars: num(m.total_stars), issues_created: num(m.issues_created) },
     source: "metrics",
   });
   cards.push({
@@ -336,8 +332,8 @@ export function buildFactCards(payload: unknown, opts: { username?: string; scan
     dims: ["account_maturity", "activity_authenticity"],
     claim:
       `账号 ${day(m.created_at)} 注册,公开仓库 ${num(m.public_repos)} 个(原创 ${num(m.original_repo_count)}),` +
-      `已合并 PR ${num(m.merged_pr_count)} 个,过去一年贡献日历共 ${num(m.last_year_contributions)} 次,` +
-      `距上次活动 ${num(m.days_since_last_activity)} 天`,
+      `已合并 PR ${num(m.merged_pr_count)} 个,过去一年贡献日历共 ${num(m.last_year_contributions)} 次` +
+      `(禁止写"距上次活动 N 天"这类考勤填充)`,
     facts: {
       created_at: day(m.created_at),
       public_repos: num(m.public_repos),

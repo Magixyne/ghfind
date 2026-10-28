@@ -122,7 +122,7 @@ export function RoastResultModal({
               {tags.map((tag, i) => (
                 <span
                   key={`${tag}-${i}`}
-                  className="rounded-full border border-orange-400/25 bg-orange-500/10 px-2.5 py-1 text-[11px] font-medium tracking-wide text-orange-200/95"
+                  className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
                 >
                   #{tag}
                 </span>

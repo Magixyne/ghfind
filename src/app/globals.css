@@ -448,36 +448,64 @@ html[data-theme="light"] [data-force-dark] .text-orange-400 {
   color: #fb923c;
 }
 
-/* Markdown report styling (react-markdown output) */
+/* Markdown report styling (react-markdown output) — roast hierarchy */
+.report {
+  max-width: 42rem;
+  line-height: 1.7;
+}
 .report :where(h1, h2, h3) {
   font-weight: 700;
-  margin: 0.6em 0 0.4em;
+  margin: 1.1em 0 0.45em;
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 .report h2 {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
+  color: var(--foreground);
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+}
+.report h3 {
+  font-size: 1rem;
+  opacity: 0.92;
 }
 .report p {
-  margin: 0.5em 0;
-  line-height: 1.7;
+  margin: 0.55em 0;
+  line-height: 1.75;
+  max-width: 40rem;
+}
+.report ul {
+  margin: 0.45em 0 0.7em;
+  padding-left: 1.15rem;
+}
+.report li {
+  margin: 0.35em 0;
+  line-height: 1.65;
 }
 .report table {
   width: 100%;
   border-collapse: collapse;
-  margin: 0.8em 0;
-  font-size: 0.9rem;
+  margin: 0.9em 0 1.1em;
+  font-size: 0.88rem;
 }
 .report th,
 .report td {
   border: 1px solid var(--border);
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.65rem;
   text-align: left;
+  vertical-align: top;
 }
 .report th {
   background: var(--surface-muted);
+  white-space: nowrap;
+  width: 7.5rem;
+}
+.report td:last-child {
+  color: color-mix(in oklab, var(--foreground) 88%, transparent);
 }
 .report strong {
   color: var(--foreground);
+  font-weight: 650;
 }
 .report code {
   background: var(--surface-muted);

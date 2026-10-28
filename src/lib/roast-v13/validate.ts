@@ -342,21 +342,54 @@ export function repeatsRoastLine(roastLine: string, text: string): boolean {
 }
 
 const FOLLOW_RE = /(粉丝|关注|followers?|following)/i;
+/** Explicit follower/following counts ("粉丝 44", "followers: 12"). */
+const FOLLOWER_COUNT_RE =
+  /粉丝\s*\d+|关注\s*\d+|followers?\s*[:=]?\s*\d+|following\s*[:=]?\s*\d+/i;
 const WINDOW_RE = /(近|最近|过去)\s*\d+\s*(天|日|周)|last\s+\d+\s+days/i;
+/** "距上次活动 N 天" attendance filler. */
+const DAYS_SINCE_RE =
+  /距(?:上次|最近)(?:活动|提交|更新)\s*\d+\s*天|gap of\s*\d+\s*days? since|days? since last (?:activity|commit)/i;
 /** Vague depth jab with no project named ("卡在厚度"). */
 const THICKNESS_RE = /卡在厚度|没有厚度|厚度不够|差在厚度|缺厚度|少了厚度/;
 /**
- * Tiny share of a large repo's merged-PR total ("1863 个已合并 PR 里你 7 个").
- * Captures yours ≤15 against a total ≥50 — substance lives in the main work,
- * not in a token slice of someone else's ledger.
+ * Any share-count contrast phrasing — banned in EVERY field including dimensions.
+ * Catches: "N 个…里 (你|她|他)?(只有)? M 个", "M 个是你的", "第一名 N 个",
+ * "X of Y commits/PRs", "星的 X 里你只有 M 个提交". Absolute counts alone OK.
  */
-const SHARE_CONTRAST_RE = /(?:[5-9]\d|\d{3,})\s*个(?:已合并\s*)?PR\s*里\s*(?:你|TA|他|她|其)?\s*(?:只有\s*)?(?:[0-9]|1[0-5])\s*个|(?:only\s+)?(?:[0-9]|1[0-5])\s+(?:of\s+(?:the\s+)?)?(?:[5-9]\d|\d{3,})\s+(?:merged\s+)?PRs?\b/i;
+const SHARE_CONTRAST_RE =
+  /\d+\s*个(?:已合并\s*)?(?:PR|pr|提交|commit)[^。！？!?；;\n]{0,28}里\s*(?:你|TA|他|她|其)?\s*(?:只有\s*)?\d+\s*个(?!\s*在)|\d+\s*个(?:已合并\s*)?(?:PR|pr|提交)?(?:是你的|是\s*TA\s*的|是他的|是她的)|(?:第一名|提交最多者|最多的人)\s*\d+\s*个|\d+\s*星的[^。！？!?；;\n]{0,40}里\s*(?:你|TA|他|她)?\s*(?:只有\s*)?\d+\s*个(?:提交|PR|pr)|\d+\s+(?:of|\/)\s*\d+\s+(?:merged\s+)?(?:PRs?|commits?)/i;
+/** Advice that chases commit share / stars / followers instead of the work. */
+const GAMEY_ADVICE_RE =
+  /坐上主提交|协作者份额|做成主提交|多拿(?:点)?(?:提交|commit)|冲(?:提交|commit)份额|涨粉|互关|多攒(?:点)?星|追星数|get more (?:commits?|stars?|followers?)/i;
+
+function countNumbers(text: string): number {
+  return (text.match(/\d+(?:\.\d+)?/g) ?? []).length;
+}
+
+function numberDensityIssues(field: string, text: string): V13Issue[] {
+  const out: V13Issue[] = [];
+  for (const s of sentences(text)) {
+    const n = countNumbers(s);
+    if (n > 2) {
+      out.push({
+        kind: "trivia",
+        field,
+        detail: `number density: sentence has ${n} numbers (max 2) — "${s.slice(0, 48)}"`,
+      });
+    }
+  }
+  const cap = field.startsWith("dimensions.") ? 4 : field.startsWith("findings") ? 3 : field === "roast_line" || field.endsWith(".zh") || field.endsWith(".en") ? 2 : 4;
+  const total = countNumbers(text);
+  if (total > cap) {
+    out.push({ kind: "trivia", field, detail: `number density: field has ${total} numbers (max ${cap})` });
+  }
+  return out;
+}
 
 /**
- * Trivia hooks the owner rejected: follower/following ratios, activity time
- * windows, vague "厚度", big-repo share-count contrasts, and a handful of
- * PRs/commits to a famous repository on an account that has real work
- * elsewhere. Dimension notes may still state follower counts; hooks may not.
+ * Trivia hooks the owner rejected: follower counts (everywhere), activity time
+ * windows, days-since filler, vague "厚度", ANY share-count contrast (including
+ * dimensions), gamey advice, number-density caps, and token PRs to famous repos.
  */
 /** "只合了 1 个 PR" / "那个 PR" / "only one PR" in a one-liner. */
 const PR_COUNT_RE = /(只|仅|就|才|那)(合进去?的?|合并的?|有|提了?|开了?)?(你|她|他)?\s*(那|一|1|两|2|三|3|几)?\s*个\s*PR|\bonly (one|two|three|a few|\d) (merged )?PRs?\b/i;
@@ -370,19 +403,23 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
     }
     return issues;
   }
-  // The community row may state the follower count; nowhere else is it a point.
-  if (FOLLOW_RE.test(text) && index.followers < 5000 && field !== "dimensions.community_influence") {
-    issues.push({ kind: "trivia", field, detail: "follower/following counts are not a roast hook" });
+  // Follower/following counts banned from every prose field (community row too).
+  if (FOLLOW_RE.test(text) || FOLLOWER_COUNT_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "follower/following counts are banned everywhere — rewrite around the work" });
   }
-  if (WINDOW_RE.test(text)) issues.push({ kind: "trivia", field, detail: "activity time window is not a roast hook" });
-  // Vague "厚度" as a roast jab — name the project/gap instead.
+  if (WINDOW_RE.test(text) || DAYS_SINCE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "activity time window / days-since filler is not a roast hook" });
+  }
   if (THICKNESS_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "vague '厚度' is not a roast hook; name the project or gap" });
   }
-  // Big-repo share-count contrast ("1863 个已合并 PR 里你 7 个") — not a hook.
-  if (SHARE_CONTRAST_RE.test(text) && !field.startsWith("dimensions.")) {
-    issues.push({ kind: "trivia", field, detail: "a tiny share of a big repo's PR total is not a roast hook" });
+  if (SHARE_CONTRAST_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "share-count contrast (N里M个 / M个是你的 / X of Y) is banned — absolute counts and qualitative roles only" });
   }
+  if (field.startsWith("advice") && GAMEY_ADVICE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "gamey advice (chase commits/stars/followers) — suggest what to build/ship/write/OSS next" });
+  }
+  issues.push(...numberDensityIssues(field, text));
   if (/^(roast_line|title)/.test(field)) {
     if (PR_COUNT_RE.test(text)) issues.push({ kind: "trivia", field, detail: "a PR count is not a one-liner hook" });
     if (DESC_WORD.test(text) && [...text.matchAll(QUOTE_RE)].length > 0) {
@@ -392,7 +429,7 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   if (index.hasMajorWork) {
     const lower = text.toLowerCase();
     for (const [key, work] of index.work) {
-      // Token touch to a famous repo (≤10 lifetime PRs+commits) is not a point.
+      // Token touch to a famous repo (≤15 lifetime PRs+commits) is not a point.
       if ((index.repos.get(key) ?? 0) < 10_000 || work > 15) continue;
       const name = key.split("/")[1];
       // Full owner/repo, or the bare repo name as a standalone word.
