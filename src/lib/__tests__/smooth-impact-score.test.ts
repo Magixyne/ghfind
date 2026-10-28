@@ -160,13 +160,20 @@ describe("v19 ecosystem depth and breadth", () => {
   });
 
   it("keeps missing breadth evidence neutral", () => {
-    const bare = { ...BASE, impact_prestige_score: 0.5, impact_depth_raw: 2 };
-    delete bare.impact_pr_count;
-    delete bare.impact_commit_count;
-    delete bare.impact_repo_count;
-    delete bare.impact_repos;
-    delete bare.top_repo_pr_share;
-    bare.recent_merged_pr_sample = 0;
+    const {
+      impact_pr_count: _prs,
+      impact_commit_count: _commits,
+      impact_repo_count: _repos,
+      impact_repos: _list,
+      top_repo_pr_share: _share,
+      ...rest
+    } = BASE;
+    const bare = {
+      ...rest,
+      impact_prestige_score: 0.5,
+      impact_depth_raw: 2,
+      recent_merged_pr_sample: 0,
+    } as RawMetrics;
     expect(impactBreadth(bare)).toBe(1);
     expect(impactTouch(bare)).toBe(1);
     expect(impactSubstance(bare)).toBe(1);
