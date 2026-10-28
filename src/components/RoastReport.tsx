@@ -38,7 +38,12 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
-/** Resolve the HTML tag for a react-markdown child (string type, hast node, or named component). */
+/**
+ * Resolve the HTML tag for a react-markdown child.
+ * Prefer the host string type, then hast `props.node.tagName`, then an explicit
+ * `displayName` we set on custom components. Never use `function.name` — production
+ * minifiers rewrite it and would silently drop finding chips.
+ */
 function elementTag(node: ReactNode): string | null {
   if (!node || typeof node !== "object" || !("type" in node)) return null;
   const el = node as {
@@ -47,13 +52,16 @@ function elementTag(node: ReactNode): string | null {
   };
   if (typeof el.type === "string") return el.type;
   const hast = el.props?.node?.tagName;
-  if (typeof hast === "string") return hast;
+  if (typeof hast === "string" && hast) return hast;
   if (typeof el.type === "function") {
-    const fn = el.type as { displayName?: string; name?: string };
-    return fn.displayName || fn.name || null;
+    const dn = (el.type as { displayName?: string }).displayName;
+    if (typeof dn === "string" && dn) return dn;
   }
   return null;
 }
+
+/** Exported for unit tests that simulate minified component function names. */
+export { elementTag };
 
 function skipBlank(nodes: ReactNode[]): ReactNode[] {
   const arr = [...nodes];
@@ -66,7 +74,7 @@ function skipBlank(nodes: ReactNode[]): ReactNode[] {
 /**
  * Finding lines are `1. **title**\n\n   body` (loose list) → <li><p><strong>title</strong></p><p>body</p></li>,
  * or tight `1. **title** body` → <li><strong>title</strong> body</li>.
- * Custom `strong`/`p` components make `type` a function, so match via hast tagName / function name.
+ * Custom `strong`/`p` components make `type` a function, so match via hast tagName / displayName.
  */
 function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest: ReactNode } {
   const arr = skipBlank(Array.isArray(children) ? children : [children]);
@@ -194,6 +202,22 @@ function DimCardView({ name, score, max, note }: DimCard) {
   );
 }
 
+type MdProps = { children?: ReactNode; href?: string; className?: string };
+
+function RoastP({ children }: MdProps) {
+  const raw = textOf(children).trim();
+  if (/^(风险标记|Red flags)\s*[:：]/.test(raw) && /(?:无|None)\s*$/.test(raw)) {
+    return <p className="roast-risk-inline">{children}</p>;
+  }
+  return <p className="roast-p">{children}</p>;
+}
+RoastP.displayName = "p";
+
+function RoastStrong({ children }: MdProps) {
+  return <strong className="roast-strong">{children}</strong>;
+}
+RoastStrong.displayName = "strong";
+
 function makeComponents(): Components {
   return {
     h1: ({ children }) => <h1 className="roast-h1">{children}</h1>,
@@ -208,13 +232,7 @@ function makeComponents(): Components {
       // Dimension h4s are extracted; leftover h4s render plain.
       return <h4 className="roast-h4">{children}</h4>;
     },
-    p: ({ children }) => {
-      const raw = textOf(children).trim();
-      if (/^(风险标记|Red flags)\s*[:：]/.test(raw) && /(?:无|None)\s*$/.test(raw)) {
-        return <p className="roast-risk-inline">{children}</p>;
-      }
-      return <p className="roast-p">{children}</p>;
-    },
+    p: RoastP,
     blockquote: ({ children }) => (
       <blockquote className="roast-verdict not-italic">{children}</blockquote>
     ),
@@ -235,7 +253,7 @@ function makeComponents(): Components {
       }
       return <li>{children}</li>;
     },
-    strong: ({ children }) => <strong className="roast-strong">{children}</strong>,
+    strong: RoastStrong,
     a: ({ children, href }) => (
       <a href={href} className="roast-a">
         {children}

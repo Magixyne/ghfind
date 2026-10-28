@@ -1,6 +1,8 @@
+import { createElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RoastReport } from "@/components/RoastReport";
+import { RoastReport, elementTag } from "@/components/RoastReport";
 
 const SAMPLE = `## LofiSu — 54.40/100  ·  NPC (普通账号)
 
@@ -66,5 +68,48 @@ describe("RoastReport compact layout", () => {
     const html = renderToStaticMarkup(<RoastReport markdown={legacy} tier="NPC" />);
     expect(html).toContain('class="roast-finding"');
     expect(html).toContain("双滚动条猎手");
+  });
+
+  it("elementTag ignores minified function.name and uses hast tagName", () => {
+    // Simulate a production-minified custom component: .name is "n", no useful identity.
+    function n(_props: { node?: { tagName?: string }; children?: ReactNode }) {
+      return null;
+    }
+    Object.defineProperty(n, "name", { value: "n" });
+    const withHast = {
+      type: n,
+      props: { node: { tagName: "strong" }, children: "双滚动条猎手" },
+    } as unknown as ReactElement;
+    expect(elementTag(withHast)).toBe("strong");
+
+    const mangledOnly = {
+      type: n,
+      props: { children: "nope" },
+    } as unknown as ReactElement;
+    // Without hast tagName or displayName, must NOT invent a tag from .name
+    expect(elementTag(mangledOnly)).toBeNull();
+  });
+
+  it("elementTag falls back to explicit displayName, never function.name", () => {
+    function n(_props: { children?: ReactNode }) {
+      return null;
+    }
+    Object.defineProperty(n, "name", { value: "n" });
+    (n as { displayName?: string }).displayName = "p";
+    const el = {
+      type: n,
+      props: { children: "title" },
+    } as unknown as ReactElement;
+    expect(elementTag(el)).toBe("p");
+  });
+
+  it("chips still render when custom component .name is mangled but displayName is set", () => {
+    // Prove displayName survives as the production-safe identity for our wrappers.
+    function n({ children }: { children?: ReactNode }) {
+      return createElement("strong", { className: "roast-strong" }, children);
+    }
+    Object.defineProperty(n, "name", { value: "n" });
+    (n as { displayName?: string }).displayName = "strong";
+    expect(elementTag(createElement(n, { children: "x" } as never))).toBe("strong");
   });
 });
