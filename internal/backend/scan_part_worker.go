@@ -204,23 +204,12 @@ func (w *ScanWorker) publishReady(ctx context.Context, parent scanParentRecord, 
 			}
 		}
 		if independentDone {
-			// Two parts can finish together. Only the first claim publishes
-			// dependents, so assemble runs once.
-			claimed, claimErr := w.claimReadyPublish(ctx, parent.ID, scanPartDependents)
-			if claimErr != nil {
-				return workerRetry, claimErr.Error()
-			}
-			if !claimed {
-				return workerCompleted, ""
-			}
-			err := w.publisher.PublishScanPart(ctx, ScanPartJob{
-				ParentID: job.ParentID, Username: job.Username, Phase: scanPhasePart, Part: scanPartDependents,
-				RequestedAt: job.RequestedAt, Full: parent.Full,
+			return w.publishClaimed(ctx, parent.ID, scanPartDependents, func() error {
+				return w.publisher.PublishScanPart(ctx, ScanPartJob{
+					ParentID: job.ParentID, Username: job.Username, Phase: scanPhasePart, Part: scanPartDependents,
+					RequestedAt: job.RequestedAt, Full: parent.Full,
+				})
 			})
-			if err != nil {
-				return workerRetry, err.Error()
-			}
-			return workerCompleted, ""
 		}
 	}
 	if parent.Done {
@@ -230,18 +219,32 @@ func (w *ScanWorker) publishReady(ctx context.Context, parent scanParentRecord, 
 }
 
 func (w *ScanWorker) publishAssemble(ctx context.Context, parent scanParentRecord, job ScanPartJob) (workerDisposition, string) {
-	claimed, claimErr := w.claimReadyPublish(ctx, parent.ID, scanPhaseAssemble)
-	if claimErr != nil {
-		return workerRetry, claimErr.Error()
+	return w.publishClaimed(ctx, parent.ID, scanPhaseAssemble, func() error {
+		return w.publisher.PublishScanAssemble(ctx, ScanAssembleJob{
+			ParentID: parent.ID, Username: parent.Username, Phase: scanPhaseAssemble,
+			RequestedAt: job.RequestedAt, Full: parent.Full,
+		})
+	})
+}
+
+// publishClaimed claims, publishes, then marks the claim published. A failed
+// publish releases the claim and asks for redelivery. A claim that is not
+// won means another delivery already published or still holds a fresh lease.
+func (w *ScanWorker) publishClaimed(ctx context.Context, parentID, kind string, publish func() error) (workerDisposition, string) {
+	claimed, err := w.claimReadyPublish(ctx, parentID, kind)
+	if err != nil {
+		return workerRetry, err.Error()
 	}
 	if !claimed {
 		return workerCompleted, ""
 	}
-	err := w.publisher.PublishScanAssemble(ctx, ScanAssembleJob{
-		ParentID: parent.ID, Username: parent.Username, Phase: scanPhaseAssemble,
-		RequestedAt: job.RequestedAt, Full: parent.Full,
-	})
-	if err != nil {
+	if err := publish(); err != nil {
+		if releaseErr := w.finishReadyPublish(ctx, parentID, kind, false); releaseErr != nil {
+			return workerRetry, releaseErr.Error()
+		}
+		return workerRetry, err.Error()
+	}
+	if err := w.finishReadyPublish(ctx, parentID, kind, true); err != nil {
 		return workerRetry, err.Error()
 	}
 	return workerCompleted, ""

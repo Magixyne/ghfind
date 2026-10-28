@@ -33,10 +33,13 @@ once and writes again. A second failure is logged and does not fail the
 scan. A cursor book whose schema version is not the current one is treated
 as missing.
 
-Fan-out also publishes the dependents part after the last independent part
-finishes. That publish is claimed once per parent, so two parts completing
-together do not enqueue dependents or assemble twice. This holds whenever
-`GHFIND_SCAN_FANOUT_ENABLED` is on, including when incremental cursors are off.
+Fan-out publishes the dependents part after the last independent part
+finishes, whenever `GHFIND_SCAN_FANOUT_ENABLED` is on. The claim is
+`claimed` until Publish succeeds, then `published`. A failed Publish
+deletes the claim and redelivers. A claim older than one scan processing
+timeout can be taken again. A published row is not published again. Two
+parts finishing together still publish once. Assemble and dependents stay
+idempotent by parent id.
 
 If the merged quick scan is still `partial_public`, the worker discards
 that run's incremental cursor and runs the existing fullscan deepen. The
