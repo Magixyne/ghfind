@@ -136,8 +136,21 @@ describe("v19 ecosystem depth and breadth", () => {
         prs: 10,
       })),
     };
-    expect(impactBreadth(oneRepo)).toBeCloseTo(0.62, 5);
+    // 40 PRs + 80 commits → partial maintainer relief above the 0.62 floor.
+    expect(impactBreadth(oneRepo)).toBeGreaterThan(0.68);
+    expect(impactBreadth(oneRepo)).toBeLessThan(0.76);
     expect(impactBreadth(spread)).toBeGreaterThan(0.95);
+    const driveBy = {
+      ...oneRepo,
+      impact_pr_count: 3,
+      impact_commit_count: 1,
+      impact_depth_raw: 2,
+      core_impact_pr_count: 0,
+      doc_like_impact_pr_count: 3,
+      impact_repos: [{ repo: "org/platform", stars: 40000, commits: 1, prs: 3 }],
+    };
+    expect(impactBreadth(driveBy)).toBeLessThan(0.64);
+    expect(impactBreadth(oneRepo)).toBeGreaterThan(impactBreadth(driveBy) + 0.05);
     const concentrated = score(oneRepo).sub_scores.ecosystem_impact;
     const diverse = score(spread).sub_scores.ecosystem_impact;
     expect(concentrated).toBeLessThan(diverse);

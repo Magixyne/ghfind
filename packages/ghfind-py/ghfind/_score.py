@@ -271,6 +271,17 @@ def _repo_concentration(repos) -> float:
     return _clamp01((hhi - equal) / (1 - equal))
 
 
+def _dominant_repo_work(m: Mapping[str, Any], repos: list) -> float:
+    if repos:
+        max_work = 0.0
+        for repo in repos:
+            work = max(0, repo.get("prs") or 0) + max(0, repo.get("commits") or 0) / 4
+            if work > max_work:
+                max_work = work
+        return max_work
+    return max(0, m.get("impact_pr_count") or 0) + max(0, m.get("impact_commit_count") or 0) / 4
+
+
 def impact_breadth(m: Mapping[str, Any]) -> float:
     repos = [repo for repo in (m.get("impact_repos") or []) if isinstance(repo, Mapping) and isinstance(repo.get("repo"), str)]
     known = False
@@ -283,7 +294,11 @@ def impact_breadth(m: Mapping[str, Any]) -> float:
         concentration = 1.0 if (m.get("impact_repo_count") or 0) <= 1 else 0.0
     if not known:
         return 1.0
-    spread = (1 - concentration) ** 1.15
+    work = _dominant_repo_work(m, repos)
+    # Sustained dominant-repo work softens concentration; drive-bys stay near the floor.
+    maintainer_relief = 1 - math.exp(-work / 60)
+    effective_concentration = concentration * (1 - 0.4 * maintainer_relief)
+    spread = (1 - effective_concentration) ** 1.15
     return 0.62 + 0.38 * spread
 
 

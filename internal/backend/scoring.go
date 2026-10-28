@@ -497,6 +497,20 @@ func repoConcentration(repos []ImpactRepo) float64 {
 	return clampUnit((hhi - equal) / (1 - equal))
 }
 
+func dominantRepoWork(m RawMetrics) float64 {
+	if len(m.ImpactRepos) > 0 {
+		maxWork := 0.0
+		for _, repo := range m.ImpactRepos {
+			work := max(0, repo.PRs) + max(0, repo.Commits)/4
+			if work > maxWork {
+				maxWork = work
+			}
+		}
+		return maxWork
+	}
+	return max(0, m.ImpactPRCount) + max(0, valueOrZero(m.ImpactCommitCount))/4
+}
+
 func impactBreadth(m RawMetrics) float64 {
 	known := false
 	concentration := 0.0
@@ -512,7 +526,11 @@ func impactBreadth(m RawMetrics) float64 {
 	if !known {
 		return 1
 	}
-	spread := math.Pow(1-concentration, 1.15)
+	// Sustained dominant-repo work softens concentration; drive-bys stay near the floor.
+	work := dominantRepoWork(m)
+	maintainerRelief := 1 - math.Exp(-work/60)
+	effectiveConcentration := concentration * (1 - 0.4*maintainerRelief)
+	spread := math.Pow(1-effectiveConcentration, 1.15)
 	return 0.62 + 0.38*spread
 }
 

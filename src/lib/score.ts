@@ -291,7 +291,9 @@ export function impactSubstance(m: RawMetrics): number {
   return Math.max(0.18, Math.min(1, 0.22 + 0.78 * quality));
 }
 
-/** Cross-repo spread in (0.62, 1]. One repo or one dominant share sits near 0.62. */
+/** Cross-repo spread in (0.62, 1]. One repo or one dominant share sits near 0.62.
+ * Sustained work in the dominant repo softens concentration so a long-term
+ * co-maintainer of one mid-size project is not damped like a drive-by. */
 export function impactBreadth(m: RawMetrics): number {
   const repos = (m.impact_repos ?? []).filter((repo) => repo && typeof repo.repo === "string");
   let concentration = 0;
@@ -307,8 +309,27 @@ export function impactBreadth(m: RawMetrics): number {
     concentration = (m.impact_repo_count ?? 0) <= 1 ? 1 : 0;
   }
   if (!known) return 1;
-  const spread = Math.pow(1 - concentration, 1.15);
+  const work = dominantRepoWork(m, repos);
+  // ~0.05 at 3 PRs, ~0.49 at 40, ~0.95 at 180 — drive-bys keep nearly full
+  // concentration; long co-maintainers recover part of the breadth floor.
+  const maintainerRelief = 1 - Math.exp(-work / 60);
+  const effectiveConcentration = concentration * (1 - 0.4 * maintainerRelief);
+  const spread = Math.pow(1 - effectiveConcentration, 1.15);
   return 0.62 + 0.38 * spread;
+}
+
+/** Dominant-repo landed work (PRs + commits/4). Count-only snapshots fall back
+ * to aggregate impact counts so the single-repo path still gets relief. */
+function dominantRepoWork(m: RawMetrics, repos: ImpactRepo[]): number {
+  if (repos.length > 0) {
+    let maxWork = 0;
+    for (const repo of repos) {
+      const work = Math.max(0, repo.prs ?? 0) + Math.max(0, repo.commits ?? 0) / 4;
+      if (work > maxWork) maxWork = work;
+    }
+    return maxWork;
+  }
+  return Math.max(0, m.impact_pr_count ?? 0) + Math.max(0, m.impact_commit_count ?? 0) / 4;
 }
 
 function repoConcentration(repos: ImpactRepo[]): number {
