@@ -217,7 +217,13 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 			}
 		}
 	}
-	scan, err := w.collector.Collect(ctx, job.Username)
+	var scan ScanResult
+	var err error
+	if w.config.ScanIncrementalEnabled {
+		scan, err = w.collectIncremental(ctx, job)
+	} else {
+		scan, err = w.collector.Collect(ctx, job.Username)
+	}
 	if err != nil {
 		if errors.Is(err, ErrGitHubAccountNotFound) || errors.Is(err, ErrGitHubAuthRequired) {
 			w.metrics.recordWorkerJobFailed(ScanJobKind, "permanent", time.Since(startedAt))
@@ -226,13 +232,31 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, err.Error()
 	}
-	if scan.Collection != nil && scan.Collection.Mode == "quick" && scan.Collection.Coverage == "partial_public" {
+	if quickCoverageExceeded(scan) {
 		if fullCollector, ok := w.collector.(interface {
 			CollectFull(context.Context, string) (ScanResult, error)
 		}); ok {
-			scan, err = fullCollector.CollectFull(ctx, job.Username)
+			var captured []githubRepo
+			scan, err = fullCollector.CollectFull(context.WithValue(ctx, inventoryCaptureKey{}, &captured), job.Username)
 			if err != nil {
 				return workerRetry, err.Error()
+			}
+			if w.config.ScanIncrementalEnabled {
+				if store, ok := w.results.(ScanCursorStore); ok {
+					book, loadErr := store.LoadScanCursors(ctx, job.Username)
+					if loadErr == nil {
+						now := time.Now().UTC()
+						if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
+							now = collector.clock().UTC()
+						}
+						plans := planScanCursors(book, now)
+						for source, plan := range plans {
+							plan.Full = true
+							plans[source] = plan
+						}
+						w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, now)
+					}
+				}
 			}
 		}
 	}

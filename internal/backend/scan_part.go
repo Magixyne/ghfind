@@ -47,6 +47,9 @@ type ScanPartJob struct {
 	RequestedAt int64  `json:"requested_at"`
 	Full        bool   `json:"full"`
 	Lane        int    `json:"lane"`
+	// Since is the source watermark when this part is an incremental delta.
+	// Empty means the part pulls the same window the in-process collector uses.
+	Since string `json:"since,omitempty"`
 }
 
 func (j ScanPartJob) MessageID() string {

@@ -85,6 +85,9 @@ func (c *GitHubCollector) collect(ctx context.Context, username string, full boo
 	if err != nil {
 		return ScanResult{}, err
 	}
+	if sink, ok := ctx.Value(inventoryCaptureKey{}).(*[]githubRepo); ok && sink != nil {
+		*sink = append([]githubRepo(nil), repos...)
+	}
 	overview, stats, lastYearContributions, err := c.github.fetchContributionOverview(ctx, username)
 	if err != nil {
 		return ScanResult{}, err

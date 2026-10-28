@@ -27,14 +27,14 @@ const (
 // is recorded when the page that established the watermark was stable
 // (no later item shared the same timestamp).
 type scanCursorWatermark struct {
-	Source          string         `json:"source"`
-	Watermark       string         `json:"watermark,omitempty"`
-	EndCursor       string         `json:"end_cursor,omitempty"`
-	CursorStable    bool           `json:"cursor_stable"`
-	Collection      string         `json:"collection"`
-	IncrementalRuns int            `json:"incremental_runs"`
-	ReconciledAt    string         `json:"reconciled_at,omitempty"`
-	UpdatedAt       string         `json:"updated_at,omitempty"`
+	Source          string `json:"source"`
+	Watermark       string `json:"watermark,omitempty"`
+	EndCursor       string `json:"end_cursor,omitempty"`
+	CursorStable    bool   `json:"cursor_stable"`
+	Collection      string `json:"collection"`
+	IncrementalRuns int    `json:"incremental_runs"`
+	ReconciledAt    string `json:"reconciled_at,omitempty"`
+	UpdatedAt       string `json:"updated_at,omitempty"`
 	// Repos and Nodes are the last merged source page. They stay in the
 	// cursor table so a later delta can be merged without rewriting the
 	// public snapshot contract.
@@ -58,8 +58,8 @@ func (w scanCursorWatermark) valid() bool {
 // scanCursorBook is the per-user set of source watermarks. A missing or
 // unreadable book means the next scan is a full reconciliation.
 type scanCursorBook struct {
-	Username string                          `json:"username"`
-	Sources  map[string]scanCursorWatermark  `json:"sources"`
+	Username string                         `json:"username"`
+	Sources  map[string]scanCursorWatermark `json:"sources"`
 }
 
 func (b scanCursorBook) source(name string) (scanCursorWatermark, bool) {
@@ -85,12 +85,12 @@ func (b scanCursorBook) raw(name string) scanCursorWatermark {
 type scanReconcileReason string
 
 const (
-	scanReconcileNone       scanReconcileReason = ""
-	scanReconcileMissing    scanReconcileReason = "cursor_missing"
-	scanReconcileCorrupt    scanReconcileReason = "cursor_corrupt"
-	scanReconcileVersion    scanReconcileReason = "collection_version"
-	scanReconcileRunCount   scanReconcileReason = "incremental_run_count"
-	scanReconcileAge        scanReconcileReason = "cursor_age"
+	scanReconcileNone     scanReconcileReason = ""
+	scanReconcileMissing  scanReconcileReason = "cursor_missing"
+	scanReconcileCorrupt  scanReconcileReason = "cursor_corrupt"
+	scanReconcileVersion  scanReconcileReason = "collection_version"
+	scanReconcileRunCount scanReconcileReason = "incremental_run_count"
+	scanReconcileAge      scanReconcileReason = "cursor_age"
 )
 
 // scanIncrementalReconcileEveryN is how many successful incremental scans

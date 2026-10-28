@@ -93,6 +93,7 @@ func (c *GitHubClient) ownedOriginalInventorySince(ctx context.Context, login st
 		}
 		forks = result.User.Forks.TotalCount
 		connection := result.User.Repositories
+		pageRepos := make([]githubRepo, 0, len(connection.Nodes))
 		for _, node := range connection.Nodes {
 			if node.IsFork {
 				continue
@@ -106,22 +107,22 @@ func (c *GitHubClient) ownedOriginalInventorySince(ctx context.Context, login st
 			for _, topic := range node.RepositoryTopics.Nodes {
 				repo.Topics = append(repo.Topics, topic.Topic.Name)
 			}
-			repos = append(repos, repo)
+			pageRepos = append(pageRepos, repo)
 		}
 		if incremental {
 			stopped := false
-			kept := repos[:0]
-			for _, repo := range repos {
+			for _, repo := range pageRepos {
 				if repo.PushedAt == nil || !cursorAfterWatermark(*repo.PushedAt, since) {
 					stopped = true
 					continue
 				}
-				kept = append(kept, repo)
+				repos = append(repos, repo)
 			}
-			repos = kept
 			if stopped || !connection.PageInfo.HasNextPage {
 				return repos, forks, false, nil
 			}
+		} else {
+			repos = append(repos, pageRepos...)
 		}
 		if !connection.PageInfo.HasNextPage {
 			return repos, forks, false, nil

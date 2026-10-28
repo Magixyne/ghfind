@@ -18,6 +18,14 @@ type scanFanoutCollector interface {
 	assembleCollectedScan(context.Context, bool, githubUser, contributionOverview, *contribStats, float64, *time.Time, map[string]scanPartPayload) (ScanResult, map[string]string, error)
 }
 
+// scanIncrementalCollector is the optional surface used only when
+// GHFIND_SCAN_INCREMENTAL_ENABLED is on. Parts may carry a per-source since
+// watermark; assemble merges those deltas into the stored cursor pages.
+type scanIncrementalCollector interface {
+	scanFanoutCollector
+	collectCursorPart(context.Context, string, string, bool, githubUser, contributionOverview, scanCursorPlan) (scanPartPayload, bool, error)
+}
+
 // maybeSplitScan seeds the account and, for a heavy plan, publishes part
 // jobs. A light plan returns false so the caller keeps the in-process path.
 // Search parts share one lane and are published together; consumers still
@@ -46,10 +54,14 @@ func (w *ScanWorker) maybeSplitScan(ctx context.Context, job ScanJob, collector 
 	if err := store.SaveScanParent(ctx, job, signals.Full, parts, seed); err != nil {
 		return false, err
 	}
+	since := map[string]string{}
+	if w.config.ScanIncrementalEnabled {
+		since = w.incrementalSince(ctx, job.Username)
+	}
 	for _, part := range plan.SearchParts {
 		if err := w.publisher.PublishScanPart(ctx, ScanPartJob{
 			ParentID: job.ID, Username: job.Username, Phase: scanPhasePart, Part: part,
-			RequestedAt: job.RequestedAt, Full: signals.Full, Lane: 0,
+			RequestedAt: job.RequestedAt, Full: signals.Full, Lane: 0, Since: since[part],
 		}); err != nil {
 			return false, err
 		}
@@ -57,12 +69,39 @@ func (w *ScanWorker) maybeSplitScan(ctx context.Context, job ScanJob, collector 
 	for index, part := range plan.ParallelParts {
 		if err := w.publisher.PublishScanPart(ctx, ScanPartJob{
 			ParentID: job.ID, Username: job.Username, Phase: scanPhasePart, Part: part,
-			RequestedAt: job.RequestedAt, Full: signals.Full, Lane: index + 1,
+			RequestedAt: job.RequestedAt, Full: signals.Full, Lane: index + 1, Since: since[part],
 		}); err != nil {
 			return false, err
 		}
 	}
 	return true, nil
+}
+
+// incrementalSince reads stored watermarks for the parts a split may enqueue.
+// A reconcile reason yields an empty since so that part pulls its full window.
+// Cursor store failures fail open to the full window rather than blocking the scan.
+func (w *ScanWorker) incrementalSince(ctx context.Context, username string) map[string]string {
+	out := map[string]string{}
+	store, ok := w.results.(ScanCursorStore)
+	if !ok {
+		return out
+	}
+	book, err := store.LoadScanCursors(ctx, username)
+	if err != nil {
+		return out
+	}
+	now := time.Now().UTC()
+	if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
+		now = collector.clock().UTC()
+	}
+	plans := planScanCursors(book, now)
+	for source, plan := range plans {
+		if plan.Full || plan.Since == "" {
+			continue
+		}
+		out[source] = plan.Since
+	}
+	return out
 }
 
 func (w *ScanWorker) consumePartDeliveries(ctx context.Context, deliveries <-chan amqp091.Delivery, concurrency int) error {
@@ -130,7 +169,7 @@ func (w *ScanWorker) processPart(ctx context.Context, job ScanPartJob) (workerDi
 		}
 		return workerCompleted, ""
 	}
-	payload, err := collector.CollectScanPart(ctx, job.Username, job.Part, parent.Full, parent.Seed.User, parent.Seed.Overview)
+	payload, err := w.collectPart(ctx, collector, job, parent)
 	if err != nil {
 		if errors.Is(err, ErrGitHubAccountNotFound) || errors.Is(err, ErrGitHubAuthRequired) {
 			payload = scanPartPayload{Part: job.Part, Failed: true, Error: err.Error()}
@@ -230,7 +269,10 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 		if _, present := parent.Payloads[part]; present {
 			continue
 		}
-		payload, err := collector.CollectScanPart(ctx, parent.Username, part, parent.Full, parent.Seed.User, parent.Seed.Overview)
+		payload, err := w.collectPart(ctx, collector, ScanPartJob{
+			ParentID: parent.ID, Username: parent.Username, Part: part, Full: parent.Full,
+			Since: w.incrementalSince(ctx, parent.Username)[part],
+		}, parent)
 		if err != nil {
 			payload = scanPartPayload{Part: part, Failed: true, Error: err.Error()}
 		}
@@ -243,12 +285,127 @@ func (w *ScanWorker) processAssemble(ctx context.Context, job ScanAssembleJob) (
 			latest = &parsed
 		}
 	}
-	scan, sources, err := collector.assembleCollectedScan(ctx, parent.Full, parent.Seed.User, parent.Seed.Overview, parent.Seed.Stats, parent.Seed.LastYear, latest, parent.Payloads)
+	payloads := parent.Payloads
+	incrementalParts := map[string]bool{}
+	endCursors := map[string]string{}
+	if w.config.ScanIncrementalEnabled {
+		for part, payload := range parent.Payloads {
+			if payload.Incremental && !payload.Failed {
+				incrementalParts[part] = true
+			}
+			if payload.EndCursor != "" {
+				endCursors[part] = payload.EndCursor
+			}
+		}
+		if merged, err := w.mergeIncrementalPayloads(ctx, parent); err == nil {
+			payloads = merged
+		}
+	}
+	scan, sources, err := collector.assembleCollectedScan(ctx, parent.Full, parent.Seed.User, parent.Seed.Overview, parent.Seed.Stats, parent.Seed.LastYear, latest, payloads)
 	if err != nil {
 		return workerRetry, err.Error()
 	}
 	scan.SourceStatus = mergedSourceStatus(scan, sources)
+	if w.config.ScanIncrementalEnabled {
+		w.storeIncrementalCursors(ctx, parent.Username, payloads, incrementalParts, endCursors)
+	}
+	if !parent.Full && quickCoverageExceeded(scan) {
+		// The delta itself left quick coverage. #582 owns the deepen step:
+		// drop the incremental merge and let the existing fullscan path run
+		// in process so the published row matches a full collect.
+		if fullCollector, ok := w.collector.(interface {
+			CollectFull(context.Context, string) (ScanResult, error)
+		}); ok {
+			fullScan, fullErr := fullCollector.CollectFull(ctx, parent.Username)
+			if fullErr != nil {
+				return workerRetry, fullErr.Error()
+			}
+			scan = fullScan
+			scan.SourceStatus = nil
+		}
+	}
 	return w.persistFinishedScan(ctx, job.asScanJob(), scan)
+}
+
+// collectPart uses the cursor plan when the flag is on and the part carries
+// a since watermark. Otherwise it is the Phase 2 part collect.
+func (w *ScanWorker) collectPart(ctx context.Context, collector scanFanoutCollector, job ScanPartJob, parent scanParentRecord) (scanPartPayload, error) {
+	if w.config.ScanIncrementalEnabled && job.Since != "" {
+		if incremental, ok := collector.(scanIncrementalCollector); ok {
+			plan := scanCursorPlan{Source: job.Part, Since: job.Since}
+			payload, delta, err := incremental.collectCursorPart(ctx, job.Username, job.Part, parent.Full || job.Full, parent.Seed.User, parent.Seed.Overview, plan)
+			if err != nil {
+				return payload, err
+			}
+			payload.Incremental = delta
+			return payload, nil
+		}
+	}
+	return collector.CollectScanPart(ctx, job.Username, job.Part, parent.Full || job.Full, parent.Seed.User, parent.Seed.Overview)
+}
+
+// mergeIncrementalPayloads folds incremental part deltas into the stored
+// source pages. A part that was a full reconcile replaces its page.
+func (w *ScanWorker) mergeIncrementalPayloads(ctx context.Context, parent scanParentRecord) (map[string]scanPartPayload, error) {
+	store, ok := w.results.(ScanCursorStore)
+	if !ok {
+		return parent.Payloads, nil
+	}
+	book, err := store.LoadScanCursors(ctx, parent.Username)
+	if err != nil {
+		return nil, err
+	}
+	baseline := baselineFromBook(book)
+	merged := map[string]scanPartPayload{}
+	for part, payload := range parent.Payloads {
+		if !payload.Incremental || payload.Failed {
+			baseline = foldPayloadBaseline(baseline, payload)
+			merged[part] = payload
+			continue
+		}
+		baseline, payload = applyIncrementalPayload(baseline, payload, false)
+		payload.Incremental = false
+		merged[part] = payload
+	}
+	return merged, nil
+}
+
+// storeIncrementalCursors writes the merged source pages after a successful
+// assemble. Failures are ignored by the caller: the public scan row is
+// already the source of truth, and the next scan reconciles a missing cursor.
+func (w *ScanWorker) storeIncrementalCursors(ctx context.Context, username string, payloads map[string]scanPartPayload, incrementalParts map[string]bool, endCursors map[string]string) {
+	store, ok := w.results.(ScanCursorStore)
+	if !ok {
+		return
+	}
+	book, err := store.LoadScanCursors(ctx, username)
+	if err != nil {
+		return
+	}
+	book.Username = username
+	now := time.Now().UTC()
+	if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
+		now = collector.clock().UTC()
+	}
+	plans := map[string]scanCursorPlan{}
+	baseline := scanSnapshotBaseline{}
+	for part, payload := range payloads {
+		switch part {
+		case scanPartRepos, scanPartExternal, scanPartMerged:
+		default:
+			continue
+		}
+		if payload.Failed {
+			continue
+		}
+		plans[part] = scanCursorPlan{Source: part, Full: !incrementalParts[part], Prev: book.raw(part)}
+		baseline, _ = applyIncrementalPayload(baseline, payload, true)
+	}
+	if len(plans) == 0 {
+		return
+	}
+	book = advanceCursorBook(book, plans, baseline, endCursors, now)
+	_ = store.SaveScanCursors(ctx, book)
 }
 
 func (w *ScanWorker) persistFinishedScan(ctx context.Context, job ScanJob, scan ScanResult) (workerDisposition, string) {

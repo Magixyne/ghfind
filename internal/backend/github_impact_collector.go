@@ -341,8 +341,15 @@ type graphPageInfo struct {
 
 // fetchMergedPRNodes returns the newest merged PRs (all repos), up to maxPRs.
 func (c *GitHubClient) fetchMergedPRNodes(ctx context.Context, username string, maxPRs int) ([]mergedPRNode, error) {
+	return c.fetchMergedPRNodesSince(ctx, username, maxPRs, "")
+}
+
+// fetchMergedPRNodesSince stops once mergedAt is no longer strictly after
+// since. An empty since is the existing window. The caller merges the delta.
+func (c *GitHubClient) fetchMergedPRNodesSince(ctx context.Context, username string, maxPRs int, since string) ([]mergedPRNode, error) {
 	nodes := []mergedPRNode{}
 	var after *string
+	incremental := strings.TrimSpace(since) != ""
 	for len(nodes) < maxPRs {
 		count := maxPRs - len(nodes)
 		if count > 100 {
@@ -371,7 +378,21 @@ func (c *GitHubClient) fetchMergedPRNodes(ctx context.Context, username string, 
 			return nil, fmt.Errorf("GitHub merged PR data: %w", ErrGitHubUnavailable)
 		}
 		page := result.User.PullRequests
-		nodes = append(nodes, page.Nodes...)
+		if incremental {
+			stopped := false
+			for _, node := range page.Nodes {
+				if node.MergedAt == nil || !cursorAfterWatermark(*node.MergedAt, since) {
+					stopped = true
+					continue
+				}
+				nodes = append(nodes, node)
+			}
+			if stopped || page.PageInfo == nil || !page.PageInfo.HasNextPage {
+				break
+			}
+		} else {
+			nodes = append(nodes, page.Nodes...)
+		}
 		if page.PageInfo == nil {
 			return nil, ErrGitHubUnavailable
 		}
@@ -399,9 +420,17 @@ type externalMergedPRs struct {
 // external work out of the newest-300 window. Best-effort: only a rate limit
 // fails the scan; other errors return nil (single-pool contribution volume).
 func (c *GitHubClient) fetchExternalMergedPRs(ctx context.Context, username string, maxPRs int) (*externalMergedPRs, error) {
+	return c.fetchExternalMergedPRsSince(ctx, username, maxPRs, "")
+}
+
+// fetchExternalMergedPRsSince keeps search nodes whose mergedAt is strictly
+// after since. An empty since is the existing cap. Search still pages from
+// the start because its cursor is not a stable resume token across edits.
+func (c *GitHubClient) fetchExternalMergedPRsSince(ctx context.Context, username string, maxPRs int, since string) (*externalMergedPRs, error) {
 	search := "is:pr is:merged is:public author:" + username + " -user:" + username + " sort:created-desc"
 	result := &externalMergedPRs{Nodes: []mergedPRNode{}}
 	var after *string
+	incremental := strings.TrimSpace(since) != ""
 	for len(result.Nodes) < maxPRs {
 		count := maxPRs - len(result.Nodes)
 		if count > 100 {
@@ -432,14 +461,20 @@ func (c *GitHubClient) fetchExternalMergedPRs(ctx context.Context, username stri
 		}
 		result.Total = page.Search.IssueCount
 		kept := 0
+		stopped := false
 		for _, node := range page.Search.Nodes {
-			if node.Repository != nil {
-				result.Nodes = append(result.Nodes, node)
-				kept++
+			if node.Repository == nil {
+				continue
 			}
+			if incremental && (node.MergedAt == nil || !cursorAfterWatermark(*node.MergedAt, since)) {
+				stopped = true
+				continue
+			}
+			result.Nodes = append(result.Nodes, node)
+			kept++
 		}
 		info := page.Search.PageInfo
-		if info == nil || !info.HasNextPage || info.EndCursor == nil || *info.EndCursor == "" || kept == 0 {
+		if stopped || info == nil || !info.HasNextPage || info.EndCursor == nil || *info.EndCursor == "" || kept == 0 {
 			break
 		}
 		after = info.EndCursor
