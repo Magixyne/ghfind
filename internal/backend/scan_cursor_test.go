@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -452,6 +453,209 @@ func TestIncrementalScanMatchesFullCollect(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSameScanContract(t, "reconcile", reconciledScan, fullAfterDelete)
+}
+
+func TestCollectFullRewritesCursorsToFullScan(t *testing.T) {
+	clock := time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC)
+	// publicRepos above the quick page bound forces #582 to deepen.
+	catalog := fictionCatalog{
+		login:       "fiction-deepen",
+		publicRepos: quickRepoPages*githubPageSize + 1,
+		repos: []fictionRepo{
+			{name: "fiction-lib", pushed: "2026-08-02T00:00:00Z", stars: 8},
+			{name: "fiction-new", pushed: "2026-08-03T00:00:00Z", stars: 3},
+		},
+	}
+	discarded := githubRepo{
+		Name: "fiction-discard", FullName: catalog.login + "/fiction-discard", Size: 4, StargazersCount: 1,
+		PushedAt: stringPointer("2026-04-01T00:00:00Z"),
+	}
+	seedBook := scanCursorBook{
+		Username: catalog.login,
+		Sources: map[string]scanCursorWatermark{
+			scanCursorRepos: {
+				Source: scanCursorRepos, Watermark: "2026-06-01T00:00:00Z", Collection: goCanonicalCollectionVersion,
+				ReconciledAt: "2026-08-03T00:00:00Z", UpdatedAt: "2026-08-03T00:00:00Z",
+				Repos: []githubRepo{discarded}, ForkCount: 4,
+			},
+		},
+	}
+
+	t.Run("in-process", func(t *testing.T) {
+		collector, _ := fictionIncrementalGitHub(t, catalog)
+		collector.clock = func() time.Time { return clock }
+		store := openScanPersistenceStore(t)
+		if err := store.SaveScanCursors(context.Background(), seedBook); err != nil {
+			t.Fatal(err)
+		}
+		worker := NewScanWorker(Config{MaxAttempts: 3, ScanIncrementalEnabled: true}, collector, store, &fakeStatusStore{}, &fakeScanPublisher{}, nil)
+		disposition, reason := worker.process(context.Background(), ScanJob{ID: "fiction-deepen-inline", Username: catalog.login, RequestedAt: 1})
+		if disposition != workerCompleted || reason != "" {
+			t.Fatalf("worker: %v %s", disposition, reason)
+		}
+		assertDeepenCursorMatchesFullScan(t, store, collector, catalog, discarded.Name)
+	})
+
+	t.Run("fan-out", func(t *testing.T) {
+		collector, _ := fictionIncrementalGitHub(t, catalog)
+		collector.clock = func() time.Time { return clock }
+		store := openScanPersistenceStore(t)
+		if err := store.SaveScanCursors(context.Background(), seedBook); err != nil {
+			t.Fatal(err)
+		}
+		publisher := &recordingScanPublisher{}
+		worker := NewScanWorker(Config{MaxAttempts: 3, ScanFanoutEnabled: true, ScanIncrementalEnabled: true}, collector, store, &fakeStatusStore{}, publisher, nil)
+		disposition, reason := worker.process(context.Background(), ScanJob{ID: "fiction-deepen-fanout", Username: catalog.login, RequestedAt: 1})
+		if disposition != workerCompleted || reason != "" {
+			t.Fatalf("split: %v %s", disposition, reason)
+		}
+		if len(publisher.parts) == 0 {
+			t.Fatal("heavy account did not fan out")
+		}
+		// Dependents are published only after the independent parts finish,
+		// and only the worker that stored the last independent part emits it.
+		seen := map[string]bool{}
+		var parent scanParentRecord
+		for round := 0; round < 4; round++ {
+			loaded, err := store.LoadScanParent(context.Background(), "fiction-deepen-fanout")
+			if err != nil {
+				t.Fatal(err)
+			}
+			parent = loaded
+			if parent.Done {
+				break
+			}
+			progress := false
+			for _, part := range append([]ScanPartJob(nil), publisher.parts...) {
+				if seen[part.Part] {
+					continue
+				}
+				partDisposition, partReason := worker.processPart(context.Background(), part)
+				if partDisposition != workerCompleted || partReason != "" {
+					t.Fatalf("part %s: %v %s", part.Part, partDisposition, partReason)
+				}
+				seen[part.Part] = true
+				progress = true
+			}
+			if !progress && round == 3 {
+				t.Fatalf("fan-out parent never completed parts=%v published=%+v seen=%v", parent.Parts, publisher.parts, seen)
+			}
+		}
+		assembleDisposition, assembleReason := worker.processAssemble(context.Background(), ScanAssembleJob{
+			ParentID: parent.ID, Username: catalog.login, Phase: scanPhaseAssemble, RequestedAt: 1,
+		})
+		if assembleDisposition != workerCompleted || assembleReason != "" {
+			t.Fatalf("assemble: %v %s", assembleDisposition, assembleReason)
+		}
+		assertDeepenCursorMatchesFullScan(t, store, collector, catalog, discarded.Name)
+	})
+}
+
+func assertDeepenCursorMatchesFullScan(t *testing.T, store *TursoStore, collector *GitHubCollector, catalog fictionCatalog, discardedName string) {
+	t.Helper()
+	loaded, err := store.LoadScanCursors(context.Background(), catalog.login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mark, ok := loaded.source(scanCursorRepos)
+	if !ok {
+		t.Fatal("deepen wrote no repo cursor")
+	}
+	if containsRepo(mark.Repos, discardedName) {
+		t.Fatalf("discarded incremental repo persisted: %+v", namesOf(mark.Repos))
+	}
+	var captured []githubRepo
+	var forkCount float64
+	fullScan, err := collector.CollectFull(context.WithValue(context.Background(), inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), catalog.login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mark.Repos) != len(captured) || mark.ForkCount != forkCount {
+		t.Fatalf("cursor repos=%v forks=%v full repos=%v forks=%v", namesOf(mark.Repos), mark.ForkCount, namesOf(captured), forkCount)
+	}
+	for _, repo := range captured {
+		if !containsRepo(mark.Repos, repo.Name) {
+			t.Fatalf("full repo %s missing from cursor %v", repo.Name, namesOf(mark.Repos))
+		}
+	}
+	if fullScan.Collection == nil || fullScan.Collection.Mode != "full" {
+		t.Fatalf("reference collect mode=%v", fullScan.Collection)
+	}
+}
+
+func TestCursorSaveConcurrentUpsert(t *testing.T) {
+	store := openScanPersistenceStore(t)
+	seed := scanCursorBook{Username: "fiction-race", Sources: map[string]scanCursorWatermark{
+		scanCursorRepos: {Source: scanCursorRepos, Watermark: "2026-08-01T00:00:00Z", Collection: goCanonicalCollectionVersion},
+	}}
+	if err := store.SaveScanCursors(context.Background(), seed); err != nil {
+		t.Fatal(err)
+	}
+	const racers = 8
+	shared, err := store.LoadScanCursors(context.Background(), "fiction-race")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wins := make(chan string, racers)
+	conflicts := make(chan struct{}, racers)
+	other := make(chan error, racers)
+	for i := 0; i < racers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			loaded := shared
+			loaded.Sources = map[string]scanCursorWatermark{}
+			for name, mark := range shared.Sources {
+				loaded.Sources[name] = mark
+			}
+			name := fmt.Sprintf("fiction-racer-%d", i)
+			stamp := fmt.Sprintf("2026-08-%02dT00:00:00Z", 2+i)
+			loaded.Sources[scanCursorRepos] = scanCursorWatermark{
+				Source: scanCursorRepos, Watermark: stamp, Collection: goCanonicalCollectionVersion,
+				Repos: []githubRepo{{Name: name, FullName: "fiction-race/" + name, PushedAt: &stamp}},
+			}
+			<-start
+			err := store.SaveScanCursors(context.Background(), loaded)
+			if errors.Is(err, ErrScanCursorConflict) {
+				conflicts <- struct{}{}
+				return
+			}
+			if err != nil {
+				other <- err
+				return
+			}
+			wins <- name
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(wins)
+	close(conflicts)
+	close(other)
+	for err := range other {
+		t.Fatal(err)
+	}
+	winners := []string{}
+	for name := range wins {
+		winners = append(winners, name)
+	}
+	lost := 0
+	for range conflicts {
+		lost++
+	}
+	if len(winners) != 1 || lost != racers-1 {
+		t.Fatalf("winners=%v conflicts=%d", winners, lost)
+	}
+	loaded, err := store.LoadScanCursors(context.Background(), "fiction-race")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mark := loaded.Sources[scanCursorRepos]
+	if len(mark.Repos) != 1 || mark.Repos[0].Name != winners[0] {
+		t.Fatalf("stored %+v winner %s", mark.Repos, winners[0])
+	}
 }
 
 func TestFanoutIncrementalPartMergesBeforeAssemble(t *testing.T) {

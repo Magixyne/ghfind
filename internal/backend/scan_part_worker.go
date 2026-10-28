@@ -176,17 +176,16 @@ func (w *ScanWorker) processPart(ctx context.Context, job ScanPartJob) (workerDi
 			return workerRetry, err.Error()
 		}
 	}
-	_, done, err := store.SaveScanPart(ctx, job, payload)
+	_, _, err = store.SaveScanPart(ctx, job, payload)
 	if err != nil {
 		return workerRetry, err.Error()
-	}
-	if !done {
-		return workerCompleted, ""
 	}
 	parent, err = store.LoadScanParent(ctx, job.ParentID)
 	if err != nil {
 		return workerRetry, err.Error()
 	}
+	// The parent is not Done until dependents land, and dependents are
+	// published here. Waiting for Done first would never publish them.
 	return w.publishReady(ctx, parent, job)
 }
 
