@@ -26,7 +26,7 @@ import type { Lang } from "./lang";
 export const AUTO_REROAST_TRIGGER = "roast_version_upgrade";
 const AUTO_REROAST_KILL_SWITCH_ENV = "GHFIND_AUTO_REROAST_DISABLED";
 const AUTO_REROAST_MAX_PER_HOUR_ENV = "GHFIND_AUTO_REROAST_MAX_PER_HOUR";
-export const AUTO_REROAST_DEFAULT_MAX_PER_HOUR = 20;
+export const AUTO_REROAST_DEFAULT_MAX_PER_HOUR = 60;
 export const AUTO_REROAST_USER_COOLDOWN_SECONDS = 24 * 60 * 60;
 /** A queued job that has not finished within this window is abandoned. */
 export const AUTO_REROAST_JOB_MAX_AGE_MS = 2 * 60 * 60 * 1000;

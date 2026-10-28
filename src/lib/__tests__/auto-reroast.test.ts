@@ -63,12 +63,12 @@ describe("auto re-roast config", () => {
   });
 
   it("uses a conservative default hourly budget", () => {
-    expect(AUTO_REROAST_DEFAULT_MAX_PER_HOUR).toBe(20);
-    expect(autoReroastMaxPerHour({})).toBe(20);
+    expect(AUTO_REROAST_DEFAULT_MAX_PER_HOUR).toBe(60);
+    expect(autoReroastMaxPerHour({})).toBe(60);
     expect(autoReroastMaxPerHour({ GHFIND_AUTO_REROAST_MAX_PER_HOUR: "5" })).toBe(5);
     expect(autoReroastMaxPerHour({ GHFIND_AUTO_REROAST_MAX_PER_HOUR: "0" })).toBe(0);
-    expect(autoReroastMaxPerHour({ GHFIND_AUTO_REROAST_MAX_PER_HOUR: "-3" })).toBe(20);
-    expect(autoReroastMaxPerHour({ GHFIND_AUTO_REROAST_MAX_PER_HOUR: "lots" })).toBe(20);
+    expect(autoReroastMaxPerHour({ GHFIND_AUTO_REROAST_MAX_PER_HOUR: "-3" })).toBe(60);
+    expect(autoReroastMaxPerHour({ GHFIND_AUTO_REROAST_MAX_PER_HOUR: "lots" })).toBe(60);
   });
 
   it("keys are case-insensitive and version-driven", () => {

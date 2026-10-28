@@ -24,7 +24,7 @@ import type { AtomicStore } from "./atomic-store";
 export const AUTO_RESCAN_TRIGGER = "score_version_upgrade";
 const AUTO_RESCAN_KILL_SWITCH_ENV = "GHFIND_AUTO_RESCAN_DISABLED";
 const AUTO_RESCAN_MAX_PER_HOUR_ENV = "GHFIND_AUTO_RESCAN_MAX_PER_HOUR";
-export const AUTO_RESCAN_DEFAULT_MAX_PER_HOUR = 20;
+export const AUTO_RESCAN_DEFAULT_MAX_PER_HOUR = 100;
 export const AUTO_RESCAN_USER_COOLDOWN_SECONDS = 24 * 60 * 60;
 const HOUR_MS = 60 * 60 * 1000;
 
