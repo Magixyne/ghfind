@@ -14,9 +14,13 @@ import (
 	"time"
 )
 
-func fictionGitHub(t *testing.T, originals int) (*GitHubCollector, *atomic.Int32) {
+func fictionGitHub(t *testing.T, originals int, openPRs ...int) (*GitHubCollector, *atomic.Int32) {
 	t.Helper()
 	active, peak := &atomic.Int32{}, &atomic.Int32{}
+	openPRCount := 0
+	if len(openPRs) > 0 {
+		openPRCount = openPRs[0]
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		login := strings.TrimPrefix(r.URL.Path, "/users/")
@@ -61,7 +65,7 @@ func fictionGitHub(t *testing.T, originals int) (*GitHubCollector, *atomic.Int32
 					size = 250
 					stars = 40
 				}
-				nodes = append(nodes, map[string]any{"name": fmt.Sprintf("fiction-original-%d", i), "nameWithOwner": fmt.Sprintf("%s/fiction-original-%d", body.Variables["login"], i), "diskUsage": size, "stargazerCount": stars, "forkCount": 4, "description": "Fictional service", "pushedAt": "2026-07-30T00:00:00Z", "primaryLanguage": map[string]any{"name": "Go"}, "issues": map[string]any{"totalCount": 3}})
+				nodes = append(nodes, map[string]any{"name": fmt.Sprintf("fiction-original-%d", i), "nameWithOwner": fmt.Sprintf("%s/fiction-original-%d", body.Variables["login"], i), "diskUsage": size, "stargazerCount": stars, "forkCount": 4, "description": "Fictional service", "pushedAt": "2026-07-30T00:00:00Z", "primaryLanguage": map[string]any{"name": "Go"}, "issues": map[string]any{"totalCount": 3}, "openPullRequests": map[string]any{"totalCount": openPRCount}})
 			}
 			forks := 0
 			if body.Variables["login"] == "fiction-highfork" {
@@ -147,7 +151,7 @@ func TestScanMVPFictionForkNeutrality(t *testing.T) {
 }
 
 func TestScanMVPFullInventoryBeyondQuick(t *testing.T) {
-	collector, _ := fictionGitHub(t, quickRepoPages*githubPageSize+1)
+	collector, _ := fictionGitHub(t, quickRepoPages*githubPageSize+1, 2)
 	quick, _, incomplete, err := collector.github.ownedOriginalInventory(context.Background(), "fiction-lowfork", false)
 	if err != nil || !incomplete || len(quick) != quickRepoPages*githubPageSize {
 		t.Fatalf("quick=%d incomplete=%v err=%v", len(quick), incomplete, err)
@@ -155,6 +159,9 @@ func TestScanMVPFullInventoryBeyondQuick(t *testing.T) {
 	full, _, incomplete, err := collector.github.ownedOriginalInventory(context.Background(), "fiction-lowfork", true)
 	if err != nil || incomplete || len(full) != quickRepoPages*githubPageSize+1 {
 		t.Fatalf("full=%d incomplete=%v err=%v", len(full), incomplete, err)
+	}
+	if full[0].OpenIssuesCount != 5 {
+		t.Fatal("inventory must preserve REST open issue + PR count")
 	}
 }
 

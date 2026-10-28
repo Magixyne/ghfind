@@ -5,7 +5,7 @@ import { score } from "../score";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
-function installGitHub(originals = fixture.originals, merged = 0) {
+function installGitHub(originals = fixture.originals, merged = 0, openPrs = 0) {
   vi.stubEnv("GITHUB_TOKEN", "fiction-token");
   const inventoryPages: number[] = [];
   const requests: string[] = [];
@@ -33,7 +33,7 @@ function installGitHub(originals = fixture.originals, merged = 0) {
         nodes: Array.from({ length: end - start }, (_, i) => ({ name: `fiction-original-${start+i}`, nameWithOwner: `${variables.login}/fiction-original-${start+i}`,
           isFork: false, diskUsage: start+i < 2 ? 250 : 0, stargazerCount: start+i < 2 ? 40 : 0, forkCount: 4,
           description: "Fictional service", pushedAt: "2026-07-30T00:00:00Z", primaryLanguage: { name: "Go" },
-          issues: { totalCount: 3 }, repositoryTopics: { nodes: [] } })),
+          issues: { totalCount: 3 }, openPullRequests: { totalCount: openPrs }, repositoryTopics: { nodes: [] } })),
         pageInfo: { hasNextPage: end < originals, endCursor: end < originals ? String(end) : null },
       } } };
     } else if (query.includes("totalCommitContributions")) {
@@ -93,13 +93,14 @@ it("escalates the external 300 cap and merged window, then reads PR 301 natively
 
 it("continues original inventory beyond the existing two quick pages", async () => {
   const count = QUICK_REPO_PAGES * GITHUB_PAGE_SIZE + 1;
-  const { inventoryPages } = installGitHub(count);
+  const { inventoryPages } = installGitHub(count, 0, 2);
   const quick = await fetchOriginalInventory(fixture.lowLogin);
   expect(quick.repos).toHaveLength(count-1);
   expect(quick.incomplete).toBe(true);
   inventoryPages.length = 0;
   const full = await fetchOriginalInventory(fixture.lowLogin, true);
   expect(full.repos).toHaveLength(count);
+  expect(full.repos[0].open_issues_count).toBe(5); // REST includes open PRs
   expect(full.incomplete).toBe(false);
   expect(inventoryPages).toEqual([0, 100, 200]);
 });

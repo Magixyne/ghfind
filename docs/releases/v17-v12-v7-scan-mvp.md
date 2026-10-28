@@ -12,7 +12,8 @@ REST `type=owner` alone includes forks and cannot exclude them server-side.
 A separate cheap `isFork:true` totalCount preserves `fork_repo_count`, and
 `fetched_repo_count` includes that inventory count. Unworked forks never hydrate
 or enter impact. Existing verified contribution/organization attribution gates
-remain unchanged. Collection changes score inputs, not the scoring formula.
+remain unchanged. Inventory mapping preserves REST open_issues_count semantics
+(open issues plus open PRs). Collection changes score inputs, not the scoring formula.
 
 Synthetic fixture `scan-mvp-fiction.json` compares fiction-highfork (500 forks)
 with fiction-lowfork (0 forks), each with the same two nonempty originals and
@@ -70,7 +71,8 @@ TypeScript checks, lint, version transition check against origin/dev and the
 existing CI. Tests use synthetic upstream HTTP responses and local fixture DBs.
 No real account scans, production writes, backfills, cron or secrets changes.
 
-Review only, no merge/deploy in this task. If a later rollout needs rollback,
+Review only, no merge/deploy in this task. For a later rollout, deploy the
+additive coord pending contract before the v7 API collector. If rollback is needed,
 revert this PR as a unit to collection v6 and its prior release manifest. Do not
 rewrite v7 snapshots or bulk rescore. v7 cold caches and larger histories increase
 GitHub requests; rate/resource failures preserve partial coverage and existing

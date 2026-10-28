@@ -377,6 +377,7 @@ interface OriginalInventoryNode {
   stargazerCount: number; forkCount: number; description: string | null; pushedAt: string | null;
   primaryLanguage: { name: string } | null;
   issues: { totalCount: number };
+  openPullRequests?: { totalCount: number };
   repositoryTopics: { nodes: { topic: { name: string } }[] };
 }
 
@@ -397,6 +398,7 @@ export async function fetchOriginalInventory(username: string, full = false): Pr
           orderBy: {field: PUSHED_AT, direction: DESC}) {
           nodes { name nameWithOwner isFork diskUsage stargazerCount forkCount description pushedAt
             primaryLanguage { name } issues(states: OPEN) { totalCount }
+            openPullRequests: pullRequests(states: OPEN) { totalCount }
             repositoryTopics(first: 20) { nodes { topic { name } } } }
           pageInfo { hasNextPage endCursor }
         }
@@ -410,7 +412,8 @@ export async function fetchOriginalInventory(username: string, full = false): Pr
       repos.push({ name: node.name, full_name: node.nameWithOwner, fork: false, size: node.diskUsage,
         stargazers_count: node.stargazerCount, forks_count: node.forkCount, description: node.description,
         pushed_at: node.pushedAt, language: node.primaryLanguage?.name ?? null,
-        open_issues_count: node.issues.totalCount, topics: node.repositoryTopics.nodes.map(n => n.topic.name) });
+        // Match REST open_issues_count, which includes open PRs.
+        open_issues_count: node.issues.totalCount + (node.openPullRequests?.totalCount ?? 0), topics: node.repositoryTopics.nodes.map(n => n.topic.name) });
     }
     if (!connection.pageInfo.hasNextPage) return { repos, forks, incomplete: false };
     const cursor = connection.pageInfo.endCursor;

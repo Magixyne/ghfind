@@ -52,6 +52,9 @@ func (c *GitHubClient) ownedOriginalInventory(ctx context.Context, login string,
 						Issues struct {
 							TotalCount float64 `json:"totalCount"`
 						} `json:"issues"`
+						OpenPullRequests struct {
+							TotalCount float64 `json:"totalCount"`
+						} `json:"openPullRequests"`
 						RepositoryTopics struct {
 							Nodes []struct {
 								Topic struct {
@@ -68,7 +71,7 @@ func (c *GitHubClient) ownedOriginalInventory(ctx context.Context, login string,
  user(login: $login) {
   forks: repositories(first: 1, privacy: PUBLIC, ownerAffiliations: [OWNER], isFork: true) { totalCount }
   repositories(first: $count, after: $after, privacy: PUBLIC, ownerAffiliations: [OWNER], isFork: false, orderBy: {field: PUSHED_AT, direction: DESC}) {
-   nodes { name nameWithOwner isFork diskUsage stargazerCount forkCount description pushedAt primaryLanguage { name } issues(states: OPEN) { totalCount } repositoryTopics(first: 20) { nodes { topic { name } } } }
+   nodes { name nameWithOwner isFork diskUsage stargazerCount forkCount description pushedAt primaryLanguage { name } issues(states: OPEN) { totalCount } openPullRequests: pullRequests(states: OPEN) { totalCount } repositoryTopics(first: 20) { nodes { topic { name } } } }
    pageInfo { hasNextPage endCursor }
   }
  }
@@ -85,7 +88,9 @@ func (c *GitHubClient) ownedOriginalInventory(ctx context.Context, login string,
 			if node.IsFork {
 				continue
 			}
-			repo := githubRepo{Name: node.Name, FullName: node.NameWithOwner, Size: node.DiskUsage, StargazersCount: node.StargazerCount, ForksCount: node.ForkCount, OpenIssuesCount: node.Issues.TotalCount, Description: node.Description, PushedAt: node.PushedAt}
+			// REST open_issues_count includes open PRs; preserve that fact when
+			// switching inventories so quality inputs do not drift incidentally.
+			repo := githubRepo{Name: node.Name, FullName: node.NameWithOwner, Size: node.DiskUsage, StargazersCount: node.StargazerCount, ForksCount: node.ForkCount, OpenIssuesCount: node.Issues.TotalCount + node.OpenPullRequests.TotalCount, Description: node.Description, PushedAt: node.PushedAt}
 			if node.PrimaryLanguage != nil {
 				repo.Language = stringPointer(node.PrimaryLanguage.Name)
 			}
