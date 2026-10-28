@@ -253,7 +253,7 @@ describe("POST /api/scan immediate quick contract", () => {
       served_score_version: SCORE_CACHE_VERSION,
     });
     expect(mocks.after).toHaveBeenCalledOnce();
-    expect(mocks.coalesceScan).toHaveBeenCalledWith("DemoDev", expect.any(Function), { background: true });
+    expect(mocks.coalesceScan).toHaveBeenCalledWith("DemoDev", expect.any(Function), { background: true, force: true, continueOnDeadline: true });
   });
 
   it("skips background GitHub refresh when the cooldown is held", async () => {
@@ -269,7 +269,7 @@ describe("POST /api/scan immediate quick contract", () => {
     expect(mocks.coalesceScan).not.toHaveBeenCalledWith(
       "DemoDev",
       expect.any(Function),
-      { background: true },
+      { background: true, force: true },
     );
   });
 

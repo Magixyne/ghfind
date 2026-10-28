@@ -12,7 +12,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-const scanWorkerProcessTimeout = 2 * time.Minute
+const scanWorkerProcessTimeout = 5 * time.Minute
 
 type ScanCollector interface {
 	Collect(context.Context, string) (ScanResult, error)
@@ -186,6 +186,16 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 		}
 		w.metrics.recordWorkerJobRetry(ScanJobKind, time.Since(startedAt))
 		return workerRetry, err.Error()
+	}
+	if scan.Collection != nil && scan.Collection.Mode == "quick" && scan.Collection.Coverage == "partial_public" {
+		if fullCollector, ok := w.collector.(interface {
+			CollectFull(context.Context, string) (ScanResult, error)
+		}); ok {
+			scan, err = fullCollector.CollectFull(ctx, job.Username)
+			if err != nil {
+				return workerRetry, err.Error()
+			}
+		}
 	}
 	created, err := w.results.PersistCollectedScan(ctx, job, scan)
 	if errors.Is(err, ErrScanJobConflict) {

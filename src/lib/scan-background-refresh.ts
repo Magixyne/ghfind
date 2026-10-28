@@ -2,6 +2,8 @@ import { after } from "next/server";
 import { publishCompleteQuickScan } from "@/lib/db";
 import { admitVisitRefresh, coalesceScan, tryAcquireScanRefresh } from "@/lib/redis";
 import { buildScanResult, logFreshScanFailure } from "@/lib/scan-core";
+import { needsFullScan } from "./scan-coverage";
+import { BACKGROUND_COLLECT_DEADLINE_MS, ScanPendingError } from "./scan-protection";
 import type { ScanResult } from "@/lib/types";
 import {
   autoRefreshOnVisitEnabled,
@@ -21,19 +23,28 @@ async function persistQuickScan(scan: ScanResult, scannedAt: number): Promise<bo
   }
 }
 
-async function produceFreshScan(username: string): Promise<ScanResult> {
+async function produceFreshScan(username: string, full = false): Promise<ScanResult> {
   const scannedAt = Date.now();
-  const quickScan = await buildScanResult(username);
+  let quickScan = await buildScanResult(username, { full, deadlineMs: BACKGROUND_COLLECT_DEADLINE_MS });
+  if (needsFullScan(quickScan)) {
+    const remaining = BACKGROUND_COLLECT_DEADLINE_MS - (Date.now() - scannedAt);
+    if (remaining <= 0) throw new Error("background collection budget exhausted");
+    quickScan = await buildScanResult(username, { full: true, deadlineMs: remaining });
+  }
   if (!(await persistQuickScan(quickScan, scannedAt))) throw new ScorePersistenceError();
   return Object.assign(quickScan, { scanned_at: scannedAt });
 }
 
 /** Score-only background refresh (no LLM). Single-flight via tryAcquireScanRefresh. */
-export async function refreshScanInBackground(username: string): Promise<void> {
+export async function refreshScanInBackground(username: string, full = false): Promise<void> {
   if (!(await tryAcquireScanRefresh(username))) return;
   try {
-    await coalesceScan(username, () => produceFreshScan(username), { background: true });
+    await coalesceScan(username, () => produceFreshScan(username, full), {
+      background: true, force: true, continueOnDeadline: true, ...(full ? { full: true } : {}),
+    });
   } catch (error) {
+    // ScanSlot now owns the durable continuation. No long waitUntil crawl.
+    if (error instanceof ScanPendingError) return;
     logFreshScanFailure(error, {
       route: "scan",
       username,
@@ -83,4 +94,9 @@ export function maybeScheduleVisitRefresh(input: {
     console.log("auto_refresh_on_visit", { outcome: "started", username });
     await refreshScanInBackground(username);
   });
+}
+
+/** Shares #580's refresh admission and the same per-user producer lock. */
+export function scheduleFullScanIfNeeded(scan: ScanResult): void {
+  if (needsFullScan(scan)) after(() => refreshScanInBackground(scan.metrics.username, true));
 }

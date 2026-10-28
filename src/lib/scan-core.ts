@@ -201,10 +201,11 @@ export function buildPublicSignatureWork(
  */
 export async function buildScanResult(
   username: string,
-  options: { deadlineMs?: number } = {},
+  options: { deadlineMs?: number; full?: boolean } = {},
 ): Promise<ScanResult> {
   const collected = await collect(username, {
     cache: collectorCache,
+    full: options.full,
     deadlineMs: options.deadlineMs ?? COLLECT_DEADLINE_MS,
   });
   const scan = {
