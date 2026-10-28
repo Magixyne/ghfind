@@ -5,10 +5,13 @@ import (
 	"time"
 )
 
-// inventoryCaptureKey carries the owned-original page of the collect running
-// on this context. Incremental mode copies that page into the cursor table.
-// The page stays off the public snapshot.
-type inventoryCaptureKey struct{}
+// inventoryCapture carries the owned-original page of the collect running
+// on this context, including the fork total. Incremental mode copies that
+// page into the cursor table. It stays off the public snapshot.
+type inventoryCapture struct {
+	Repos     *[]githubRepo
+	ForkCount *float64
+}
 
 // scanCursorPlan is one source's decision for this scan. Full is a
 // reconciliation pull. Since is the watermark an incremental pull stops at.
@@ -44,6 +47,7 @@ func baselineFromBook(book scanCursorBook) scanSnapshotBaseline {
 	baseline := scanSnapshotBaseline{}
 	if mark, ok := book.source(scanCursorRepos); ok {
 		baseline.Repos = append([]githubRepo(nil), mark.Repos...)
+		baseline.ForkCount = mark.ForkCount
 	}
 	if mark, ok := book.source(scanCursorExternal); ok {
 		baseline.External = append([]mergedPRNode(nil), mark.Nodes...)
@@ -178,12 +182,13 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 	}
 	if !anyIncremental {
 		var captured []githubRepo
-		scan, err := collector.Collect(context.WithValue(ctx, inventoryCaptureKey{}, &captured), job.Username)
+		var forkCount float64
+		scan, err := collector.Collect(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 		if err != nil {
 			return ScanResult{}, err
 		}
 		if !quickCoverageExceeded(scan) {
-			w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, now)
+			w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, forkCount, now)
 		}
 		return scan, nil
 	}
@@ -217,7 +222,8 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 	if quickCoverageExceeded(scan) {
 		// Delta left the quick window. #582 deepens with a full collect.
 		var captured []githubRepo
-		fullScan, fullErr := collector.CollectFull(context.WithValue(ctx, inventoryCaptureKey{}, &captured), job.Username)
+		var forkCount float64
+		fullScan, fullErr := collector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 		if fullErr != nil {
 			return ScanResult{}, fullErr
 		}
@@ -229,7 +235,12 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 		}
 		fullBaseline := baseline
 		fullBaseline.Repos = append([]githubRepo(nil), captured...)
+		fullBaseline.ForkCount = forkCount
 		book = advanceCursorBook(book, reconcile, fullBaseline, nil, now)
+		if mark, ok := book.Sources[scanCursorRepos]; ok {
+			mark.ForkCount = forkCount
+			book.Sources[scanCursorRepos] = mark
+		}
 		book.Username = job.Username
 		if saveErr := store.SaveScanCursors(ctx, book); saveErr != nil {
 			return ScanResult{}, saveErr
@@ -247,11 +258,15 @@ func (w *ScanWorker) collectIncremental(ctx context.Context, job ScanJob) (ScanR
 // rememberInProcessCursors stores the source pages from a reconcile that
 // went through Collect. Only the resumable inventory and PR windows are
 // kept; commits and workflows stay on their existing full pull.
-func (w *ScanWorker) rememberInProcessCursors(ctx context.Context, store ScanCursorStore, username string, book scanCursorBook, plans map[string]scanCursorPlan, repos []githubRepo, now time.Time) {
+func (w *ScanWorker) rememberInProcessCursors(ctx context.Context, store ScanCursorStore, username string, book scanCursorBook, plans map[string]scanCursorPlan, repos []githubRepo, forkCount float64, now time.Time) {
 	// Inventory is the page Collect just walked. PR windows stay on the full
 	// window until a part scan stores their nodes.
-	baseline := scanSnapshotBaseline{Repos: append([]githubRepo(nil), repos...)}
+	baseline := scanSnapshotBaseline{Repos: append([]githubRepo(nil), repos...), ForkCount: forkCount}
 	book = advanceCursorBook(book, plans, baseline, nil, now)
+	if mark, ok := book.Sources[scanCursorRepos]; ok {
+		mark.ForkCount = forkCount
+		book.Sources[scanCursorRepos] = mark
+	}
 	book.Username = username
 	_ = store.SaveScanCursors(ctx, book)
 }

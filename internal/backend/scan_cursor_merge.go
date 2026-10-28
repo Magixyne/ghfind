@@ -134,6 +134,7 @@ func cursorWatermarkFromItems(source string, items []scanCursorItem, endCursor s
 	switch source {
 	case scanCursorRepos:
 		mark.Repos = reposFromCursorItems(items)
+		mark.ForkCount = prev.ForkCount
 	case scanCursorExternal, scanCursorMerged:
 		mark.Nodes = nodesFromCursorItems(items)
 	}
@@ -207,9 +208,10 @@ func nodesFromCursorItems(items []scanCursorItem) []mergedPRNode {
 // baseline makes the delta the whole result, which still matches a full
 // scan of the same delta.
 type scanSnapshotBaseline struct {
-	Repos    []githubRepo
-	External []mergedPRNode
-	Merged   []mergedPRNode
+	Repos     []githubRepo
+	ForkCount float64
+	External  []mergedPRNode
+	Merged    []mergedPRNode
 }
 
 func (b scanSnapshotBaseline) items(source string) []scanCursorItem {
@@ -249,7 +251,11 @@ func applyIncrementalPayload(baseline scanSnapshotBaseline, payload scanPartPayl
 			Source: scanCursorRepos, Items: reposToCursorItems(payload.Repos),
 		})
 		payload.Repos = reposFromCursorItems(merged)
+		if baseline.ForkCount > 0 {
+			payload.ForkCount = baseline.ForkCount
+		}
 		baseline.Repos = payload.Repos
+		baseline.ForkCount = payload.ForkCount
 	case scanPartExternal:
 		if payload.External != nil {
 			merged := mergeScanCursorItems(baseline.items(scanCursorExternal), scanCursorAdvance{
@@ -283,6 +289,7 @@ func foldPayloadBaseline(baseline scanSnapshotBaseline, payload scanPartPayload)
 	switch payload.Part {
 	case scanPartRepos:
 		baseline.Repos = append([]githubRepo(nil), payload.Repos...)
+		baseline.ForkCount = payload.ForkCount
 	case scanPartExternal:
 		if payload.External != nil {
 			baseline.External = append([]mergedPRNode(nil), payload.External.Nodes...)

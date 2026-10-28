@@ -37,9 +37,11 @@ type scanCursorWatermark struct {
 	UpdatedAt       string `json:"updated_at,omitempty"`
 	// Repos and Nodes are the last merged source page. They stay in the
 	// cursor table so a later delta can be merged without rewriting the
-	// public snapshot contract.
-	Repos []githubRepo   `json:"repos,omitempty"`
-	Nodes []mergedPRNode `json:"nodes,omitempty"`
+	// public snapshot contract. ForkCount is the inventory total from the
+	// last full read of that source; an incremental page does not replace it.
+	Repos     []githubRepo   `json:"repos,omitempty"`
+	Nodes     []mergedPRNode `json:"nodes,omitempty"`
+	ForkCount float64        `json:"fork_count,omitempty"`
 }
 
 func (w scanCursorWatermark) valid() bool {

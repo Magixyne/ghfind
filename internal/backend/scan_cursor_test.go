@@ -445,7 +445,7 @@ func (u *fictionUpstream) serve(w http.ResponseWriter, request *http.Request) {
 			},
 			"organizations": map[string]any{"nodes": []any{}},
 			"pullRequests":  map[string]any{"nodes": prNodes, "pageInfo": map[string]any{"hasNextPage": false, "endCursor": "cursor-fiction"}},
-			"forks":         map[string]any{"totalCount": 0},
+			"forks":         map[string]any{"totalCount": 4},
 			"repositories":  map[string]any{"nodes": nodes, "pageInfo": map[string]any{"hasNextPage": false, "endCursor": "cursor-repos"}},
 		},
 		"search": map[string]any{"issueCount": 0, "nodes": []any{}, "pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil}},
@@ -484,12 +484,13 @@ func assertSameScanContract(t *testing.T, label string, got, want ScanResult) {
 	if got.Scoring.FinalScore != want.Scoring.FinalScore {
 		t.Fatalf("%s score got=%v want=%v", label, got.Scoring.FinalScore, want.Scoring.FinalScore)
 	}
-	if got.Metrics.TotalStars != want.Metrics.TotalStars || got.Metrics.PublicRepos != want.Metrics.PublicRepos || got.Metrics.OriginalRepoCount != want.Metrics.OriginalRepoCount || got.Metrics.MergedPRCount != want.Metrics.MergedPRCount {
-		t.Fatalf("%s metrics stars=%v/%v repos=%v/%v original=%v/%v merged=%v/%v", label,
+	if got.Metrics.TotalStars != want.Metrics.TotalStars || got.Metrics.PublicRepos != want.Metrics.PublicRepos || got.Metrics.OriginalRepoCount != want.Metrics.OriginalRepoCount || got.Metrics.MergedPRCount != want.Metrics.MergedPRCount || got.Metrics.ForkRepoCount != want.Metrics.ForkRepoCount {
+		t.Fatalf("%s metrics stars=%v/%v repos=%v/%v original=%v/%v merged=%v/%v forks=%v/%v", label,
 			got.Metrics.TotalStars, want.Metrics.TotalStars,
 			got.Metrics.PublicRepos, want.Metrics.PublicRepos,
 			got.Metrics.OriginalRepoCount, want.Metrics.OriginalRepoCount,
-			got.Metrics.MergedPRCount, want.Metrics.MergedPRCount)
+			got.Metrics.MergedPRCount, want.Metrics.MergedPRCount,
+			got.Metrics.ForkRepoCount, want.Metrics.ForkRepoCount)
 	}
 	if string(got.SourceStatus) != string(want.SourceStatus) && len(want.SourceStatus) > 0 && len(got.SourceStatus) > 0 {
 		t.Fatalf("%s source_status got=%s want=%s", label, got.SourceStatus, want.SourceStatus)

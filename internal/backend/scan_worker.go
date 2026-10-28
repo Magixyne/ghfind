@@ -237,7 +237,8 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 			CollectFull(context.Context, string) (ScanResult, error)
 		}); ok {
 			var captured []githubRepo
-			scan, err = fullCollector.CollectFull(context.WithValue(ctx, inventoryCaptureKey{}, &captured), job.Username)
+			var forkCount float64
+			scan, err = fullCollector.CollectFull(context.WithValue(ctx, inventoryCapture{}, inventoryCapture{Repos: &captured, ForkCount: &forkCount}), job.Username)
 			if err != nil {
 				return workerRetry, err.Error()
 			}
@@ -254,7 +255,7 @@ func (w *ScanWorker) process(ctx context.Context, job ScanJob) (workerDispositio
 							plan.Full = true
 							plans[source] = plan
 						}
-						w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, now)
+						w.rememberInProcessCursors(ctx, store, job.Username, book, plans, captured, forkCount, now)
 					}
 				}
 			}
