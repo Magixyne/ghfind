@@ -9,6 +9,7 @@ import { Link } from "@/i18n/navigation";
 import { consumeRoastingHandoff, readSessionScan, stripRoastingParam } from "@/lib/home-handoff";
 import { splitReport } from "@/lib/report";
 import { normLang } from "@/lib/lang";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { consumeRoastStream } from "@/lib/roast-stream";
 import type { RoastLine, RoastMeta, ScanResult, Tags } from "@/lib/types";
 import { RoastResultModal } from "./RoastResultModal";
@@ -260,12 +261,12 @@ export function LiveRoast({
         </div>
       )}
 
-      {tags && (tags.zh.length > 0 || tags.en.length > 0) && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {tagsList(tags).map((tag, i) => (
+      {tagsForLocale(tags, locale).length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {tagsForLocale(tags, locale).map((tag, i) => (
             <span
               key={`${tag}-${i}`}
-              className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-200"
+              className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
             >
               #{tag}
             </span>
@@ -294,6 +295,3 @@ function pickLine(line: RoastLine | undefined, locale: string): string {
   return normLang(locale) === "en" ? line.en : line.zh;
 }
 
-function tagsList(tags: Tags): string[] {
-  return [...tags.zh, ...tags.en];
-}

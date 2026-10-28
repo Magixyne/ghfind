@@ -357,12 +357,22 @@ func ownPRCommunityCredit(m RawMetrics) float64 {
 func lowPrestigeBulkContributionCap(m RawMetrics) (float64, bool) {
 	smooth := func(value float64) float64 { x := max(0, min(1, value)); return x * x * (3 - 2*x) }
 	volume := smooth((m.MergedPRCount - 40) / 80)
-	protection := smooth((m.MaxStars - 950) / 100)
 	prestige := impactPrestigeSignal(m)
 	strongPrestige := smooth((prestige - .65) / .15)
 	coreProtection := smooth((valueOrZero(m.CoreImpactPRCount) - 40) / 60)
 	prestigeCap := 20 + 3*smooth((prestige-.3)/.5) + 4*strongPrestige + 2.5*coreProtection*(1-strongPrestige)
-	return 27 - (27-prestigeCap)*volume*(1-protection), true
+	// Stars on own projects do not establish outside adoption. Missing external
+	// counts are unknown, so only apply the prestige cap to legacy snapshots.
+	cap := 27 - (27-prestigeCap)*volume
+	if m.ExternalMergedPRCount == nil {
+		return cap, true
+	}
+	external := max(0, min(*m.ExternalMergedPRCount, m.MergedPRCount))
+	own := max(0, m.MergedPRCount-external)
+	community := max(0, min(valueOrZero(m.OwnPRCommunity), 1))
+	// Keep the 80-landing scale synchronized with TypeScript and Python.
+	recognitionCap := 20 + 7*(1-math.Exp(-(external+own*community)/80))
+	return min(cap, recognitionCap), true
 }
 
 func hasSocialOnlyDormantSignal(m RawMetrics) bool {

@@ -48,6 +48,7 @@ import {
 import { tierFor } from "@/lib/score";
 import type { RoastLine, RoastMeta, ScanResult, Tags, Tier } from "@/lib/types";
 import { USERNAME_RE } from "@/lib/username";
+import { sanitizeRoastTags } from "./roast-tags";
 
 /**
  * POST /api/roast implementation (src/app/api/roast/route.ts re-exports it).
@@ -155,16 +156,11 @@ function parseTags(head: string): Tags {
     if (!mm) return [];
     return mm[1].split(/[,，、]/).map((t) => t.trim());
   };
-  const clean = (arr: string[], maxLen: number): string[] =>
-    Array.from(
-      new Set(
-        arr
-          .map((t) => t.replace(/[#@]/g, "").trim())
-          .filter(Boolean)
-          .map((t) => t.slice(0, maxLen)),
-      ),
-    ).slice(0, 5);
-  return { zh: clean(grab("zh"), 10), en: clean(grab("en"), 24) };
+  // Substance-only: drop follower-ratio / time-window trivia; cap at 4.
+  return {
+    zh: sanitizeRoastTags(grab("zh"), 10),
+    en: sanitizeRoastTags(grab("en"), 24),
+  };
 }
 
 const ROAST_LINE_MAX_CHARS = 180;

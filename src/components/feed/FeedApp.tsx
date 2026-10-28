@@ -90,7 +90,7 @@ export function FeedApp({ initialPage, projects, voices, generatedAt, initialErr
       void Promise.resolve().then(() => navigator.clipboard.writeText(url.href)).then(() => setCopyNotice(t("linkCopied"))).catch(() => setCopyNotice(t("feed.copyFailed")));
     },
   };
-  const card = (post: FeedPost) => <FeedPostCard key={`${post.id}:${post.view_token ?? ""}`} post={post} now={generatedAt} pending={Boolean(state.pending[post.id] || state.pending[`author:${post.author.id}`])} {...handlers} />;
+  const card = (post: FeedPost) => <FeedPostCard key={`${post.id}:${post.view_token ?? ""}`} post={post} posts={state.posts} now={generatedAt} pending={Boolean(state.pending[post.id] || state.pending[`author:${post.author.id}`])} {...handlers} />;
   const channels: { id: FeedChannel; label: string }[] = [{ id: "recommended", label: t("tabForYou") }, { id: "following", label: t("tabFollowing") }];
   const retry = <Button variant="outline" size="sm" onClick={() => void state.loadList(state.channel)}>{t("feed.retry")}</Button>;
 
@@ -150,7 +150,7 @@ function FeedThread({ id, store, now, handlers, copyNotice }: { id: string; stor
   const post = state.posts[id];
   const ancestors = thread?.ancestors ?? [];
   const visibleAncestors = showAncestors ? ancestors : ancestors.slice(-2);
-  const card = (item: FeedPost, focused = false, connected = false) => <FeedPostCard key={`${item.id}:${item.view_token ?? ""}`} post={item} now={now} focused={focused} connected={connected} pending={Boolean(state.pending[item.id] || state.pending[`author:${item.author.id}`])} {...handlers} />;
+  const card = (item: FeedPost, focused = false, connected = false) => <FeedPostCard key={`${item.id}:${item.view_token ?? ""}`} post={item} posts={state.posts} now={now} focused={focused} connected={connected} pending={Boolean(state.pending[item.id] || state.pending[`author:${item.author.id}`])} {...handlers} />;
   return <div className="min-h-0 overflow-y-auto overscroll-contain" ref={target}>
     {copyNotice ? <p role="status" className="border-b border-border px-4 py-2 text-sm">{copyNotice}</p> : null}
     {state.notice ? <div role="alert" className="border-b border-border px-4 py-2 text-sm">{errorMessage(state.notice)}{state.notice === "login_required" ? <div className="mt-2"><FeedLogin store={store} /></div> : null}</div> : null}
