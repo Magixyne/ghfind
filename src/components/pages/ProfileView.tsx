@@ -24,6 +24,7 @@ import { DIMENSIONS } from "@/lib/dimensions";
 import { beatPercent } from "@/lib/percentile";
 import { TIER_KEY, tierStyle } from "@/lib/tier";
 import { normLang } from "@/lib/lang";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { scoreRedFlagLabel } from "@/lib/score-red-flags";
 import { RescanButton } from "@/components/RescanButton";
 import { StaleScanHint } from "@/components/StaleScanHint";
@@ -481,26 +482,25 @@ export function ProfileView({
           </p>
         )}
 
-        {d.tags.zh.length + d.tags.en.length > 0 && (
-          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-            {d.tags.zh.map((tag, i) => (
-              <span
-                key={`zh-${tag}-${i}`}
-                className="rounded-full bg-orange-500/10 px-2 py-0.5 text-xs text-orange-200/90"
-              >
-                #{tag}
-              </span>
-            ))}
-            {d.tags.en.map((tag, i) => (
-              <span
-                key={`en-${tag}-${i}`}
-                className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-200/90"
-              >
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const shown = tagsForLocale(d.tags, locale);
+          if (shown.length === 0) return null;
+          return (
+            <div
+              className="mt-4 flex max-w-md flex-wrap justify-center gap-2"
+              aria-label="tags"
+            >
+              {shown.map((tag, i) => (
+                <span
+                  key={`${tag}-${i}`}
+                  className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
 
         {(organizations.length > 0 || company) && (
           <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
