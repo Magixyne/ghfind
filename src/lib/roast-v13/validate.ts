@@ -373,7 +373,7 @@ const STAR_COMMIT_JUXTAPOSE_RE =
   /\d[\d,]*\s*星[^。！？!?\n]{0,48}(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|堆进去|打满)|(?:\d+\s*个?\s*(?:提交|PR|pr|commit)|打满|堆进去)[^。！？!?\n]{0,48}\d[\d,]*\s*星|不是?\s*提交数\s*第一|提交数\s*(?:不是)?第一|top\s*committer|not\s+the\s+top\s+committer/i;
 /** "N commits … 却/只 …" outcome contrast (commits vs what landed). */
 const COMMIT_OUTCOME_CONTRAST_RE =
-  /(?:\d+\s*(?:个)?\s*(?:提交|commits?)|(?:提交|commits?)\s*(?:到了|了)?\s*\d+)[^。！？!?\n]{0,64}(?:却|只)(?:是|留下|合[入进]|落地|做成|改成)?/i;
+  /(?:\d+\s*(?:个|次)?\s*(?:提交|commits?)|(?:提交|commits?)\s*(?:到了|了)?\s*\d+)[^。！？!?\n]{0,64}(?:却|只)(?:是|留下|合[入进]|落地|做成|改成)?/i;
 /** "N 个提交、合进 M 个 PR" commits↔merged-count juxtaposition. */
 const COMMIT_MERGED_JUXTAPOSE_RE =
   /\d+\s*个?\s*提交[^。！？!?\n]{0,28}(?:合进|已合并|合并了?)\s*\d+\s*个?\s*(?:已合并\s*)?PR|\d+\s*commits?[^.\n]{0,40}\d+\s*(?:merged\s*)?PRs?/i;

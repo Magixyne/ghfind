@@ -669,6 +669,8 @@ describe("roast v13 commit-contrast and metaphor bans", () => {
   it("bans N-commits-却 outcome contrast and commits↔merged juxtaposition", () => {
     const a = checkTrivia(index, "roast_line.zh", "提交到了 100,方向是 agent harness,留下的合入却是导航过期状态。");
     expect(a.some((i) => /commits-却|outcome contrast/i.test(i.detail))).toBe(true);
+    const a2 = checkTrivia(index, "roast_line.zh", "磨成主笔量级的 847 次提交,自己名下星数最高的作品却是一份没检出语言的清单。");
+    expect(a2.some((i) => /commits-却|outcome contrast/i.test(i.detail))).toBe(true);
     const b = checkTrivia(index, "advice[0]", "你有 93 个提交、合进 1 个 PR。把改动收成插件。");
     expect(b.some((i) => /commits↔merged|提交↔合入/i.test(i.detail))).toBe(true);
   });
