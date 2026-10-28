@@ -110,12 +110,21 @@ export function renderV13Report(scan: ScanResult, lang: Lang, copy: V13Copy): st
     lines.push(cell(copy.dimensions[key] ?? ""));
     lines.push("");
   }
-  lines.push(zh ? "### 风险标记" : "### Red flags");
-  lines.push("");
-  if (hasRiskSignals(scan) && copy.risk) lines.push(cell(copy.risk));
-  else if (hasRiskSignals(scan)) for (const line of riskLines(scan, zh)) lines.push(`- ${cell(line)}`);
-  else lines.push(zh ? "无。" : "None.");
-  lines.push("");
+  if (hasRiskSignals(scan) && copy.risk) {
+    lines.push(zh ? "### 风险标记" : "### Red flags");
+    lines.push("");
+    lines.push(cell(copy.risk));
+    lines.push("");
+  } else if (hasRiskSignals(scan)) {
+    lines.push(zh ? "### 风险标记" : "### Red flags");
+    lines.push("");
+    for (const line of riskLines(scan, zh)) lines.push(`- ${cell(line)}`);
+    lines.push("");
+  } else {
+    // Single inline line — not a section — when there is nothing to flag.
+    lines.push(zh ? "**风险标记**：无" : "**Red flags**: None");
+    lines.push("");
+  }
   if (copy.advice.length) {
     lines.push(zh ? "### 建议" : "### Next");
     lines.push("");

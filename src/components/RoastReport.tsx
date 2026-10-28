@@ -5,20 +5,26 @@ import { useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { rewriteLegacyRoastMarkdown } from "@/lib/roast-report-legacy";
+import { TIER_KEY } from "@/lib/tier";
+import type { Tier } from "@/lib/types";
 
 /**
- * Profile / live / modal roast markdown with the v13l card layout:
- * - blockquote → highlighted 一句话结论 callout
- * - h4 "Name · score/max" → stacked dimension card header + progress bar
- *   (following <p> is the full-width note, styled via CSS sibling)
- * - ol/li with leading **title** → numbered finding + title chip
- * - ul → spaced advice bullets
+ * Profile / live / modal roast markdown — compact v13n card layout:
+ * - blockquote → tier-tinted left-border verdict callout
+ * - dimension h4+note pairs → 2-col grid of cards (1-col mobile) with
+ *   tier-colored score + 3px bar
+ * - ol/li with leading **title** → numbered chip inline with title+body
+ * - ul → compact advice bullets with tier markers
+ * - "风险标记：无" stays a single inline line (no section)
  *
- * Legacy cached markdown (v12 3-col dimension table) is rewritten into the
- * same h4 + note shape before render, so prod reports keep the new cards
- * until the owner approves a re-roast.
+ * Tier accents use CSS vars on [data-tier-tone] (see globals.css) so Tailwind
+ * purge cannot drop them. Legacy cached markdown is rewritten first.
  */
 const DIM_SCORE_RE = /^(.+?)\s*[·•|]\s*([\d.]+)\s*\/\s*([\d.]+)\s*$/;
+const DIM_SECTION_RE = /^###\s*(维度评分|Dimensions)\s*$/m;
+const NEXT_H3_RE = /^###\s+/m;
+
+type DimCard = { name: string; score: number; max: number; note: string };
 
 function textOf(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
@@ -45,112 +51,186 @@ function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest
   return { chip: null, rest: children };
 }
 
-function DimHead({ name, score, max }: { name: string; score: number; max: number }) {
+/** Pull #### Name · score/max + following note paragraphs out of the dims section. */
+function splitDimensionSection(md: string): { before: string; dims: DimCard[]; after: string } {
+  const sectionMatch = md.match(DIM_SECTION_RE);
+  if (!sectionMatch || sectionMatch.index == null) {
+    return { before: md, dims: [], after: "" };
+  }
+  const sectionStart = sectionMatch.index;
+  const bodyStart = sectionStart + sectionMatch[0].length;
+  const rest = md.slice(bodyStart);
+  const next = rest.search(NEXT_H3_RE);
+  const dimBody = (next < 0 ? rest : rest.slice(0, next)).trim();
+  const after = next < 0 ? "" : rest.slice(next);
+  const before = md.slice(0, sectionStart).trimEnd();
+
+  const dims: DimCard[] = [];
+  const blocks = dimBody.split(/^####\s+/m).filter((b) => b.trim());
+  for (const block of blocks) {
+    const nl = block.indexOf("\n");
+    const head = (nl < 0 ? block : block.slice(0, nl)).trim();
+    const note = (nl < 0 ? "" : block.slice(nl + 1)).trim();
+    const m = head.match(DIM_SCORE_RE);
+    if (!m) continue;
+    dims.push({
+      name: m[1].trim(),
+      score: Number(m[2]),
+      max: Number(m[3]),
+      note: note.replace(/^>\s?/gm, "").trim(),
+    });
+  }
+  return { before, dims, after };
+}
+
+/** Collapse "### 风险标记\n\n无。" into a single inline paragraph. */
+function collapseEmptyRisk(md: string): string {
+  return md
+    .replace(
+      /^###\s*(风险标记|Red flags)\s*\n+(?:[-*]\s*)?(无。?|None\.?)\s*$/gim,
+      (_m, label: string, none: string) => {
+        const zh = /风险/.test(label);
+        const bare = none.replace(/[。.]$/, "");
+        return zh ? `**风险标记**：${bare}` : `**Red flags**: ${bare}`;
+      },
+    )
+    .replace(
+      /^###\s*(风险标记|Red flags)\s*\n+(?:[-*]\s*)?(无。?|None\.?)\s*\n+/gim,
+      (_m, label: string, none: string) => {
+        const zh = /风险/.test(label);
+        const bare = none.replace(/[。.]$/, "");
+        return zh ? `**风险标记**：${bare}\n\n` : `**Red flags**: ${bare}\n\n`;
+      },
+    );
+}
+
+function DimCardView({ name, score, max, note }: DimCard) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (score / max) * 100)) : 0;
+  const scoreLabel = Number.isInteger(score) ? String(score) : score.toFixed(1);
   return (
-    <div className="roast-dim-head mt-3 rounded-t-xl border border-b-0 border-white/10 bg-white/[0.03] px-3.5 pb-0 pt-3.5 sm:px-4 sm:pt-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-semibold tracking-tight text-zinc-100">{name}</span>
-        <span className="shrink-0 font-mono text-xs tabular-nums text-orange-300/90">
-          {Number.isInteger(score) ? score : score.toFixed(1)}/{max}
+    <article className="roast-dim-card">
+      <div className="roast-dim-head">
+        <span className="roast-dim-name">{name}</span>
+        <span className="roast-dim-score">
+          {scoreLabel}/{max}
         </span>
       </div>
       <div
-        className="roast-dim-bar mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"
+        className="roast-dim-bar"
         role="progressbar"
         aria-valuenow={Math.round(pct)}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={`${name} ${pct.toFixed(0)}%`}
       >
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-orange-500/80 to-orange-400"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="roast-dim-bar-fill" style={{ width: `${pct}%` }} />
       </div>
-    </div>
+      {note ? <p className="roast-dim-note">{note}</p> : null}
+    </article>
   );
 }
 
-const components: Components = {
-  h1: ({ children }) => (
-    <h1 className="mb-3 mt-1 text-xl font-black tracking-tight text-zinc-100">{children}</h1>
-  ),
-  h2: ({ children }) => (
-    <h2 className="mb-3 mt-0 border-b border-white/10 pb-2 text-base font-black text-zinc-100">{children}</h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="mb-2 mt-6 text-sm font-bold tracking-wide text-zinc-200 first:mt-2">{children}</h3>
-  ),
-  h4: ({ children }) => {
-    const raw = textOf(children).trim();
-    const m = raw.match(DIM_SCORE_RE);
-    if (m) {
-      return <DimHead name={m[1].trim()} score={Number(m[2])} max={Number(m[3])} />;
-    }
-    return <h4 className="mb-1.5 mt-4 text-sm font-bold text-zinc-200">{children}</h4>;
-  },
-  p: ({ children }) => <p className="my-2.5 text-sm leading-relaxed text-zinc-300">{children}</p>,
-  blockquote: ({ children }) => (
-    <blockquote className="roast-verdict my-4 rounded-xl border border-orange-500/30 bg-orange-500/[0.08] px-4 py-3 text-sm leading-relaxed text-zinc-100 not-italic">
-      {children}
-    </blockquote>
-  ),
-  ul: ({ children }) => (
-    <ul className="roast-advice my-3 list-disc space-y-2.5 pl-5 text-sm leading-relaxed text-zinc-300">{children}</ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="roast-findings my-3 list-none space-y-3.5 pl-0 text-sm text-zinc-300">{children}</ol>
-  ),
-  li: ({ children }) => {
-    const { chip, rest } = splitLeadingStrong(children);
-    if (chip) {
-      return (
-        <li className="roast-finding rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-3 sm:px-4">
-          <div className="flex gap-3">
-            <span className="roast-finding-num mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-xs font-bold text-orange-300" />
-            <div className="min-w-0 flex-1">
-              <span className="roast-finding-chip mb-1.5 inline-flex max-w-full items-center rounded-md border border-orange-500/25 bg-orange-500/10 px-2 py-0.5 text-[0.8rem] font-semibold text-orange-200">
-                {chip}
-              </span>
-              <div className="mt-1 leading-relaxed text-zinc-300">{rest}</div>
-            </div>
-          </div>
-        </li>
-      );
-    }
-    return <li className="leading-relaxed">{children}</li>;
-  },
-  strong: ({ children }) => <strong className="font-semibold text-zinc-100">{children}</strong>,
-  a: ({ children, href }) => (
-    <a href={href} className="text-orange-300 hover:underline">
-      {children}
-    </a>
-  ),
-  code: ({ children, className }) =>
-    className ? (
-      <code className={className}>{children}</code>
-    ) : (
-      <code className="break-all rounded bg-white/5 px-1 py-0.5 font-mono text-[0.85em] text-orange-200">
-        {children}
-      </code>
+function makeComponents(): Components {
+  return {
+    h1: ({ children }) => <h1 className="roast-h1">{children}</h1>,
+    h2: ({ children }) => <h2 className="roast-h2">{children}</h2>,
+    h3: ({ children }) => {
+      const raw = textOf(children).trim();
+      // Hide empty "维度评分" heading — grid has its own visual weight.
+      if (/^(维度评分|Dimensions)$/.test(raw)) return null;
+      return <h3 className="roast-h3">{children}</h3>;
+    },
+    h4: ({ children }) => {
+      // Dimension h4s are extracted; leftover h4s render plain.
+      return <h4 className="roast-h4">{children}</h4>;
+    },
+    p: ({ children }) => {
+      const raw = textOf(children).trim();
+      if (/^(风险标记|Red flags)\s*[:：]/.test(raw) && /(?:无|None)\s*$/.test(raw)) {
+        return <p className="roast-risk-inline">{children}</p>;
+      }
+      return <p className="roast-p">{children}</p>;
+    },
+    blockquote: ({ children }) => (
+      <blockquote className="roast-verdict not-italic">{children}</blockquote>
     ),
-  // Non-dimension tables (rare) still render; dimension tables are rewritten away.
-  table: ({ children }) => <table className="my-3 w-full border-collapse text-sm">{children}</table>,
-  th: ({ children }) => (
-    <th className="border-b border-white/15 px-2 py-1.5 text-left font-semibold text-zinc-200">{children}</th>
-  ),
-  td: ({ children }) => <td className="border-b border-white/5 px-2 py-1.5 text-zinc-300">{children}</td>,
-  hr: () => <hr className="my-6 border-white/10" />,
-};
+    ul: ({ children }) => <ul className="roast-advice">{children}</ul>,
+    ol: ({ children }) => <ol className="roast-findings">{children}</ol>,
+    li: ({ children }) => {
+      const { chip, rest } = splitLeadingStrong(children);
+      if (chip) {
+        return (
+          <li className="roast-finding">
+            <span className="roast-finding-num" aria-hidden />
+            <div className="roast-finding-body">
+              <strong className="roast-finding-title">{chip}</strong>
+              <span className="roast-finding-text">{rest}</span>
+            </div>
+          </li>
+        );
+      }
+      return <li>{children}</li>;
+    },
+    strong: ({ children }) => <strong className="roast-strong">{children}</strong>,
+    a: ({ children, href }) => (
+      <a href={href} className="roast-a">
+        {children}
+      </a>
+    ),
+    code: ({ children, className }) =>
+      className ? (
+        <code className={className}>{children}</code>
+      ) : (
+        <code className="roast-code">{children}</code>
+      ),
+    table: ({ children }) => <table className="roast-table">{children}</table>,
+    th: ({ children }) => <th className="roast-th">{children}</th>,
+    td: ({ children }) => <td className="roast-td">{children}</td>,
+    hr: () => <hr className="roast-hr" />,
+  };
+}
 
-export function RoastReport({ markdown, className = "" }: { markdown: string; className?: string }) {
-  const source = useMemo(() => rewriteLegacyRoastMarkdown(markdown ?? ""), [markdown]);
+const components = makeComponents();
+
+export function RoastReport({
+  markdown,
+  className = "",
+  tier,
+}: {
+  markdown: string;
+  className?: string;
+  /** Profile tier — drives score/bar/chip/verdict accents via data-tier-tone. */
+  tier?: Tier | null;
+}) {
+  const tone = tier ? TIER_KEY[tier] : "elite";
+  const { before, dims, after } = useMemo(() => {
+    const rewritten = collapseEmptyRisk(rewriteLegacyRoastMarkdown(markdown ?? ""));
+    return splitDimensionSection(rewritten);
+  }, [markdown]);
+
   return (
-    <div dir="ltr" className={`report roast-report text-[0.95rem] text-zinc-200 ${className}`.trim()}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {source}
-      </ReactMarkdown>
+    <div
+      dir="ltr"
+      data-tier-tone={tone}
+      className={`report roast-report ${className}`.trim()}
+    >
+      {before ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {before}
+        </ReactMarkdown>
+      ) : null}
+      {dims.length > 0 ? (
+        <section className="roast-dims" aria-label="维度评分">
+          {dims.map((d) => (
+            <DimCardView key={d.name} {...d} />
+          ))}
+        </section>
+      ) : null}
+      {after ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {after}
+        </ReactMarkdown>
+      ) : null}
     </div>
   );
 }

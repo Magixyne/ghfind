@@ -397,6 +397,12 @@ const SCORE_META_FILLER_RE =
 /** Stiff knife/craft metaphors that pile up. */
 const STIFF_METAPHOR_RE =
   /亮仓刀|刀却都在|刀口在|砍一刀|客座刀|(?:你的)?手艺/;
+/** Jokes that punch down on a low merged-PR count ("只合了 1 个 PR"). */
+const LOW_MERGED_PR_JOKE_RE =
+  /(?:只|才|就)\s*(?:合[了进入]?|合并了?|合进了?)\s*\d+\s*个?\s*(?:已合并\s*)?PR|已合并\s*PR\s*就\s*\d+|合进去的已合并\s*PR\s*就\s*\d+|PR\s*就\s*1\s*个|作业交了一份/;
+/** Meta filler about the scanner itself ("扫描没有关闭原因"). */
+const SCAN_META_FILLER_RE =
+  /扫描没有[^。！？!?\n]{0,16}原因|扫描(?:只|仅)有计数|没有关闭原因|扫描仪?没有|scan\s+has\s+no\s+clos(?:e|ing)\s+reason/i;
 /** Third-person gendered pronouns — always address as 你. Skip 其他/他人. */
 const GENDERED_PRONOUN_RE =
   /(?<![其])她|(?<![其])他(?![人们])/;
@@ -483,6 +489,12 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   if (STIFF_METAPHOR_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "stiff knife/手艺 metaphors are banned — witty framing from the work itself" });
   }
+  if (LOW_MERGED_PR_JOKE_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "low merged-PR-count joke is banned — write what the one PR did, not that there was only one" });
+  }
+  if (SCAN_META_FILLER_RE.test(text)) {
+    issues.push({ kind: "trivia", field, detail: "scan-meta filler (扫描没有关闭原因) is banned — omit the reason or drop the clause" });
+  }
   if (GENDERED_PRONOUN_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "never infer gender — address the subject as 你 / you" });
   }
@@ -552,7 +564,42 @@ export function validateCopy(index: FactIndex, copy: V13Copy, lang: "zh" | "en")
     }
   });
   issues.push(...metaphorOnceIssues(copy));
+  issues.push(...findingSubjectIssues(copy));
   return issues;
+}
+
+
+/** Each finding must stay on one subject; body must name what the headline points at. */
+function findingSubjectIssues(copy: V13Copy): V13Issue[] {
+  const out: V13Issue[] = [];
+  const repoRe = /`?[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+`?/g;
+  copy.findings.forEach((f, i) => {
+    const text = f.text || "";
+    const head = f.headline || "";
+    const repos = [...new Set((text.match(repoRe) || []).map((r) => r.replace(/`/g, "").toLowerCase()))];
+    // Abrupt subject jump: 2+ distinct repos AND a mid-sentence pivot like "回到/另|隔壁仓已说过的另一仓"
+    if (repos.length >= 2 && /[。；;]\s*(?:回到|另[一外]?边?|再看|至于|而在)/.test(text)) {
+      out.push({
+        kind: "structure",
+        field: `findings[${i}].text`,
+        detail: "finding jumps subjects mid-way — keep one subject per finding",
+      });
+    }
+    // Title mentions a notes/blog-ish noun but body never names a concrete repo/subject token from title
+    const titleTokens = head.replace(/[的与和及]/g, " ").split(/\s+/).filter((w) => w.length >= 2);
+    const bodyHasTitleHook = titleTokens.some((tok) => text.includes(tok));
+    const bodyHasRepo = repos.length > 0;
+    // If headline is non-empty and body has neither a title token nor any named repo, flag.
+    // (loose: only when body uses vague 旁边/那边 without a named subject)
+    if (head && /旁边|那边|那份|上述/.test(text) && !bodyHasRepo) {
+      out.push({
+        kind: "structure",
+        field: `findings[${i}].text`,
+        detail: "finding body must name the subject its title refers to (no dangling 旁边)",
+      });
+    }
+  });
+  return out;
 }
 
 /** Any distinctive metaphor word may appear at most once across the whole report. */

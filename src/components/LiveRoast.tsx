@@ -274,7 +274,7 @@ export function LiveRoast({
       )}
 
       {reportBody && (
-        <RoastReport markdown={reportBody} className={report ? "caret" : ""} />
+        <RoastReport markdown={reportBody} className={report ? "caret" : ""} tier={scan?.scoring?.tier ?? fallbackMeta?.tier} />
       )}
     </>
   );

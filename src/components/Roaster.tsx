@@ -583,6 +583,7 @@ export function Roaster({
               <RoastReport
                 markdown={reportBody}
                 className={roasting && !roastLine ? "caret" : ""}
+                tier={display?.tier}
               />
             </div>
           )}

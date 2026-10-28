@@ -995,7 +995,7 @@ export function ProfileView({
                 />
               )}
               */}
-              <RoastReport markdown={roast} />
+              <RoastReport markdown={roast} tier={d.tier} />
             </>
           )
         ) : shouldStreamRoast ? (
@@ -1017,7 +1017,7 @@ export function ProfileView({
             lang={lang}
             staleReport={
               staleRoast ? (
-                <RoastReport markdown={staleRoast} />
+                <RoastReport markdown={staleRoast} tier={d.tier} />
               ) : null
             }
           />

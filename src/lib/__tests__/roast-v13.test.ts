@@ -161,8 +161,7 @@ describe("roast v13 rendering", () => {
     expect(md).toContain("### 扎心三连");
     expect(md).toContain("> **一句话结论**");
     expect(md).toMatch(/#### .+ · \d/);
-    expect(md).toContain("### 风险标记");
-    expect(md).toContain("无。");
+    expect(md).toContain("**风险标记**：无");
     const en = renderV13Report(scan, "en", copy);
     expect(en).toContain("SOLID (Solid · Trustworthy)");
     expect(en).toContain("#### Account maturity · 10/10");
@@ -675,7 +674,14 @@ describe("roast v13 commit-contrast and metaphor bans", () => {
     expect(b.some((i) => /commits↔merged|提交↔合入/i.test(i.detail))).toBe(true);
   });
 
-  it("bans long English verbatim quotes", () => {
+  it("bans low merged-PR-count jokes and scan-meta filler", () => {
+    const a = checkTrivia(index, "findings[1].text", "隔壁讲原理课,你是协作者,合进去的已合并 PR 就 1 个。作业交了一份。");
+    expect(a.some((i) => /low merged-PR|合入数量|only one/i.test(i.detail))).toBe(true);
+    const b = checkTrivia(index, "findings[2].text", "另有 8 个 PR 被维护者关闭且未合并,扫描没有关闭原因。");
+    expect(b.some((i) => /scan-meta|扫描没有/i.test(i.detail))).toBe(true);
+  });
+
+    it("bans long English verbatim quotes", () => {
     const issues = checkTrivia(
       index,
       "findings[2].text",
