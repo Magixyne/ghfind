@@ -57,7 +57,7 @@ const lg = (n: number) => Math.log10(Math.max(1, n));
 const clamp01 = (n: number) => Math.max(0, Math.min(1, Math.round(n * 100) / 100));
 
 const FAMOUS_STARS = 10_000;
-const TOKEN_WORK = 10;
+const TOKEN_WORK = 15;
 const MAJOR_COMMITS = 50;
 const MAJOR_PRS = 20;
 

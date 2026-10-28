@@ -393,7 +393,7 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
     const lower = text.toLowerCase();
     for (const [key, work] of index.work) {
       // Token touch to a famous repo (≤10 lifetime PRs+commits) is not a point.
-      if ((index.repos.get(key) ?? 0) < 10_000 || work > 10) continue;
+      if ((index.repos.get(key) ?? 0) < 10_000 || work > 15) continue;
       const name = key.split("/")[1];
       // Full owner/repo, or the bare repo name as a standalone word.
       const bare = name.length >= 3 && new RegExp(`(^|[^a-z0-9_.-])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9_-])`).test(lower);
