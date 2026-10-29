@@ -394,7 +394,15 @@
     "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)",
     "scoreReadyHint": "Điểm đã ra. Nhận xét tới ngay",
     "adventurerLevel": "Cấp độ mạo hiểm giả",
-    "preciseScoreTitle": "Điểm tổng {score}"
+    "preciseScoreTitle": "Điểm tổng {score}",
+    "liveTimeout": "Roast hết thời gian chờ. Thử lại sau; điểm và roast cũ vẫn được giữ.",
+    "scoreStateRescanTimeout": "Đánh giá lại hết thời gian chờ. Thử lại sau",
+    "evaluateStageFetch": "Đang lấy dữ liệu",
+    "evaluateStageAnalyze": "Đang phân tích repo",
+    "evaluateStageRoast": "Đang viết roast",
+    "evaluateError": "Lần này chưa xong. Thử lại nhé.",
+    "evaluateTimeout": "Lâu quá nên tạm dừng. Bạn có thể thử lại.",
+    "evaluateRetry": "Thử lại"
   },
   "reactions": {
     "heading": "Phản ứng cộng đồng",
@@ -415,7 +423,8 @@
     "scanning": "Đang quét…",
     "roasting": "Đang tạo nhận xét…",
     "error": "Đánh giá thất bại, thử lại sau",
-    "cooldown": "Có thể làm mới sau {hours}h"
+    "cooldown": "Có thể làm mới sau {hours}h",
+    "timeout": "Roast hết thời gian chờ. Thử lại sau"
   },
   "detailMeta": {
     "unratedTitle": "{username} · Hồ sơ nhà phát triển",

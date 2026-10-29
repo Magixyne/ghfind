@@ -9,6 +9,7 @@ import { RealmChip } from "@/components/realm/RealmGlyph";
 import { realmForScore } from "@/lib/realm";
 import { DimensionStarChart } from "@/components/DimensionStarChart";
 import { LiveRoast } from "@/components/LiveRoast";
+import { ProfileEvaluateRunner } from "@/components/ProfileEvaluateRunner";
 import { StaleScanHint } from "@/components/StaleScanHint";
 import { StaleScoreRescan } from "@/components/StaleScoreRescan";
 import { DIMENSIONS } from "@/lib/dimensions";
@@ -76,8 +77,20 @@ export function PendingProfile({
     if (!resolved) {
       return (
         <main className="flex w-full flex-1 items-center justify-center px-5 py-20">
-          <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-orange-300/40 border-t-orange-200" />
+          <span className="inline-block h-6 w-6 motion-safe:animate-spin motion-reduce:animate-none rounded-full border-2 border-orange-300/40 border-t-orange-200" />
         </main>
+      );
+    }
+    // Homepage handoff arrived before the scan finished → run evaluate here.
+    if (fromHome) {
+      return (
+        <ProfileEvaluateRunner
+          username={username}
+          onReady={(next) => {
+            setScan(next);
+            setResolved(true);
+          }}
+        />
       );
     }
     // No scan anywhere (direct visit to an unscanned handle) → point home.

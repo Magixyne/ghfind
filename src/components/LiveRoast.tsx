@@ -12,6 +12,7 @@ import { splitReport } from "@/lib/report";
 import { normLang } from "@/lib/lang";
 import { tagsForLocale } from "@/lib/roast-tags";
 import { consumeRoastStream } from "@/lib/roast-stream";
+import { isRoastClientTimeout, roastClientSignal } from "@/lib/roast-client-timeout";
 import { readRoastStart } from "@/lib/roast-progress";
 import type { RoastLine, RoastMeta, ScanResult, Tags } from "@/lib/types";
 import { RoastResultModal } from "./RoastResultModal";
@@ -153,6 +154,7 @@ export function LiveRoast({
         const res = await fetch("/api/roast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: roastClientSignal(),
           // Send the handed-off scan when present (works without a server cache);
           // the route falls back to its own cached scan otherwise. byoKey is
           // always null here (BYO roasts stay on the home page, since they
@@ -212,8 +214,8 @@ export function LiveRoast({
           // Cached replay for a non-handoff visitor → no popup, refresh now.
           refreshOnce();
         }
-      } catch {
-        fail("liveError");
+      } catch (error) {
+        fail(isRoastClientTimeout(error) ? "liveTimeout" : "liveError");
       }
     })();
   }, [username, scan, sessionScan, locale, refresh, openModalOnMount, fallbackReport, fallbackMeta, refreshOnce, attempt]);
@@ -322,6 +324,8 @@ export function LiveRoast({
 function mapError(code: string | undefined): string {
   if (code === "rate_limited") return "liveRateLimited";
   if (code === "missing_scan") return "liveExpired";
+  if (code === "llm_quota") return "liveQuota";
+  if (code === "roast_timeout") return "liveTimeout";
   return "liveError";
 }
 

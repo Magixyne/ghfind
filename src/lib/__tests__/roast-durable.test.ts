@@ -3,6 +3,8 @@ import { roastProgress } from "../roast-progress";
 
 /** Matches V13_CHAIN_BUDGET_MS in roast-handler. Kept local so this file does not load Next. */
 const CHAIN_BUDGET_MS = 7 * 60_000;
+/** Matches V13_ATTACH_BUDGET_MS — interactive attach wait before v12 fallback. */
+const ATTACH_BUDGET_MS = 100_000;
 
 /**
  * In-memory RoastJob. Mirrors apps/coord/src/roast-job.ts: one record per
@@ -133,7 +135,7 @@ describe("durable v13 roast job", () => {
     expect(other.stub.claim("FixtureDev", "zh").started).toBe(true);
   });
 
-  it("falls back to v12 after the 7-minute budget and does not start a second chain", async () => {
+  it("falls back to v12 after the interactive attach budget and does not start a second chain", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     const job = memoryJob(() => Date.now());
@@ -148,13 +150,14 @@ describe("durable v13 roast job", () => {
       lang: "zh",
       username: "FixtureDev",
       snapshotHash: "a".repeat(64),
-      deadlineMs: CHAIN_BUDGET_MS,
+      // Interactive path uses the attach budget, not the full 7-minute chain budget.
+      deadlineMs: ATTACH_BUDGET_MS,
       readCached: async () => null,
       metaFor: async () => {
         throw new Error("no cached roast");
       },
       matchesLang: () => true,
-      // Each wait is one second of the chain budget, with no real delay.
+      // Each wait is one second of the attach budget, with no real delay.
       sleep: async (ms) => {
         vi.setSystemTime(Date.now() + ms);
       },
@@ -163,6 +166,9 @@ describe("durable v13 roast job", () => {
     expect(job.stub.status()?.fallback).toBe("v12");
     expect(job.alarms()).toBe(1);
     expect(frames[0]?.startsWith("\x1fS")).toBe(true);
+    // Attach must not wait the full chain budget or the Worker dies first.
+    expect(Date.now()).toBeLessThanOrEqual(ATTACH_BUDGET_MS + 2_000);
+    expect(Date.now()).toBeLessThan(CHAIN_BUDGET_MS / 2);
     vi.unstubAllGlobals();
   });
 

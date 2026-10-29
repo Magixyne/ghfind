@@ -394,7 +394,15 @@
     "coCreatorShare": "Liderado / cocreado ({share}%)",
     "scoreReadyHint": "La puntuación ya está. El roast llega enseguida",
     "adventurerLevel": "Nivel de aventurero",
-    "preciseScoreTitle": "Puntuación {score}"
+    "preciseScoreTitle": "Puntuación {score}",
+    "liveTimeout": "La evaluación agotó el tiempo de espera. Inténtalo más tarde; se conserva la puntuación y el roast previos.",
+    "scoreStateRescanTimeout": "La reevaluación agotó el tiempo de espera. Inténtalo más tarde",
+    "evaluateStageFetch": "Obteniendo datos",
+    "evaluateStageAnalyze": "Analizando repos",
+    "evaluateStageRoast": "Generando el roast",
+    "evaluateError": "Esta vez no terminó. Inténtalo de nuevo.",
+    "evaluateTimeout": "Tardó demasiado; lo detuvimos. Puedes reintentar.",
+    "evaluateRetry": "Reintentar"
   },
   "reactions": {
     "heading": "Reacciones de la comunidad",
@@ -415,7 +423,8 @@
     "scanning": "Analizando…",
     "roasting": "Generando comentario…",
     "error": "La evaluación falló, inténtalo más tarde",
-    "cooldown": "Podrás refrescar en {hours}h"
+    "cooldown": "Podrás refrescar en {hours}h",
+    "timeout": "La evaluación agotó el tiempo de espera. Inténtalo más tarde"
   },
   "detailMeta": {
     "unratedTitle": "{username} · Perfil de desarrollador",

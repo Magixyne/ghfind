@@ -394,7 +394,15 @@
     "coCreatorShare": "Dipimpin / dibangun bersama ({share}%)",
     "scoreReadyHint": "Skor sudah keluar. Roast-nya menyusul",
     "adventurerLevel": "Level petualang",
-    "preciseScoreTitle": "Skor gabungan {score}"
+    "preciseScoreTitle": "Skor gabungan {score}",
+    "liveTimeout": "Roast kehabisan waktu tunggu. Coba lagi nanti; skor dan roast sebelumnya tetap ada.",
+    "scoreStateRescanTimeout": "Evaluasi ulang kehabisan waktu. Coba lagi nanti",
+    "evaluateStageFetch": "Mengambil data",
+    "evaluateStageAnalyze": "Menganalisis repo",
+    "evaluateStageRoast": "Menulis roast",
+    "evaluateError": "Kali ini belum selesai. Coba lagi.",
+    "evaluateTimeout": "Terlalu lama; kami hentikan dulu. Anda bisa coba lagi.",
+    "evaluateRetry": "Coba lagi"
   },
   "reactions": {
     "heading": "Reaksi komunitas",
@@ -415,7 +423,8 @@
     "scanning": "Memindai…",
     "roasting": "Membuat komentar…",
     "error": "Evaluasi gagal, coba lagi nanti",
-    "cooldown": "Refresh tersedia dalam {hours} jam"
+    "cooldown": "Refresh tersedia dalam {hours} jam",
+    "timeout": "Roast kehabisan waktu. Coba lagi nanti"
   },
   "detailMeta": {
     "unratedTitle": "{username} · Profil pengembang",

@@ -394,7 +394,15 @@
     "coCreatorShare": "قيادة / بناء مشترك (حصة {share}%)",
     "scoreReadyHint": "النتيجة جاهزة، والتقييم في الطريق",
     "adventurerLevel": "مستوى المغامر",
-    "preciseScoreTitle": "النتيجة المركّبة {score}"
+    "preciseScoreTitle": "النتيجة المركّبة {score}",
+    "liveTimeout": "انتهت مهلة انتظار التقييم. أعد المحاولة لاحقًا؛ تبقى الدرجة والتقييم السابق.",
+    "scoreStateRescanTimeout": "انتهت مهلة إعادة التقييم. أعد المحاولة لاحقًا",
+    "evaluateStageFetch": "جلب البيانات",
+    "evaluateStageAnalyze": "تحليل المستودعات",
+    "evaluateStageRoast": "كتابة التقييم",
+    "evaluateError": "لم تكتمل هذه المحاولة. أعد المحاولة.",
+    "evaluateTimeout": "استغرق الأمر وقتًا طويلًا فتوقفنا. يمكنك إعادة المحاولة.",
+    "evaluateRetry": "إعادة المحاولة"
   },
   "reactions": {
     "heading": "تفاعلات المجتمع",
@@ -415,7 +423,8 @@
     "scanning": "جارٍ الفحص…",
     "roasting": "جارٍ إنشاء التعليق…",
     "error": "فشل التقييم، حاول لاحقًا",
-    "cooldown": "التحديث متاح بعد {hours} ساعة"
+    "cooldown": "التحديث متاح بعد {hours} ساعة",
+    "timeout": "انتهت مهلة التقييم. أعد المحاولة لاحقًا"
   },
   "detailMeta": {
     "unratedTitle": "{username} · ملف المطور",
