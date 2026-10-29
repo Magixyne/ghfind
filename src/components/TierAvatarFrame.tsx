@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { TIER_ZH } from "@/lib/badge";
 import { tierAvatarFrame } from "@/lib/tier";
 import type { Tier } from "@/lib/types";
 
@@ -64,7 +65,7 @@ export function TierAvatarFrame({
     <div
       className={`relative flex shrink-0 items-center justify-center rounded-full ${classes.shell} ${frame.bg} ring-2 ${frame.ring} ${className}`}
       style={{ boxShadow: `var(--tw-ring-shadow, 0 0 #0000), 0 0 ${size === "feed" ? "18px -3px" : "34px -6px"} ${frame.glow}` }}
-      aria-label={`${tier} avatar frame`}
+      aria-label={`${TIER_ZH[tier]} avatar frame`}
     >
       <div className={`absolute ${size === "feed" ? "inset-1" : "inset-2"} rounded-full border border-white/10`} />
 
