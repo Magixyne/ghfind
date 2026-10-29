@@ -13,7 +13,7 @@ describe("tier avatar frames", () => {
       夯: "👑",
       顶级: "🥇",
       人上人: "👍",
-      NPC: "🙂",
+      NPC: "📜",
       拉完了: "🌱",
     };
 

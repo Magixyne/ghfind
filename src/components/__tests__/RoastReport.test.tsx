@@ -7,7 +7,7 @@ import en from "@/messages/en.json";
 import { describe, expect, it } from "vitest";
 import { RoastReport, elementTag } from "@/components/RoastReport";
 
-const SAMPLE = `## LofiSu — 54.40/100  ·  NPC (普通账号)
+const SAMPLE = `## LofiSu — 54.40/100  ·  学徒 (稳步积累)
 
 **称号**: 对话前台修理师
 

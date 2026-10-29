@@ -18,7 +18,7 @@ export const TIER_EN: Record<Tier, string> = {
   夯: "GOD",
   顶级: "ELITE",
   人上人: "SOLID",
-  NPC: "NPC",
+  NPC: "APPRENTICE",
   拉完了: "NEWBIE",
 };
 
@@ -27,7 +27,7 @@ export const TIER_ZH: Record<Tier, string> = {
   夯: "夯",
   顶级: "顶级",
   人上人: "人上人",
-  NPC: "NPC",
+  NPC: "学徒",
   拉完了: "新手村",
 };
 
@@ -36,7 +36,7 @@ export const TIER_LABEL_EN: Record<Tier, string> = {
   夯: "Legendary · Hall of Fame",
   顶级: "Elite · Top-tier dev",
   人上人: "Solid · Trustworthy",
-  NPC: "Average · Unremarkable",
+  NPC: "Steadily building · Keep polishing",
   拉完了: "Just getting started · Keep shipping",
 };
 

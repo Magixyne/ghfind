@@ -107,7 +107,7 @@ export const TIER_AVATAR_FRAMES: Record<Tier, TierAvatarFrame> = {
     glow: "rgba(52,211,153,0.5)",
   },
   NPC: {
-    emoji: "🙂",
+    emoji: "📜",
     icon: "smile",
     placements: ["bottom"],
     emojiSize: "normal",
@@ -156,12 +156,12 @@ export const TIER_STYLES: Record<Tier, TierStyle> = {
   },
   NPC: {
     tier: "NPC",
-    emoji: "🫥",
+    emoji: "📜",
     text: "text-sky-300",
     ring: "ring-sky-400/50",
     glow: "rgba(56,189,248,0.28)",
     hex: "#7dd3fc", // sky-300 — distinct from newbie grey
-    blurb: "普通账号 · 特征平庸存疑",
+    blurb: "稳步积累 · 继续打磨作品",
   },
   拉完了: {
     tier: "拉完了",

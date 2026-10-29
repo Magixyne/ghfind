@@ -83,6 +83,7 @@ export const V13_SNARK_BANNED_ZH = [
   "简历滤镜", "开源人设包装", "开源橱窗",
   // Lowest-tier display must stay friendly (canonical key 拉完了 is internal-only).
   "拉完了", "低价值", "疑似刷量", "AI 机器人",
+  "普通账号", "特征平庸", "平庸存疑", "平庸",
 ] as const;
 
 export const V13_SNARK_BANNED_EN = [
@@ -92,7 +93,7 @@ export const V13_SNARK_BANNED_EN = [
   "mediocre signal", "hollow project", "drive-by PR",
   "shameful", "pathetic", "garbage repo", "nobody cares about you",
   // Lowest-tier display must stay friendly (tier_key "trash" is internal-only).
-  "low-value", "likely farmed",
+  "low-value", "likely farmed", "unremarkable", "mediocre",
 ] as const;
 
 export const SAFETY_ZH = `## 安全底线(违反任何一条整篇作废)
