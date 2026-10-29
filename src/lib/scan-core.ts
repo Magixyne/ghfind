@@ -245,6 +245,7 @@ export function applyPublicContributionAggregate(
     impact_prestige_score: impact.impact_prestige_score,
     impact_depth_raw: impact.impact_depth_raw,
     impact_repo_count: impact.impact_repo_count,
+    impact_repos: impact.impact_repos,
     impact_commit_count: impact.impact_commit_count,
     impact_pr_count: impact.impact_pr_count,
     ...quality,

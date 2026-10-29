@@ -38,8 +38,8 @@ func TestContributionQualityRecognitionGolden(t *testing.T) {
 	for _, stars := range []float64{0, 950, 1000, 1050, 2507, 1000000} {
 		m := base
 		m.MaxStars = stars
-		if got := Score(m).SubScores.ContributionQuality; got != 20 {
-			t.Fatalf("own stars bypassed cap: %v", got)
+		if got := Score(m).SubScores.ContributionQuality; got < 19 || got > 20 {
+			t.Fatalf("own stars bypassed the smooth ceiling: %v", got)
 		}
 	}
 	for _, n := range []float64{0, 1, 22, 10000} {

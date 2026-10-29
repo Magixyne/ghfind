@@ -10,10 +10,10 @@ describe("v18 contribution recognition", () => {
     const actual = score(metrics as RawMetrics);
     expect(actual).toMatchObject(expected);
     expect(lowPrestigeBulkContributionCap(metrics as RawMetrics)).toBeCloseTo(cap, 12);
-    // Only the contribution dimension and its aggregate/rank may change.
-    const { contribution_quality: _oldQuality, ...oldDimensions } = before.sub_scores;
-    const { contribution_quality: _newQuality, ...newDimensions } = actual.sub_scores;
-    expect(newDimensions).toEqual(oldDimensions);
+    // v19 also rescores ecosystem impact. The other four dimensions stay put.
+    for (const key of ["account_maturity", "original_project_quality", "community_influence", "activity_authenticity"] as const) {
+      expect(actual.sub_scores[key]).toBe(before.sub_scores[key]);
+    }
     expect(actual.total_penalty).toBe(before.total_penalty);
     expect(actual.red_flags).toEqual(before.red_flags);
   });
@@ -23,7 +23,8 @@ describe("v18 contribution recognition", () => {
       for (const merged_pr_count of [123, 200, 10000]) {
         const m = { ...own, max_stars, merged_pr_count };
         expect(lowPrestigeBulkContributionCap(m)).toBe(20);
-        expect(score(m).sub_scores.contribution_quality).toBe(20);
+        expect(score(m).sub_scores.contribution_quality).toBeLessThanOrEqual(20);
+        expect(score(m).sub_scores.contribution_quality).toBeGreaterThanOrEqual(19);
       }
     }
   });
@@ -47,7 +48,9 @@ describe("v18 contribution recognition", () => {
     const capAt = (n: number) => lowPrestigeBulkContributionCap({ ...base, external_merged_pr_count: n })!;
     expect(capAt(160) - capAt(80)).toBeLessThan(capAt(80) - capAt(0));
     expect(capAt(123)).toBeLessThan(26);
-    expect(score({ ...base, external_merged_pr_count: 600 }).sub_scores.contribution_quality).toBe(27);
+    const saturated = score({ ...base, external_merged_pr_count: 600 }).sub_scores.contribution_quality;
+    expect(saturated).toBeGreaterThan(26.5);
+    expect(saturated).toBeLessThanOrEqual(27);
   });
 
   it("keeps legacy unknown ownership distinct from measured zero and bounds inputs", () => {

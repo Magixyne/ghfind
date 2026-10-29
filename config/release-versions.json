@@ -3,10 +3,10 @@
   "previousRelease": {
     "score": "v18",
     "roast": "v12",
-    "collection": "v6"
+    "collection": "v7"
   },
   "targetRelease": {
-    "score": "v18",
+    "score": "v19",
     "roast": "v12",
     "collection": "v7"
   },
@@ -17,6 +17,7 @@
   },
   "compatibility": {
     "publicScoreReadOrder": [
+      "v19",
       "v18",
       "v17",
       "v16",
@@ -27,7 +28,7 @@
     ],
     "roastReplay": [
       {
-        "score": "v18",
+        "score": "v19",
         "roast": "v12"
       }
     ],
@@ -45,18 +46,19 @@
       "v10"
     ],
     "retainedCollectionVersions": [
+      "v6",
       "v5"
     ]
   },
   "legacyReadFallback": {
     "score": "v18",
     "roast": "v12",
-    "collection": "v6"
+    "collection": "v7"
   },
   "changeControl": {
     "maxComponentsPerPullRequest": 1,
     "approvedMultiComponentIssue": null
   },
   "aliases": [],
-  "releasePlan": "docs/releases/v18-v12-v7-scan-mvp.md"
+  "releasePlan": "docs/releases/v19-v12-v7-smooth-impact.md"
 }
