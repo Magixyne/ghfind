@@ -263,18 +263,43 @@ describe("buildRoastMessages", () => {
     expect(enSys.content).toContain("Open-issue counts are **not** a flaw");
   });
 
-  it("requires clearer name-vs-substance callouts for NPC and trash tiers without insults", () => {
+  it("requires clearer name-vs-substance callouts for low scores without insults", () => {
     const [zhSys] = buildRoastMessages(scan, "zh");
-    expect(zhSys.content).toContain("用两个以上证据点串成一句准确观察");
+    expect(zhSys.content).toContain("用两个以上证据点串成一句");
+    expect(zhSys.content).toContain("准确又好玩");
     expect(zhSys.content).toContain("GitHub 更像作品展板");
     expect(zhSys.content).toContain("名气跑在仓库前面");
     expect(zhSys.content).toContain("两个以上证据点");
     expect(zhSys.content).toContain("用调笑不是羞辱");
+    expect(zhSys.content).toContain("总分 < 40");
+    expect(zhSys.content).toContain("幽默对齐 v13");
+    expect(zhSys.content).toContain("拉完了");
+    expect(zhSys.content).toContain("NPC");
+    expect(zhSys.content).toContain("平庸");
+    expect(zhSys.content).toContain("存疑");
+    // Instructional copy must not steer the model with old tier labels as headings.
+    expect(zhSys.content).not.toContain("## NPC /");
+    expect(zhSys.content).not.toMatch(/NPC=点出名实落差/);
 
     const [enSys] = buildRoastMessages(scan, "en");
     expect(enSys.content).toContain("Scale tone by realm");
     expect(enSys.content).toContain("name-vs-substance");
     expect(enSys.content).toContain("constructive off-ramp");
+    expect(enSys.content).toContain("final_score < 40");
+    expect(enSys.content).toContain("same humor bar as v13");
+    expect(enSys.content).not.toContain("## NPC / TRASH");
+  });
+
+  it("bakes shared snark bans into the interactive v12 system prompt", () => {
+    const [zhSys] = buildRoastMessages(scan, "zh");
+    expect(zhSys.content).toContain("硬禁词");
+    expect(zhSys.content).toContain("延续 v13 的幽默风趣文笔");
+    for (const banned of ["拉完了", "NPC", "平庸", "存疑", "嘴臭", "毒舌"] as const) {
+      expect(zhSys.content).toContain(banned);
+    }
+    const [enSys] = buildRoastMessages(scan, "en");
+    expect(enSys.content).toContain("Hard bans");
+    expect(enSys.content).toContain("Interactive v12 must keep v13");
   });
 
   it("makes the top roast the main shareable observation instead of the report summary", () => {

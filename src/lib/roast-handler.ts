@@ -51,6 +51,7 @@ import { tierFor } from "@/lib/score";
 import type { RoastLine, RoastMeta, ScanResult, Tags, Tier } from "@/lib/types";
 import { USERNAME_RE } from "@/lib/username";
 import { sanitizeRoastTags } from "./roast-tags";
+import { scrubBannedRoastSnark } from "@/lib/roast-v13/voice";
 
 /**
  * POST /api/roast implementation (src/app/api/roast/route.ts re-exports it).
@@ -491,11 +492,18 @@ function sanitizeRepoShorthandText(scan: ScanResult, text: string): string {
   return out;
 }
 
+function detectOutputLang(text: string): "zh" | "en" {
+  // Prefer Chinese scrub when CJK is present; otherwise English lexicon.
+  return /[\u4e00-\u9fff]/u.test(text) ? "zh" : "en";
+}
+
 function sanitizeOutputText(scan: ScanResult, text: string): string {
-  return sanitizeStrongCoreText(
+  const cleaned = sanitizeStrongCoreText(
     scan,
     sanitizeRepoShorthandText(scan, sanitizeInternalScoringText(text)),
   );
+  // Shared v12/v13 snark + old-tier label scrub (NPC / 拉完了 / 平庸 / 存疑 / …).
+  return scrubBannedRoastSnark(cleaned, detectOutputLang(cleaned));
 }
 
 function signatureWorkAppendix(scan: ScanResult, lang: Lang, report: string): string {
