@@ -99,11 +99,17 @@ function classifyLlmError(e: unknown): "timeout" | "quota" | "upstream" | "other
 }
 
 /**
- * v13 foreground budget. The chain runs on a RoastJob alarm, so this is not
- * the HTTP wall clock: an attached request may wait this long, then fall back
- * to v12 while the durable job is abandoned. Each step gets its own slice.
+ * Wall clock for the Durable Object v13 chain (RoastJob alarm / continue).
+ * Background generation may use the full budget; interactive HTTP attach must
+ * NOT wait this long or the Worker dies before v12 fallback can run.
  */
 export const V13_CHAIN_BUDGET_MS = 7 * 60_000;
+/**
+ * Interactive attach wait before abandoning a durable v13 job and falling
+ * through to the v12 single-call stream. Kept under the ~220s request LLM
+ * ceiling with room for one GENERATION_ATTEMPT_MS (~95s) v12 attempt.
+ */
+export const V13_ATTACH_BUDGET_MS = 100_000;
 export const V13_STEP_MS = 180_000;
 
 function v13StepsOf(e: unknown): V13StepLog[] {
@@ -1154,8 +1160,8 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
       // Roast v13: writer → editor chain with deterministic fact checks and a
       // code-rendered report. Opt-in (ROAST_GENERATOR=v13). A foreground request
       // claims one durable RoastJob per profile; the alarm runs the chain, and
-      // this stream only attaches. Any chain failure, or a wait past
-      // V13_CHAIN_BUDGET_MS, falls through to the v12 single-call stream below.
+      // this stream only attaches. Any chain failure, or a wait past the
+      // interactive attach budget, falls through to the v12 stream below.
       let generator: "v12" | "v13" | "v12_fallback" = "v12";
       let v13Steps: V13StepLog[] = [];
       let v13Error: string | null = null;
@@ -1175,7 +1181,11 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
               lang,
               username,
               snapshotHash,
-              deadlineMs: reqT0 + V13_CHAIN_BUDGET_MS,
+              // Cap wait so v12 fallback still fits inside llmDeadlineMs.
+              deadlineMs: Math.min(
+                reqT0 + V13_ATTACH_BUDGET_MS,
+                llmDeadlineMs - GENERATION_ATTEMPT_MS - 10_000,
+              ),
               readCached: getCachedRoast,
               metaFor: metaForStoredRoast,
               matchesLang: reportMatchesLang,
@@ -1193,9 +1203,9 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
               close();
               return;
             }
-            // No binding, a failed chain, or the 7-minute budget. A job was
-            // already claimed, so this request falls back to v12 instead of
-            // starting a second chain inline.
+            // No binding, a failed chain, or the interactive attach budget.
+            // A job was already claimed, so this request falls back to v12
+            // instead of starting a second chain inline.
             generator = "v12_fallback";
             v13Error = attached.reason;
           } catch (e) {
@@ -1215,7 +1225,10 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
               snapshotHash,
               scoreIdentity,
               llmConfigs,
-              deadlineMs: reqT0 + V13_CHAIN_BUDGET_MS,
+              deadlineMs: Math.min(
+                reqT0 + V13_CHAIN_BUDGET_MS,
+                llmDeadlineMs - GENERATION_ATTEMPT_MS - 10_000,
+              ),
               requestId,
               onStage: (label) => {
                 stage = label;
