@@ -282,8 +282,8 @@ func TestScanMVPCommitResourceLimitSubdividesInFullMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(strings.Join(fullScope.Reasons, ","), "commit_resource_limit") {
-		t.Fatal("full should still note the resource limit")
+	if strings.Contains(strings.Join(fullScope.Reasons, ","), "commit_resource_limit") {
+		t.Fatalf("full should not note resource limit after successful subdivision: %v", fullScope.Reasons)
 	}
 	if len(repos) != 3 {
 		t.Fatalf("expected 3 repos, got %+v", repos)

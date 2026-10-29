@@ -65,14 +65,17 @@ func (c *GitHubClient) fetchCommitContribReposByYear(ctx context.Context, userna
 	perYear, err := c.fetchCommitContribsBatch(ctx, username, capped)
 	completedYears := map[int]bool{}
 	recoverResourceLimitedYear := func(year int) ([]graphCommitContribNode, error) {
-		scope.note("commit_resource_limit")
+		// Quick mode notes and escalates. Full mode subdivides silently on success;
+		// note commit_resource_limit only when the year still cannot be recovered.
 		if !scope.Full {
+			scope.note("commit_resource_limit")
 			return nil, nil
 		}
 		from := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
 		to := time.Date(year+1, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second)
 		nodes, e := c.fetchCompleteCommitWindow(ctx, username, from, to)
 		if errors.Is(e, ErrGitHubResourceLimit) {
+			scope.note("commit_resource_limit")
 			return nil, nil
 		}
 		if e != nil {

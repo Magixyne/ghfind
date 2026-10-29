@@ -3512,14 +3512,21 @@ export async function fetchCommitContribReposByYear(
   const completedYears = new Set<number>();
 
   async function recoverResourceLimitedYear(year: number): Promise<YearContribs | null> {
-    scope?.note("commit_resource_limit");
-    if (!scope?.full) return null;
+    // Quick mode notes and escalates. Full mode subdivides silently on success;
+    // note commit_resource_limit only when the year still cannot be recovered.
+    if (!scope?.full) {
+      scope?.note("commit_resource_limit");
+      return null;
+    }
     try {
       const nodes = await completeYear(year);
       completedYears.add(year);
       return { commitContributionsByRepository: nodes };
     } catch (error) {
-      if (error instanceof GitHubResourceLimitError) return null;
+      if (error instanceof GitHubResourceLimitError) {
+        scope.note("commit_resource_limit");
+        return null;
+      }
       throw error;
     }
   }

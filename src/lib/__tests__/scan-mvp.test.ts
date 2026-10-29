@@ -168,7 +168,7 @@ it("subdivides a single-year RESOURCE_LIMITS response in full mode instead of dr
     full: true,
     note: (r) => fullReasons.push(r),
   });
-  expect(fullReasons).toContain("commit_resource_limit");
+  expect(fullReasons).not.toContain("commit_resource_limit");
   expect(full?.map((r) => [r.repo, r.commits, r.stars]).sort()).toEqual([
     ["fiction-org/mega", 4, 230000],
     ["fiction-org/shared", 5, 1000],
@@ -231,7 +231,7 @@ it("recovers only the resource-limited year when a multi-year batch hits RESOURC
     full: true,
     note: (r) => reasons.push(r),
   });
-  expect(reasons).toContain("commit_resource_limit");
+  expect(reasons).not.toContain("commit_resource_limit");
   expect(full?.map((r) => [r.repo, r.commits]).sort()).toEqual([
     ["fiction-org/calm", 9],
     ["fiction-org/hot", 5],
