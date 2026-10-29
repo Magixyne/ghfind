@@ -555,10 +555,10 @@ html[data-theme="light"] [data-force-dark] .text-orange-400 {
   --roast-tier-muted: rgba(56, 189, 248, 0.55);
 }
 .roast-report[data-tier-tone="trash"] {
-  --roast-tier: #fb7185;
-  --roast-tier-soft: rgba(251, 113, 133, 0.14);
-  --roast-tier-border: rgba(251, 113, 133, 0.34);
-  --roast-tier-muted: rgba(251, 113, 133, 0.55);
+  --roast-tier: #a1a1aa;
+  --roast-tier-soft: rgba(161, 161, 170, 0.14);
+  --roast-tier-border: rgba(161, 161, 170, 0.34);
+  --roast-tier-muted: rgba(161, 161, 170, 0.55);
 }
 html[data-theme="light"] .roast-report[data-tier-tone="god"] {
   --roast-tier: #a16207;
@@ -585,10 +585,10 @@ html[data-theme="light"] .roast-report[data-tier-tone="npc"] {
   --roast-tier-muted: rgba(2, 132, 199, 0.5);
 }
 html[data-theme="light"] .roast-report[data-tier-tone="trash"] {
-  --roast-tier: #be123c;
-  --roast-tier-soft: rgba(190, 18, 60, 0.1);
-  --roast-tier-border: rgba(190, 18, 60, 0.28);
-  --roast-tier-muted: rgba(190, 18, 60, 0.5);
+  --roast-tier: #52525b;
+  --roast-tier-soft: rgba(82, 82, 91, 0.1);
+  --roast-tier-border: rgba(82, 82, 91, 0.28);
+  --roast-tier-muted: rgba(82, 82, 91, 0.5);
 }
 
 /* Score-first roast placeholder. The ring reuses --roast-tier. Shimmer is a
@@ -1093,9 +1093,9 @@ html[data-theme="light"] .roast-report[data-tier-tone="trash"] {
 }
 
 .dimension-star-radar[data-tone="trash"] {
-  --dimension-star-stroke: #fb7185;
-  --dimension-star-fill: rgba(251, 113, 133, 0.14);
-  --dimension-star-shadow: rgba(251, 113, 133, 0.16);
+  --dimension-star-stroke: #a1a1aa;
+  --dimension-star-fill: rgba(161, 161, 170, 0.14);
+  --dimension-star-shadow: rgba(161, 161, 170, 0.16);
 }
 
 html[data-theme="light"] .dimension-star-radar {
@@ -1129,9 +1129,9 @@ html[data-theme="light"] .dimension-star-radar[data-tone="npc"] {
 }
 
 html[data-theme="light"] .dimension-star-radar[data-tone="trash"] {
-  --dimension-star-stroke: #be123c;
-  --dimension-star-fill: rgba(190, 18, 60, 0.1);
-  --dimension-star-shadow: rgba(190, 18, 60, 0.12);
+  --dimension-star-stroke: #52525b;
+  --dimension-star-fill: rgba(82, 82, 91, 0.1);
+  --dimension-star-shadow: rgba(82, 82, 91, 0.12);
 }
 
 .dimension-star-radar .recharts-radar-polygon .recharts-polygon {

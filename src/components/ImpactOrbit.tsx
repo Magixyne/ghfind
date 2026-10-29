@@ -33,6 +33,13 @@ type OrbitDef = {
 const STAGE_W = 304;
 const STAGE_H = 212;
 const HALF_W = STAGE_W / 2;
+/**
+ * Stage box is 304px, but outer-orbit planets + glow overhang past the box
+ * (~322px worst-case). fitScale uses this so avatars never clip the card.
+ */
+const CONTENT_EXTENT_W = 322;
+/** Comfortable gap from card border to planet/glow edge. */
+const FIT_MARGIN_PX = 8;
 
 /**
  * Gyroscope / atom: rotateZ −40 / 0 / +40 (≥35° apart) so paths cross;
@@ -655,13 +662,15 @@ export function ImpactOrbit({
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root || typeof ResizeObserver === "undefined") return;
-    // Measure the score-card content box, not the stage itself (stage is
-    // STAGE_W wide and would otherwise always report fitScale=1).
-    const target = root.parentElement ?? root;
+    // Prefer the profile score card's border box — padding is usable bleed on
+    // desktop (w-80), but planets+glow still need ≥ FIT_MARGIN_PX from the edge.
+    const card = root.closest("[data-profile-score-card]") as HTMLElement | null;
+    const target = card ?? root.parentElement ?? root;
     const update = () => {
       const available = target.clientWidth;
-      const next = available > 0 ? Math.min(1, available / STAGE_W) : 1;
-      setFitScale((prev) => (Math.abs(prev - next) < 0.01 ? prev : next));
+      if (available <= 0) return;
+      const next = Math.min(1, (available - 2 * FIT_MARGIN_PX) / CONTENT_EXTENT_W);
+      setFitScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next));
     };
     update();
     const ro = new ResizeObserver(update);
@@ -676,7 +685,7 @@ export function ImpactOrbit({
   return (
     <div
       ref={rootRef}
-      className={`impact-orbit-root flex w-full max-w-full flex-col items-center overflow-x-clip ${className}`}
+      className={`impact-orbit-root flex w-full max-w-full flex-col items-center ${className}`}
       data-testid="impact-orbit-root"
     >
       <h2 className="sr-only">{sectionTitle}</h2>

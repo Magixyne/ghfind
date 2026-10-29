@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { TIER_ZH } from "@/lib/badge";
-import { tierAvatarFrame } from "@/lib/tier";
+import { tierStyle } from "@/lib/tier";
 import type { Tier } from "@/lib/types";
 
 type AvatarFrameSize = "feed" | "sm" | "md" | "lg";
@@ -20,34 +20,49 @@ const SIZE_CLASS: Record<
     shell: string;
     avatar: string;
     initial: string;
+    glowSpread: string;
   }
 > = {
   feed: {
     shell: "h-10 w-10",
     avatar: "h-8 w-8",
     initial: "text-sm",
+    glowSpread: "18px -3px",
   },
   sm: {
     shell: "h-16 w-16",
     avatar: "h-12 w-12",
     initial: "text-xl",
+    glowSpread: "28px -5px",
   },
   md: {
     shell: "h-24 w-24",
     avatar: "h-[72px] w-[72px]",
     initial: "text-3xl",
+    glowSpread: "34px -6px",
   },
   lg: {
     shell: "h-28 w-28",
     avatar: "h-20 w-20",
     initial: "text-4xl",
+    glowSpread: "34px -6px",
   },
 };
 
+function withAlpha(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 /**
- * Tier-tinted avatar shell (ring / glow). Decoration that used to sit on the
- * ring were removed from the live profile UI in favor of ImpactOrbit; share
- * cards still draw frame icons via material-card /api/card.
+ * Tier-tinted avatar shell. Ring + glow use {@link tierStyle}.hex so they always
+ * match the score/tier label color (inline styles — no Tailwind purge risk).
+ * Share/OG cards still draw frame icons via material-card /api/card.
  */
 export function TierAvatarFrame({
   avatarContent,
@@ -57,17 +72,26 @@ export function TierAvatarFrame({
   size = "md",
   className = "",
 }: TierAvatarFrameProps) {
-  const frame = tierAvatarFrame(tier);
+  const style = tierStyle(tier);
   const classes = SIZE_CLASS[size];
   const initial = username.slice(0, 1).toUpperCase();
+  const ring = style.hex;
+  const softBg = withAlpha(style.hex, 0.14);
+  const glow = withAlpha(style.hex, size === "feed" ? 0.45 : 0.55);
 
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center rounded-full ${classes.shell} ${frame.bg} ring-2 ${frame.ring} ${className}`}
-      style={{ boxShadow: `var(--tw-ring-shadow, 0 0 #0000), 0 0 ${size === "feed" ? "18px -3px" : "34px -6px"} ${frame.glow}` }}
+      className={`relative flex shrink-0 items-center justify-center rounded-full ${classes.shell} ${className}`}
+      style={{
+        backgroundColor: softBg,
+        boxShadow: `0 0 0 2px ${ring}, 0 0 ${classes.glowSpread} ${glow}`,
+      }}
       aria-label={`${TIER_ZH[tier]} avatar frame`}
     >
-      <div className={`absolute ${size === "feed" ? "inset-1" : "inset-2"} rounded-full border border-white/10`} />
+      <div
+        className={`absolute ${size === "feed" ? "inset-1" : "inset-2"} rounded-full`}
+        style={{ boxShadow: `inset 0 0 0 1px ${withAlpha(style.hex, 0.35)}` }}
+      />
 
       {avatarContent ? (
         <div className={`relative overflow-hidden rounded-full ring-2 ring-black/80 ${classes.avatar}`}>{avatarContent}</div>

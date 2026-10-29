@@ -46,7 +46,7 @@ export const BADGE_COLOR: Record<Tier, string> = {
   顶级: "#8B5CF6",
   人上人: "#10B981",
   NPC: "#38BDF8",
-  拉完了: "#F43F5E",
+  拉完了: "#71717A",
 };
 
 /**
@@ -59,7 +59,7 @@ export const BADGE_COLOR_LIGHT: Record<Tier, string> = {
   顶级: "#7C3AED",
   人上人: "#059669",
   NPC: "#0284C7",
-  拉完了: "#E11D48",
+  拉完了: "#52525B",
 };
 
 const LABEL = "GitHub Roast";

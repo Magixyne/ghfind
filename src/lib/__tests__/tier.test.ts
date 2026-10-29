@@ -57,6 +57,15 @@ describe("tier avatar frames", () => {
     });
   });
 
+  it("uses muted zinc for the newbie (拉完了) display theme, distinct from NPC sky", () => {
+    expect(TIER_STYLES["拉完了"]).toMatchObject({
+      text: "text-zinc-400",
+      ring: "ring-zinc-500/50",
+      hex: "#a1a1aa",
+    });
+    expect(TIER_STYLES.NPC.hex).toBe("#7dd3fc");
+  });
+
   it("places opposite decorations symmetrically on a unit circle", () => {
     expect(TIER_AVATAR_FRAME_VECTORS.top).toEqual({ x: 0, y: -1 });
     expect(TIER_AVATAR_FRAME_VECTORS.bottom).toEqual({ x: 0, y: 1 });
