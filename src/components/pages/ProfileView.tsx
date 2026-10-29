@@ -946,20 +946,10 @@ export function ProfileView({
             : "mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-7"
         }
       >
-        <h2 className={`mb-3 text-lg font-bold ${style.text}`}>{t("roastHeading")}</h2>
         {/* LLM content only exists in zh/en; a ja/ko visitor reads the English
             side, so tell them why the report language differs from the UI. */}
         {lang !== locale && (roast || roastLine) && (
           <p className="mb-3 text-xs text-zinc-500">{t("reportLangNotice")}</p>
-        )}
-        {/* Savage one-liner (current language) — shown above the full report.
-            The stale re-roast stream renders its own line, so skip it there. */}
-        {roastLine && !shouldStreamRoast && (
-          <p
-            className={`${isAdvxCampaign ? "hidden lg:block" : ""} mb-4 rounded-xl border border-orange-500/30 bg-orange-500/[0.08] p-4 text-[0.95rem] leading-relaxed text-zinc-100`}
-          >
-            🔥 {roastLine}
-          </p>
         )}
         {roast ? (
           staleReroast ? (

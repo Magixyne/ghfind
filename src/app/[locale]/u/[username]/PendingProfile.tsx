@@ -304,7 +304,6 @@ export function PendingProfile({
 
             {/* Direct profile reads remain read-only; the homepage handoff streams. */}
             <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-7">
-              <h2 className={`mb-3 text-lg font-bold ${style.text}`}>{t("roastHeading")}</h2>
               {shouldStreamRoast ? (
                 <LiveRoast
                   username={metrics.username}

@@ -354,7 +354,7 @@
     "orgsLabel": "Organizaciones",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "Roast",
+    "verdictLabel": "Veredicto breve",
     "roastEmpty": "Este roast todavía no está archivado — <a>vuelve a juzgar desde la página de inicio</a> para generarlo.",
     "scoreStateStaleTitle": "Puntuación histórica",
     "scoreStateStaleBody": "Esta puntuación pertenece a reglas anteriores. Seguirá visible hasta que un nuevo escaneo verificado la reemplace.",

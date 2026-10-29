@@ -354,7 +354,7 @@
     "orgsLabel": "组织",
     "commits": "提交",
     "prs": "PR",
-    "roastHeading": "🔥 锐评全文",
+    "verdictLabel": "小总评",
     "roastEmpty": "这份锐评还没存档 —— <a>去首页重新评测一次</a> 即可生成。",
     "scoreStateStaleTitle": "历史评分",
     "scoreStateStaleBody": "这份评分来自旧版规则；在可信重扫完成前继续展示，但不会冒充当前评分。",

@@ -83,7 +83,7 @@ export function renderV13Report(scan: ScanResult, lang: Lang, copy: V13Copy): st
     lines.push("");
   }
   // Blockquote callout — RoastReport styles this as a highlighted verdict.
-  lines.push(zh ? "> **一句话结论**" : "> **TL;DR**");
+  lines.push(zh ? "> **小总评**" : "> **Quick Verdict**");
   lines.push(`>`);
   lines.push(`> ${cell(copy.verdict)}`);
   lines.push("");

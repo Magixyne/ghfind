@@ -161,7 +161,7 @@ describe("roast v13 rendering", () => {
     expect(md.startsWith("## sample-user — 73.60/100  ·  人上人 (优质贡献者 · 值得信任)")).toBe(true);
     expect(md).toContain("#### 原创与主导项目质量 · 12.2/18");
     expect(md).toContain("### 笑点三连");
-    expect(md).toContain("> **一句话结论**");
+    expect(md).toContain("> **小总评**");
     expect(md).toMatch(/#### .+ · \d/);
     expect(md).toContain("**风险标记**：无");
     const en = renderV13Report(scan, "en", copy);
@@ -660,7 +660,7 @@ describe("roast report legacy markdown rewrite", () => {
 给 ScriptForge 补可跑 demo。
 `;
     const out = rewriteLegacyRoastMarkdown(legacy);
-    expect(out).toContain("> **一句话结论**");
+    expect(out).toContain("> **小总评**");
     expect(out).toContain("#### 账号成熟度 · 8/10");
     expect(out).toContain("#### 贡献质量 · 23.8/27");
     expect(out).toContain("### 风险标记");

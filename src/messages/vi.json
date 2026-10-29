@@ -354,7 +354,7 @@
     "orgsLabel": "Tổ chức",
     "commits": "commit",
     "prs": "PR",
-    "roastHeading": "Nhận xét",
+    "verdictLabel": "Nhận xét ngắn",
     "roastEmpty": "Bài cà khịa này chưa được lưu trữ — <a>phán xét lại từ trang chủ</a> để tạo nó.",
     "scoreStateStaleTitle": "Điểm lịch sử",
     "scoreStateStaleBody": "Điểm này dùng bộ quy tắc cũ. Nó vẫn được hiển thị cho đến khi một lần quét lại đã xác minh thay thế.",

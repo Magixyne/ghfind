@@ -354,7 +354,7 @@
     "orgsLabel": "조직",
     "commits": "커밋",
     "prs": "PR",
-    "roastHeading": "로스트",
+    "verdictLabel": "한줄 총평",
     "roastEmpty": "이 로스트은 아직 보관되지 않았어요 — <a>홈에서 다시 심판</a>하면 생성됩니다.",
     "scoreStateStaleTitle": "이전 점수",
     "scoreStateStaleBody": "이 점수는 이전 규칙으로 계산되었습니다. 검증된 재스캔이 대체할 때까지 기록으로 표시됩니다.",

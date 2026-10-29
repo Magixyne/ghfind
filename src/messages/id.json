@@ -354,7 +354,7 @@
     "orgsLabel": "Organisasi",
     "commits": "commit",
     "prs": "PR",
-    "roastHeading": "Roast",
+    "verdictLabel": "Ringkasan singkat",
     "roastEmpty": "Roast ini belum diarsipkan — <a>nilai ulang dari halaman utama</a> untuk membuatnya.",
     "scoreStateStaleTitle": "Skor historis",
     "scoreStateStaleBody": "Skor ini berasal dari aturan lama. Skor tetap ditampilkan sampai pemindaian ulang terverifikasi menggantikannya.",

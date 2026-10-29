@@ -295,12 +295,6 @@ export function LiveRoast({
           />
         </div>
       ) : null}
-      {line ? (
-        <p className="mb-4 rounded-xl border border-orange-500/30 bg-orange-500/[0.08] p-4 text-[0.95rem] leading-relaxed text-zinc-100">
-          🔥 {line}
-        </p>
-      ) : null}
-
       {tagsForLocale(tags, locale).length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {tagsForLocale(tags, locale).map((tag, i) => (

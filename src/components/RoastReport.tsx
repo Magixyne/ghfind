@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { rewriteLegacyRoastMarkdown } from "@/lib/roast-report-legacy";
@@ -25,6 +26,14 @@ const DIM_SECTION_RE = /^###\s*(维度评分|Dimensions)\s*$/m;
 const NEXT_H3_RE = /^###\s+/m;
 /** End the dims block before an inline risk line or the next section heading. */
 const DIM_SECTION_END_RE = /^(?:###\s+|\*\*(?:风险标记|Red flags|建议|Next)(?:\*\*)?[：:\s])/m;
+
+/** Legacy + current markdown verdict headings remapped to the active UI locale. */
+const VERDICT_LABEL_RE = /\*\*(一句话结论|一句话总结|小总评|TL;DR|Quick Verdict)\*\*/g;
+
+function localizeVerdictLabel(md: string, label: string): string {
+  return md.replace(VERDICT_LABEL_RE, `**${label}**`);
+}
+
 
 type DimCard = { name: string; score: number; max: number; note: string };
 
@@ -284,11 +293,16 @@ export function RoastReport({
   /** Profile tier — drives score/bar/chip/verdict accents via data-tier-tone. */
   tier?: Tier | null;
 }) {
+  const t = useTranslations("detail");
+  const verdictLabel = t("verdictLabel");
   const tone = tier ? TIER_KEY[tier] : "elite";
   const { before, dims, after } = useMemo(() => {
-    const rewritten = collapseEmptyRisk(rewriteLegacyRoastMarkdown(markdown ?? ""));
+    const rewritten = localizeVerdictLabel(
+      collapseEmptyRisk(rewriteLegacyRoastMarkdown(markdown ?? "")),
+      verdictLabel,
+    );
     return splitDimensionSection(rewritten);
-  }, [markdown]);
+  }, [markdown, verdictLabel]);
 
   return (
     <div

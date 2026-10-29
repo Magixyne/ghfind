@@ -354,7 +354,7 @@
     "orgsLabel": "Organizations",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "🔥 Full roast",
+    "verdictLabel": "Quick Verdict",
     "roastEmpty": "This roast hasn't been archived yet — <a>judge again from the home page</a> to generate it.",
     "scoreStateStaleTitle": "Historical score",
     "scoreStateStaleBody": "This score predates the current scoring release. It remains visible until a verified rescan replaces it.",

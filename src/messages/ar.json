@@ -354,7 +354,7 @@
     "orgsLabel": "المنظمات",
     "commits": "commit",
     "prs": "PR",
-    "roastHeading": "التقييم",
+    "verdictLabel": "تقييم موجز",
     "roastEmpty": "هذا التحميص لم يُؤرشف بعد — <a>احكم عليه مجددًا من الصفحة الرئيسية</a> لتوليده.",
     "scoreStateStaleTitle": "نتيجة تاريخية",
     "scoreStateStaleBody": "حُسبت هذه النتيجة بقواعد سابقة، وستظل ظاهرة حتى يستبدلها فحص جديد موثوق.",

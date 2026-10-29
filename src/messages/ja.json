@@ -354,7 +354,7 @@
     "orgsLabel": "組織",
     "commits": "コミット",
     "prs": "PR",
-    "roastHeading": "🔥 ロースト全文",
+    "verdictLabel": "ひとこと総評",
     "roastEmpty": "このローストはまだ保存されていません。<a>ホームからもう一度審判する</a>と生成されます。",
     "scoreStateStaleTitle": "過去のスコア",
     "scoreStateStaleBody": "このスコアは旧ルールのものです。検証済みの再スキャンで置き換わるまで履歴として表示します。",

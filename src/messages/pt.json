@@ -354,7 +354,7 @@
     "orgsLabel": "Organizações",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "Roast",
+    "verdictLabel": "Veredito curto",
     "roastEmpty": "Esta zoada ainda não foi arquivada — <a>julgue de novo pela página inicial</a> pra gerar.",
     "scoreStateStaleTitle": "Pontuação histórica",
     "scoreStateStaleBody": "Esta pontuação usa regras antigas. Ela continua visível até ser substituída por uma nova varredura verificada.",
