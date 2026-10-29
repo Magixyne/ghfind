@@ -288,7 +288,8 @@ function weekDelta(delta: number | null, c: Copy): string | null {
 
 function tierWord(tier: Tier, lang: MiniCardLang, score?: number): string {
   const realm = typeof score === "number" ? realmForScore(score) : realmForTier(tier);
-  return lang === "zh" ? realm.nameZh : realm.nameEn;
+  // Mini surfaces are tight — prefer the short EN form (≤ ~12 chars).
+  return lang === "zh" ? realm.nameZh : realm.nameEnShort;
 }
 
 /** Pill with the tier word knocked out of an accent fill. */

@@ -16,14 +16,14 @@ type realmDef struct {
 }
 
 var realmDefs = []realmDef{
-	{0, "练气", "Qi Refining"},
-	{30, "筑基", "Foundation"},
-	{40, "金丹", "Golden Core"},
+	{0, "练气", "Qi Condensation"},
+	{30, "筑基", "Foundation Est."},
+	{40, "金丹", "Core Formation"},
 	{50, "元婴", "Nascent Soul"},
 	{60, "化神", "Deity Transformation"},
-	{70, "炼虚", "Void Refining"},
+	{70, "炼虚", "Spatial Tempering"},
 	{80, "合体", "Body Integration"},
-	{90, "大乘", "Mahayana"},
+	{90, "大乘", "Grand Ascension"},
 }
 
 func adventurerLevel(score float64) int {

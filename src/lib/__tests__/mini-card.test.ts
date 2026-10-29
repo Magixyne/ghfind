@@ -129,7 +129,7 @@ describe("mini card", () => {
     expect(svg).toContain("Top 0.8%");
     expect(svg).toContain("#128 / 21,384");
     expect(svg).toContain("↑2.3 wk");
-    expect(svg).toContain("Mahayana");
+    expect(svg).toContain("Grand Asc.");
     expect(svg).toContain("Lv.92");
   });
 
@@ -235,7 +235,7 @@ describe("mini card", () => {
   it("gives the tier word room to breathe next to inline text", () => {
     // Realm chip + blurb must not collide.
     const svg = renderMiniCardSvg({ ...base, variant: "radar" });
-    expect(svg).not.toContain(">MahayanaNear");
+    expect(svg).not.toContain(">Grand Asc.Near");
     const label = /<text x="(\d+)" y="116"[^>]*>Near the summit/.exec(svg);
     expect(label).not.toBeNull();
     expect(Number(label?.[1])).toBeGreaterThanOrEqual(48);

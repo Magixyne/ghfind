@@ -33,7 +33,7 @@ describe("renderBadge", () => {
 describe("buildBadge", () => {
   it("bridges stored tier keys to realm display words", () => {
     expect(TIER_ZH["人上人"]).toBe("炼虚");
-    expect(TIER_EN.NPC).toBe("Golden Core");
+    expect(TIER_EN.NPC).toBe("Core Form.");
     // Legacy BADGE_COLOR map may still exist for non-score surfaces; buildBadge uses realm fg.
     expect(BADGE_COLOR["人上人"]).toBeTruthy();
   });
@@ -43,7 +43,7 @@ describe("buildBadge", () => {
     const realm = realmForScore(83.3);
     expect(svg).toContain("Lv.83");
     expect(svg).not.toContain("83.30");
-    expect(svg).toContain(realm.nameEn);
+    expect(svg).toContain(realm.nameEnShort);
     expect(svg).toContain(realm.colors.fg);
   });
 

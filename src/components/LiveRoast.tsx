@@ -291,6 +291,7 @@ export function LiveRoast({
             title={t("roastProgressTitle")}
             stage={stage}
             liveStage={stage}
+            score={scan?.scoring?.final_score ?? fallbackMeta?.final_score}
             tier={scan?.scoring?.tier ?? fallbackMeta?.tier}
           />
         </div>

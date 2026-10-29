@@ -548,15 +548,15 @@
   },
   "tiers": {
     "trash": {
-      "name": "Qi Refining",
+      "name": "Qi Condensation",
       "blurb": "First steps · Building the base"
     },
     "npc": {
-      "name": "Golden Core",
+      "name": "Core Formation",
       "blurb": "Core formed · Showing an edge"
     },
     "solid": {
-      "name": "Void Refining",
+      "name": "Spatial Tempering",
       "blurb": "Effortless mastery"
     },
     "elite": {
@@ -564,7 +564,7 @@
       "blurb": "In harmony · Top-tier master"
     },
     "god": {
-      "name": "Mahayana",
+      "name": "Grand Ascension",
       "blurb": "Near the summit · Hall of fame"
     }
   },
@@ -665,7 +665,7 @@
       },
       {
         "title": "3. Get your adventurer level, realm, and roast",
-        "body": "You get a reproducible adventurer level (Lv.1–100), a cultivation realm from Qi Refining to Mahayana, a per-dimension breakdown showing exactly what holds the score down, and — only if you ask for it — a witty, fair AI-written roast."
+        "body": "You get a reproducible adventurer level (Lv.1–100), a cultivation realm from Qi Condensation to Grand Ascension, a per-dimension breakdown showing exactly what holds the score down, and — only if you ask for it — a witty, fair AI-written roast."
       }
     ],
     "numbersHeading": "ghfind by the numbers",
@@ -2098,15 +2098,15 @@
   },
   "realms": {
     "qi": {
-      "name": "Qi Refining",
+      "name": "Qi Condensation",
       "blurb": "First steps · Building the base"
     },
     "foundation": {
-      "name": "Foundation",
+      "name": "Foundation Establishment",
       "blurb": "Foundation laid · Steady progress"
     },
     "goldenCore": {
-      "name": "Golden Core",
+      "name": "Core Formation",
       "blurb": "Core formed · Showing an edge"
     },
     "nascentSoul": {
@@ -2118,7 +2118,7 @@
       "blurb": "Clear-minded · Real influence"
     },
     "voidRefining": {
-      "name": "Void Refining",
+      "name": "Spatial Tempering",
       "blurb": "Effortless mastery"
     },
     "integration": {
@@ -2126,7 +2126,7 @@
       "blurb": "In harmony · Top-tier master"
     },
     "mahayana": {
-      "name": "Mahayana",
+      "name": "Grand Ascension",
       "blurb": "Near the summit · Hall of fame"
     }
   }

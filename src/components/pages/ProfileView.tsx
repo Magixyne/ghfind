@@ -337,7 +337,7 @@ export function ProfileView({
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-zinc-200">@{s.username}</div>
-                {tag && <div className="truncate text-[11px] text-orange-200/80">#{tag}</div>}
+                {tag && <div className="truncate text-[11px] profile-realm-accent-text">#{tag}</div>}
               </div>
               <span className={`shrink-0 text-end text-sm font-black tabular-nums ${st.text}`}>
                 {st.emoji} {s.final_score.toFixed(2)}
@@ -350,7 +350,12 @@ export function ProfileView({
   );
 
   return (
-    <main className="relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20">
+    <main
+      data-realm={realm.id}
+      data-profile-realm-theme=""
+      className="profile-realm-theme relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20"
+      style={realmVars}
+    >
       <FloatingCommentBubbles
         key={d.username}
         lang={lang}
@@ -383,7 +388,7 @@ export function ProfileView({
           <Link
             href="/advx?theme=dark"
             prefetch={false}
-            className="text-sm text-zinc-400 hover:text-zinc-200"
+            className="profile-realm-link text-sm text-zinc-400"
           >
             ← 返回
           </Link>
@@ -391,7 +396,7 @@ export function ProfileView({
           <Link
             href="/leaderboard"
             prefetch={false}
-            className="text-sm text-zinc-400 hover:text-zinc-200"
+            className="profile-realm-link text-sm text-zinc-400"
           >
             {t("back")}
           </Link>
@@ -535,7 +540,7 @@ export function ProfileView({
               {shown.map((tag, i) => (
                 <span
                   key={`${tag}-${i}`}
-                  className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
+                  className="profile-realm-chip rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide"
                 >
                   #{tag}
                 </span>
@@ -744,7 +749,7 @@ export function ProfileView({
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-200">
                       {work.repo}
                     </span>
-                    <span className="shrink-0 text-xs tabular-nums text-zinc-400">
+                    <span className="profile-realm-accent-text shrink-0 text-xs tabular-nums">
                       ⭐ {nf.format(work.stars)}
                     </span>
                   </div>

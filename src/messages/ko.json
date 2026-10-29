@@ -548,23 +548,23 @@
   },
   "tiers": {
     "trash": {
-      "name": "연기",
+      "name": "연기기",
       "blurb": "선도의 입문 · 기초를 다지다"
     },
     "npc": {
-      "name": "금단",
+      "name": "결단기",
       "blurb": "단이 이룸 · 날카로움이 보임"
     },
     "solid": {
-      "name": "연허",
-      "blurb": "소박으로 돌아감 · 거뜬한 경지"
+      "name": "연허기",
+      "blurb": "허를 단련 · 거뜬한 경지"
     },
     "elite": {
-      "name": "합체",
+      "name": "합체기",
       "blurb": "천인합일 · 일선 종사"
     },
     "god": {
-      "name": "대승",
+      "name": "대승기",
       "blurb": "대도에 가까움 · 전당의 기준"
     }
   },
@@ -2098,35 +2098,35 @@
   },
   "realms": {
     "qi": {
-      "name": "연기",
+      "name": "연기기",
       "blurb": "선도의 입문 · 기초를 다지다"
     },
     "foundation": {
-      "name": "축기",
+      "name": "축기기",
       "blurb": "기반이 잡힘 · 꾸준히 정진"
     },
     "goldenCore": {
-      "name": "금단",
+      "name": "결단기",
       "blurb": "단이 이룸 · 날카로움이 보임"
     },
     "nascentSoul": {
-      "name": "원영",
+      "name": "원영기",
       "blurb": "원영이 싹틈 · 자신만의 길"
     },
     "deity": {
-      "name": "화신",
+      "name": "화신기",
       "blurb": "신식이 통함 · 한 지역에 영향"
     },
     "voidRefining": {
-      "name": "연허",
-      "blurb": "소박으로 돌아감 · 거뜬한 경지"
+      "name": "연허기",
+      "blurb": "허를 단련 · 거뜬한 경지"
     },
     "integration": {
-      "name": "합체",
+      "name": "합체기",
       "blurb": "천인합일 · 일선 종사"
     },
     "mahayana": {
-      "name": "대승",
+      "name": "대승기",
       "blurb": "대도에 가까움 · 전당의 기준"
     }
   }

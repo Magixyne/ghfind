@@ -552,7 +552,7 @@
       "blurb": "Bước đầu tiên · Xây nền tảng"
     },
     "npc": {
-      "name": "Kim Đan",
+      "name": "Kết Đan",
       "blurb": "Đan thành · Lộ sắc bén"
     },
     "solid": {
@@ -665,7 +665,7 @@
       },
       {
         "title": "3. Nhận cấp độ mạo hiểm gia, cảnh giới và roast",
-        "body": "Bạn nhận được cấp độ mạo hiểm gia có thể tái tạo (Lv.1–100), cảnh giới từ Qi Refining đến Mahayana, phân tích từng chiều cho thấy điều gì kéo điểm xuống, và — chỉ khi bạn yêu cầu — một roast dí dỏm do AI viết."
+        "body": "Bạn nhận được cấp độ mạo hiểm gia có thể tái tạo (Lv.1–100), cảnh giới từ Luyện Khí đến Đại Thừa, phân tích từng chiều cho thấy điều gì kéo điểm xuống, và — chỉ khi bạn yêu cầu — một roast dí dỏm do AI viết."
       }
     ],
     "numbersHeading": "ghfind qua những con số",
@@ -2106,7 +2106,7 @@
       "blurb": "Nền đã vững · Tiến đều"
     },
     "goldenCore": {
-      "name": "Kim Đan",
+      "name": "Kết Đan",
       "blurb": "Đan thành · Lộ sắc bén"
     },
     "nascentSoul": {

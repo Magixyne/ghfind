@@ -103,8 +103,8 @@ describe("buildRoastMessages", () => {
     // user preamble is English, payload is still the scan JSON
     expect(user.content).toMatch(/scoring data/i);
     expect(user.content).toContain("sample-user");
-    expect(user.content).toContain('"tier":"Mahayana"');
-    expect(user.content).toContain('"realm_en":"Mahayana"');
+    expect(user.content).toContain('"tier":"Grand Ascension"');
+    expect(user.content).toContain('"realm_en":"Grand Ascension"');
     expect(user.content).toContain('"adventurer_level":');
     expect(user.content).toContain('"tier_label":"Near the summit · Hall of fame"');
     expect(user.content).not.toContain("封神");

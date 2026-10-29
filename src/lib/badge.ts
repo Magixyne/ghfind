@@ -16,11 +16,11 @@ export type BadgeLang = "en" | "zh";
 
 /** English tier words. Canonical stored tier stays Chinese (incl. 拉完了). */
 export const TIER_EN: Record<Tier, string> = {
-  夯: "Mahayana",
-  顶级: "Body Integration",
-  人上人: "Void Refining",
-  NPC: "Golden Core",
-  拉完了: "Qi Refining",
+  夯: "Grand Asc.",
+  顶级: "Body Integ.",
+  人上人: "Spatial Temp.",
+  NPC: "Core Form.",
+  拉完了: "Qi Cond.",
 };
 
 /** Chinese display words (bridged to cultivation realms; stored keys unchanged). */
@@ -145,7 +145,7 @@ export function buildBadge(opts: {
     });
   }
   const realm = realmForScore(opts.score);
-  const word = lang === "zh" ? realm.nameZh : realm.nameEn;
+  const word = lang === "zh" ? realm.nameZh : realm.nameEnShort;
   const delta =
     typeof opts.delta === "number" && opts.delta >= 0.05
       ? ` ↑${opts.delta.toFixed(1)}`

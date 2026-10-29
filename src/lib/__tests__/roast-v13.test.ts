@@ -165,7 +165,7 @@ describe("roast v13 rendering", () => {
     expect(md).toMatch(/#### .+ · \d/);
     expect(md).toContain("**风险标记**：无");
     const en = renderV13Report(scan, "en", copy);
-    expect(en).toContain("Void Refining (Effortless mastery)");
+    expect(en).toContain("Spatial Tempering (Effortless mastery)");
     expect(en).toContain("#### Account maturity · 10/10");
   });
 });

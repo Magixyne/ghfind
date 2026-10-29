@@ -53,7 +53,10 @@ export interface RealmDef {
   blurbZh: string;
   blurbEn: string;
   nameZh: string;
+  /** Primary EN label (≤22 chars for OG/cards). */
   nameEn: string;
+  /** Ultra-tight EN (badges / mini). */
+  nameEnShort: string;
 }
 
 /**
@@ -74,7 +77,8 @@ export const REALM_DEFS: readonly RealmDef[] = [
       glow: "rgba(139,144,153,0.18)",
     },
     nameZh: "练气",
-    nameEn: "Qi Refining",
+    nameEn: "Qi Condensation",
+    nameEnShort: "Qi Cond.",
     blurbZh: "初入仙途 · 打牢根基",
     blurbEn: "First steps · Building the base",
   },
@@ -91,7 +95,8 @@ export const REALM_DEFS: readonly RealmDef[] = [
       glow: "rgba(176,86,90,0.22)",
     },
     nameZh: "筑基",
-    nameEn: "Foundation",
+    nameEn: "Foundation Est.",
+    nameEnShort: "Foundation",
     blurbZh: "根基已成 · 稳步精进",
     blurbEn: "Foundation laid · Steady progress",
   },
@@ -109,7 +114,8 @@ export const REALM_DEFS: readonly RealmDef[] = [
       gradient: ["#C99064", "#A9714A"],
     },
     nameZh: "金丹",
-    nameEn: "Golden Core",
+    nameEn: "Core Formation",
+    nameEnShort: "Core Form.",
     blurbZh: "丹成一品 · 渐露锋芒",
     blurbEn: "Core formed · Showing an edge",
   },
@@ -128,6 +134,7 @@ export const REALM_DEFS: readonly RealmDef[] = [
     },
     nameZh: "元婴",
     nameEn: "Nascent Soul",
+    nameEnShort: "Nascent Soul",
     blurbZh: "元婴初成 · 自成一派",
     blurbEn: "Soul awakened · Own style",
   },
@@ -146,6 +153,7 @@ export const REALM_DEFS: readonly RealmDef[] = [
     },
     nameZh: "化神",
     nameEn: "Deity Transformation",
+    nameEnShort: "Deity Trans.",
     blurbZh: "神识通达 · 影响一方",
     blurbEn: "Clear-minded · Real influence",
   },
@@ -163,7 +171,8 @@ export const REALM_DEFS: readonly RealmDef[] = [
       gradient: ["#7DBBF0", "#2F78C0"],
     },
     nameZh: "炼虚",
-    nameEn: "Void Refining",
+    nameEn: "Spatial Tempering",
+    nameEnShort: "Spatial Temp.",
     blurbZh: "返璞归真 · 举重若轻",
     blurbEn: "Effortless mastery",
   },
@@ -182,6 +191,7 @@ export const REALM_DEFS: readonly RealmDef[] = [
     },
     nameZh: "合体",
     nameEn: "Body Integration",
+    nameEnShort: "Body Integ.",
     blurbZh: "天人合一 · 一线宗师",
     blurbEn: "In harmony · Top-tier master",
   },
@@ -199,7 +209,8 @@ export const REALM_DEFS: readonly RealmDef[] = [
       gradient: ["#FFF0B8", "#F6C744", "#E0A010"],
     },
     nameZh: "大乘",
-    nameEn: "Mahayana",
+    nameEn: "Grand Ascension",
+    nameEnShort: "Grand Asc.",
     blurbZh: "大道将成 · 殿堂标杆",
     blurbEn: "Near the summit · Hall of fame",
   },

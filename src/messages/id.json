@@ -548,15 +548,15 @@
   },
   "tiers": {
     "trash": {
-      "name": "Pemurnian Qi",
+      "name": "Kondensasi Qi",
       "blurb": "Langkah awal · Membangun fondasi"
     },
     "npc": {
-      "name": "Inti Emas",
+      "name": "Formasi Inti",
       "blurb": "Inti terbentuk · Mulai tajam"
     },
     "solid": {
-      "name": "Pemurnian Kekosongan",
+      "name": "Tempa Spasial",
       "blurb": "Penguasaan tanpa usaha"
     },
     "elite": {
@@ -564,7 +564,7 @@
       "blurb": "Selaras · Guru kelas atas"
     },
     "god": {
-      "name": "Mahayana",
+      "name": "Ascensi Agung",
       "blurb": "Hampir puncak · Balai kejayaan"
     }
   },
@@ -665,7 +665,7 @@
       },
       {
         "title": "3. Dapatkan level petualang, realm, dan roast",
-        "body": "Kamu mendapat level petualang yang bisa direproduksi (Lv.1–100), realm kultivasi dari Qi Refining sampai Mahayana, rincian per dimensi yang menunjukkan apa yang menahan skor, dan — hanya kalau kamu minta — roast pedas tulisan AI."
+        "body": "Kamu mendapat level petualang yang bisa direproduksi (Lv.1–100), realm kultivasi dari Kondensasi Qi sampai Ascensi Agung, rincian per dimensi yang menunjukkan apa yang menahan skor, dan — hanya kalau kamu minta — roast pedas tulisan AI."
       }
     ],
     "numbersHeading": "ghfind dalam angka",
@@ -2098,7 +2098,7 @@
   },
   "realms": {
     "qi": {
-      "name": "Pemurnian Qi",
+      "name": "Kondensasi Qi",
       "blurb": "Langkah awal · Membangun fondasi"
     },
     "foundation": {
@@ -2106,7 +2106,7 @@
       "blurb": "Fondasi siap · Maju mantap"
     },
     "goldenCore": {
-      "name": "Inti Emas",
+      "name": "Formasi Inti",
       "blurb": "Inti terbentuk · Mulai tajam"
     },
     "nascentSoul": {
@@ -2114,11 +2114,11 @@
       "blurb": "Jiwa terbangun · Gaya sendiri"
     },
     "deity": {
-      "name": "Transformasi Dewata",
+      "name": "Transf. Dewata",
       "blurb": "Pikiran jernih · Pengaruh nyata"
     },
     "voidRefining": {
-      "name": "Pemurnian Kekosongan",
+      "name": "Tempa Spasial",
       "blurb": "Penguasaan tanpa usaha"
     },
     "integration": {
@@ -2126,7 +2126,7 @@
       "blurb": "Selaras · Guru kelas atas"
     },
     "mahayana": {
-      "name": "Mahayana",
+      "name": "Ascensi Agung",
       "blurb": "Hampir puncak · Balai kejayaan"
     }
   }

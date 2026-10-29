@@ -548,23 +548,23 @@
   },
   "tiers": {
     "trash": {
-      "name": "Refinamento de Qi",
+      "name": "Condensação Qi",
       "blurb": "Primeiros passos · Construindo a base"
     },
     "npc": {
-      "name": "Núcleo Dourado",
+      "name": "Formação Núcleo",
       "blurb": "Núcleo formado · Mostrando fio"
     },
     "solid": {
-      "name": "Refinamento do Vazio",
+      "name": "Têmpera Espacial",
       "blurb": "Maestria sem esforço"
     },
     "elite": {
-      "name": "Integração Corporal",
+      "name": "Integ. Corporal",
       "blurb": "Em harmonia · Mestre de elite"
     },
     "god": {
-      "name": "Mahayana",
+      "name": "Grande Ascensão",
       "blurb": "Perto do topo · Hall da fama"
     }
   },
@@ -665,7 +665,7 @@
       },
       {
         "title": "3. Receba nível de aventureiro, reino e roast",
-        "body": "Você recebe um nível de aventureiro reproduzível (Lv.1–100), um reino de cultivo de Qi Refining a Mahayana, um detalhamento por dimensão mostrando o que segura a nota e — só se pedir — um roast espirituoso escrito por IA."
+        "body": "Você recebe um nível de aventureiro reproduzível (Lv.1–100), um reino de cultivo de Condensação Qi a Grande Ascensão, um detalhamento por dimensão mostrando o que segura a nota e — só se pedir — um roast espirituoso escrito por IA."
       }
     ],
     "numbersHeading": "O ghfind em números",
@@ -2098,7 +2098,7 @@
   },
   "realms": {
     "qi": {
-      "name": "Refinamento de Qi",
+      "name": "Condensação Qi",
       "blurb": "Primeiros passos · Construindo a base"
     },
     "foundation": {
@@ -2106,7 +2106,7 @@
       "blurb": "Base pronta · Progresso constante"
     },
     "goldenCore": {
-      "name": "Núcleo Dourado",
+      "name": "Formação Núcleo",
       "blurb": "Núcleo formado · Mostrando fio"
     },
     "nascentSoul": {
@@ -2114,19 +2114,19 @@
       "blurb": "Alma despertada · Estilo próprio"
     },
     "deity": {
-      "name": "Transformação Divina",
+      "name": "Transf. Divina",
       "blurb": "Mente clara · Influência real"
     },
     "voidRefining": {
-      "name": "Refinamento do Vazio",
+      "name": "Têmpera Espacial",
       "blurb": "Maestria sem esforço"
     },
     "integration": {
-      "name": "Integração Corporal",
+      "name": "Integ. Corporal",
       "blurb": "Em harmonia · Mestre de elite"
     },
     "mahayana": {
-      "name": "Mahayana",
+      "name": "Grande Ascensão",
       "blurb": "Perto do topo · Hall da fama"
     }
   }
