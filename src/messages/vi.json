@@ -348,13 +348,10 @@
     "impactDisclosure": "Đóng góp đáng chú ý ({count})",
     "worksHeading": "🛠 Tác phẩm tiêu biểu",
     "worksSub": "Những repo nổi bật và được ghim của chính họ",
-    "stackHeading": "🧬 Stack & lĩnh vực",
-    "stackLangLabel": "Ngôn ngữ chính",
-    "stackTopicsLabel": "Lĩnh vực",
     "orgsLabel": "Tổ chức",
     "commits": "commit",
     "prs": "PR",
-    "roastHeading": "Nhận xét",
+    "verdictLabel": "Nhận xét ngắn",
     "roastEmpty": "Bài cà khịa này chưa được lưu trữ — <a>phán xét lại từ trang chủ</a> để tạo nó.",
     "scoreStateStaleTitle": "Điểm lịch sử",
     "scoreStateStaleBody": "Điểm này dùng bộ quy tắc cũ. Nó vẫn được hiển thị cho đến khi một lần quét lại đã xác minh thay thế.",
@@ -392,15 +389,12 @@
     "modalViewProfile": "Xem hồ sơ đầy đủ",
     "modalBadgeCta": "Lấy huy hiệu GitHub của bạn",
     "modalClose": "Đóng",
-    "battlesHeading": "⚔️ Trận đấu",
-    "battlesSub": "Những trận PK dev này từng tham chiến",
-    "battleWin": "Thắng",
-    "battleLoss": "Thua",
-    "battleTie": "Hòa",
     "selfCta": "Chấm điểm GitHub của chính bạn →",
     "reportLangNotice": "Báo cáo cà khịa của AI hiện chỉ được viết bằng tiếng Anh và tiếng Trung — bạn đang đọc bản tiếng Anh.",
     "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)",
-    "scoreReadyHint": "Điểm đã ra. Nhận xét tới ngay"
+    "scoreReadyHint": "Điểm đã ra. Nhận xét tới ngay",
+    "adventurerLevel": "Cấp độ mạo hiểm giả",
+    "preciseScoreTitle": "Điểm tổng {score}"
   },
   "reactions": {
     "heading": "Phản ứng cộng đồng",
@@ -425,7 +419,7 @@
   },
   "detailMeta": {
     "unratedTitle": "{username} · Hồ sơ nhà phát triển",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — xem báo cáo điểm đầy đủ của {username} trên ghfind.com.",
     "descPlain": "Báo cáo giá trị & độ tin cậy GitHub của {username} — ghfind.com.",
     "notFoundTitle": "Không tìm thấy tài khoản · ghfind",
@@ -545,25 +539,25 @@
     "brand": "🔥 ghfind · xem bạn ở đâu trên bản đồ"
   },
   "tiers": {
-    "god": {
-      "name": "GOD",
-      "blurb": "Huyền thoại · Đại sảnh Danh vọng"
-    },
-    "elite": {
-      "name": "ELITE",
-      "blurb": "Tinh hoa · Dev hạng đỉnh"
-    },
-    "solid": {
-      "name": "SOLID",
-      "blurb": "Chắc tay · Đáng tin cậy"
+    "trash": {
+      "name": "Luyện Khí",
+      "blurb": "Bước đầu tiên · Xây nền tảng"
     },
     "npc": {
-      "name": "NPC",
-      "blurb": "Trung bình · Không có gì nổi bật"
+      "name": "Kết Đan",
+      "blurb": "Đan thành · Lộ sắc bén"
     },
-    "trash": {
-      "name": "TRASH",
-      "blurb": "Giá trị thấp · Nhiều khả năng cày ảo"
+    "solid": {
+      "name": "Luyện Hư",
+      "blurb": "Trở về chất phác · Nhẹ như không"
+    },
+    "elite": {
+      "name": "Hợp Thể",
+      "blurb": "Thiên nhân hợp nhất · Tông sư hàng đầu"
+    },
+    "god": {
+      "name": "Đại Thừa",
+      "blurb": "Gần đại đạo · Chuẩn mực điện đường"
     }
   },
   "dimensions": {
@@ -662,8 +656,8 @@
         "body": "Ảnh chụp được chấm theo độ trưởng thành tài khoản, chất lượng dự án gốc, chất lượng đóng góp, tác động hệ sinh thái, ảnh hưởng cộng đồng và độ thật của hoạt động, kèm điểm phạt cho cày PR, bơm star và spam theo template."
       },
       {
-        "title": "3. Nhận điểm, hạng và màn cà khịa",
-        "body": "Bạn nhận được điểm 0-100 tái lập được kèm hạng từ Trash đến God, bảng phân tích từng chiều chỉ ra chính xác thứ đang kéo điểm của bạn xuống, và — chỉ khi bạn yêu cầu — một màn cà khịa cực gắt do AI viết."
+        "title": "3. Nhận cấp độ mạo hiểm gia, cảnh giới và roast",
+        "body": "Bạn nhận được cấp độ mạo hiểm gia có thể tái tạo (Lv.1–100), cảnh giới từ Luyện Khí đến Đại Thừa, phân tích từng chiều cho thấy điều gì kéo điểm xuống, và — chỉ khi bạn yêu cầu — một roast dí dỏm do AI viết."
       }
     ],
     "numbersHeading": "ghfind qua những con số",
@@ -2092,6 +2086,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "Luyện Khí",
+      "blurb": "Bước đầu tiên · Xây nền tảng"
+    },
+    "foundation": {
+      "name": "Trúc Cơ",
+      "blurb": "Nền đã vững · Tiến đều"
+    },
+    "goldenCore": {
+      "name": "Kết Đan",
+      "blurb": "Đan thành · Lộ sắc bén"
+    },
+    "nascentSoul": {
+      "name": "Nguyên Anh",
+      "blurb": "Anh sơ thành · Phong cách riêng"
+    },
+    "deity": {
+      "name": "Hóa Thần",
+      "blurb": "Thần thức thông · Ảnh hưởng một vùng"
+    },
+    "voidRefining": {
+      "name": "Luyện Hư",
+      "blurb": "Trở về chất phác · Nhẹ như không"
+    },
+    "integration": {
+      "name": "Hợp Thể",
+      "blurb": "Thiên nhân hợp nhất · Tông sư hàng đầu"
+    },
+    "mahayana": {
+      "name": "Đại Thừa",
+      "blurb": "Gần đại đạo · Chuẩn mực điện đường"
     }
   }
 }
