@@ -175,6 +175,7 @@ export function LiveRoast({
         let latestMeta: RoastMeta | null = null;
         const { errored, fresh } = await consumeRoastStream(res, {
           onGenerator: (generator) => progressRef.current.setGenerator(generator),
+          onStarted: (startedAt) => progressRef.current.noteStarted(startedAt),
           onThinking: (label) => progressRef.current.noteThinking(label),
           onMeta: (m) => {
             latestMeta = m;
@@ -290,16 +291,11 @@ export function LiveRoast({
             title={t("roastProgressTitle")}
             stage={stage}
             liveStage={stage}
+            score={scan?.scoring?.final_score ?? fallbackMeta?.final_score}
             tier={scan?.scoring?.tier ?? fallbackMeta?.tier}
           />
         </div>
       ) : null}
-      {line ? (
-        <p className="mb-4 rounded-xl border border-orange-500/30 bg-orange-500/[0.08] p-4 text-[0.95rem] leading-relaxed text-zinc-100">
-          🔥 {line}
-        </p>
-      ) : null}
-
       {tagsForLocale(tags, locale).length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {tagsForLocale(tags, locale).map((tag, i) => (
@@ -315,7 +311,7 @@ export function LiveRoast({
 
       {reportBody && !waiting ? (
         <div className="roast-progress-reveal">
-          <RoastReport markdown={reportBody} className={report ? "caret" : ""} tier={scan?.scoring?.tier ?? fallbackMeta?.tier} />
+          <RoastReport markdown={reportBody} className={report ? "caret" : ""} tier={scan?.scoring?.tier ?? fallbackMeta?.tier} score={scan?.scoring?.final_score ?? fallbackMeta?.final_score} />
         </div>
       ) : null}
     </>
