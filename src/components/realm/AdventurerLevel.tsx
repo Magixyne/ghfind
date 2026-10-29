@@ -56,16 +56,14 @@ export function AdventurerLevel({
           {caption}
         </div>
       ) : null}
-      <div
-        className={`realm-level-num mt-0.5 flex items-baseline font-black tabular-nums leading-none ${numSize} ${animClass}`}
-      >
+      <div className={`mt-0.5 flex items-baseline font-black tabular-nums leading-none ${numSize}`}>
         <span
           className={`realm-level-prefix ${prefixSize} font-bold`}
           style={{ transform: "translateY(0.18em)" }}
         >
           Lv.
         </span>
-        <span>{lv}</span>
+        <span className={`realm-level-num ${animClass}`}>{lv}</span>
       </div>
     </div>
   );

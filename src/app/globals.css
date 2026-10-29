@@ -724,10 +724,19 @@ html[data-theme="light"] .realm-level-num.realm-level-shimmer {
   -webkit-text-fill-color: var(--realm-fg);
 }
 
+/* Prefix must NOT inherit parent background-clip:text — that paints a
+ * transparent clipped "ghost" under the solid fill (doubled Lv. glyph). */
 .realm-level-prefix {
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
   color: var(--realm-fg);
   -webkit-text-fill-color: var(--realm-fg);
   opacity: 0.92;
+  text-shadow: none;
+  filter: none;
+  animation: none !important;
 }
 
 @keyframes realm-sweep {
