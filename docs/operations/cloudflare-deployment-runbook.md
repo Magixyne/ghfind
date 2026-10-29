@@ -152,7 +152,7 @@ rails, all on `ghfind-api` (see `src/lib/auto-rescan.ts`):
 
 - `GHFIND_AUTO_RESCAN_DISABLED=1` — kill switch (plain var; no deploy of code
   needed: `wrangler deploy --var GHFIND_AUTO_RESCAN_DISABLED:1` or the dashboard).
-- `GHFIND_AUTO_RESCAN_MAX_PER_HOUR` — global fixed-window budget, default 20;
+- `GHFIND_AUTO_RESCAN_MAX_PER_HOUR` — global fixed-window budget, default 100;
   `0` turns it off.
 - One attempt per user per 24h (kept on failure), bot/headless/HTTP-library
   user agents and requests without same-origin fetch metadata refused, server
@@ -170,14 +170,14 @@ it, or after a roast release bump), the page shows the previous report labelled
 state, and asks `POST /api/roast/auto` (`trigger: "roast_version_upgrade"`) to
 regenerate it. The request only enqueues a job (202 + `Location`); the
 `ghfind-api` production cron (`*/2 * * * *`, same tick as the project-analysis
-reconcile) drains the queue — at most 3 generations and 8 minutes per tick, one
+reconcile) drains the queue — at most 5 generations and 8 minutes per tick, one
 worker at a time — and the page polls `GET /api/roast/auto`. The job is keyed by
 the target release, so a later bump (e.g. a slower, asynchronous producer)
 supersedes stale jobs automatically. Guard rails (`src/lib/auto-reroast.ts`):
 
 - `GHFIND_AUTO_REROAST_DISABLED=1` — separate kill switch (queued jobs then age
   out after 2h).
-- `GHFIND_AUTO_REROAST_MAX_PER_HOUR` — separate global budget, default 20; `0`
+- `GHFIND_AUTO_REROAST_MAX_PER_HOUR` — separate global budget, default 60; `0`
   turns admission off.
 - One attempt per user + language + roast release per 24h (kept on failure),
   the same automated-client filter and per-IP limit as auto rescan, machine

@@ -522,7 +522,7 @@ export function rateLimitHeaders(result: RateLimitResult): Record<string, string
 
 /** Per-principal sliding-window limiter for scan and bounded public-read routes. */
 export async function checkRateLimit(principal: string): Promise<RateLimitResult> {
-  const scanLimiter = rateLimiter("rl:scan", 10, "60 s");
+  const scanLimiter = rateLimiter("rl:scan", 15, "60 s");
   if (!scanLimiter) return unavailableRateLimitResult("scan", "missing_redis_config");
   try {
     const { success, limit, remaining, reset } = await scanLimiter.limit(principal);
@@ -759,8 +759,8 @@ export async function checkMcpRateLimit(ip: string): Promise<RateLimitResult> {
  * daily cap. Only gates the default model; BYO keys are not limited.
  */
 export async function checkRoastRateLimit(principal: string): Promise<RateLimitResult> {
-  const roastMinuteLimiter = rateLimiter("rl:roast:m", 8, "60 s");
-  const roastDayLimiter = rateLimiter("rl:roast:d", 60, "1 d");
+  const roastMinuteLimiter = rateLimiter("rl:roast:m", 12, "60 s");
+  const roastDayLimiter = rateLimiter("rl:roast:d", 100, "1 d");
   if (!roastMinuteLimiter || !roastDayLimiter) return unavailableRateLimitResult("roast_generation", "missing_redis_config");
   try {
     const [minute, day] = await Promise.all([

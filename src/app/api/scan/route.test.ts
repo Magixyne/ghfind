@@ -429,7 +429,7 @@ describe("POST /api/scan on-view score version upgrade", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ cached: false, scoring: { final_score: 71 } });
-    expect(mocks.admitVersionUpgradeRescan).toHaveBeenCalledWith("DemoDev", 20);
+    expect(mocks.admitVersionUpgradeRescan).toHaveBeenCalledWith("DemoDev", 100);
     expect(mocks.coalesceScan).toHaveBeenCalledWith("DemoDev", expect.any(Function), expect.objectContaining({ force: false }));
     // The automatic path always pays the per-IP limit, even with a session.
     expect(mocks.checkRateLimit).toHaveBeenCalledWith("0.0.0.0");
