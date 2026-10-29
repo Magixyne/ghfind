@@ -37,6 +37,9 @@ describe("ProfileEvaluateWait", () => {
     expect(html).toContain('data-active="1"');
     expect(html).toContain("54%");
     expect(html).toContain("bg-white/[0.05]");
+    expect(html).toContain("grid w-full grid-cols-3");
+    expect(html).toContain("size-28");
+    expect(html).toContain("safe-area-inset-bottom");
     expect(html).not.toContain("bg-black/35");
   });
 
