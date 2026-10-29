@@ -591,6 +591,100 @@ html[data-theme="light"] .roast-report[data-tier-tone="trash"] {
   --roast-tier-muted: rgba(82, 82, 91, 0.5);
 }
 
+/* ── Cultivation realms + Adventurer Level ─────────────────────────── */
+[data-realm] {
+  --realm-fg: var(--realm-fg-dark, #8B9099);
+}
+html[data-theme="light"] [data-realm] {
+  --realm-fg: var(--realm-fg-light, #5A5F68);
+}
+
+.realm-level-num.realm-level-solid {
+  color: var(--realm-fg);
+}
+.realm-level-num.realm-level-grad,
+.realm-level-num.realm-level-sweep,
+.realm-level-num.realm-level-shimmer {
+  background-image: var(--realm-grad, linear-gradient(135deg, var(--realm-fg), var(--realm-fg)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+html[data-theme="light"] .realm-level-num.realm-level-grad,
+html[data-theme="light"] .realm-level-num.realm-level-sweep,
+html[data-theme="light"] .realm-level-num.realm-level-shimmer {
+  background-image: none;
+  color: var(--realm-fg);
+  -webkit-text-fill-color: var(--realm-fg);
+}
+
+.realm-level-prefix {
+  color: var(--realm-fg);
+  -webkit-text-fill-color: var(--realm-fg);
+  opacity: 0.92;
+}
+
+@keyframes realm-sweep {
+  0% { background-position: 0% 50%; filter: brightness(1); }
+  50% { background-position: 100% 50%; filter: brightness(1.12); }
+  100% { background-position: 0% 50%; filter: brightness(1); }
+}
+@keyframes realm-shimmer {
+  0% { background-position: -40% 50%; filter: brightness(1); }
+  50% { background-position: 140% 50%; filter: brightness(1.18); }
+  100% { background-position: -40% 50%; filter: brightness(1); }
+}
+@keyframes realm-aurora {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.55; }
+}
+
+.realm-level-num.realm-level-sweep {
+  background-size: 200% 200%;
+  animation: realm-sweep 6s ease-in-out infinite;
+}
+.realm-level-num.realm-level-shimmer {
+  background-size: 220% 220%;
+  animation: realm-shimmer 5s ease-in-out infinite;
+}
+
+.realm-avatar-aurora {
+  position: absolute;
+  inset: -18%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, var(--realm-glow) 0%, transparent 70%);
+  animation: realm-aurora 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realm-level-num.realm-level-sweep,
+  .realm-level-num.realm-level-shimmer,
+  .realm-avatar-aurora {
+    animation: none !important;
+  }
+}
+
+/* Roast report accents keyed by realm id (supersedes legacy tier tones when set) */
+.roast-report[data-realm-tone="qi"] { --roast-accent: #8B9099; --roast-glow: rgba(139,144,153,0.18); }
+.roast-report[data-realm-tone="foundation"] { --roast-accent: #B0565A; --roast-glow: rgba(176,86,90,0.22); }
+.roast-report[data-realm-tone="goldenCore"] { --roast-accent: #C08457; --roast-glow: rgba(192,132,87,0.25); }
+.roast-report[data-realm-tone="nascentSoul"] { --roast-accent: #DCC88F; --roast-glow: rgba(220,200,143,0.28); }
+.roast-report[data-realm-tone="deity"] { --roast-accent: #6DB396; --roast-glow: rgba(109,179,150,0.30); }
+.roast-report[data-realm-tone="voidRefining"] { --roast-accent: #4A9BE0; --roast-glow: rgba(74,155,224,0.34); }
+.roast-report[data-realm-tone="integration"] { --roast-accent: #A97CF5; --roast-glow: rgba(169,124,245,0.40); }
+.roast-report[data-realm-tone="mahayana"] { --roast-accent: #F6C744; --roast-glow: rgba(246,199,68,0.45); }
+html[data-theme="light"] .roast-report[data-realm-tone="qi"] { --roast-accent: #5A5F68; }
+html[data-theme="light"] .roast-report[data-realm-tone="foundation"] { --roast-accent: #8E3A3E; }
+html[data-theme="light"] .roast-report[data-realm-tone="goldenCore"] { --roast-accent: #8F5A30; }
+html[data-theme="light"] .roast-report[data-realm-tone="nascentSoul"] { --roast-accent: #8A7231; }
+html[data-theme="light"] .roast-report[data-realm-tone="deity"] { --roast-accent: #2C7457; }
+html[data-theme="light"] .roast-report[data-realm-tone="voidRefining"] { --roast-accent: #1C64A3; }
+html[data-theme="light"] .roast-report[data-realm-tone="integration"] { --roast-accent: #6F3FC4; }
+html[data-theme="light"] .roast-report[data-realm-tone="mahayana"] { --roast-accent: #A87700; }
+
 /* Score-first roast placeholder. The ring reuses --roast-tier. Shimmer is a
  * hint of upcoming text and is removed when the visitor asks for less motion. */
 .roast-progress-card {

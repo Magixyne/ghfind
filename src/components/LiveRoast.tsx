@@ -310,7 +310,7 @@ export function LiveRoast({
 
       {reportBody && !waiting ? (
         <div className="roast-progress-reveal">
-          <RoastReport markdown={reportBody} className={report ? "caret" : ""} tier={scan?.scoring?.tier ?? fallbackMeta?.tier} />
+          <RoastReport markdown={reportBody} className={report ? "caret" : ""} tier={scan?.scoring?.tier ?? fallbackMeta?.tier} score={scan?.scoring?.final_score ?? fallbackMeta?.final_score} />
         </div>
       ) : null}
     </>

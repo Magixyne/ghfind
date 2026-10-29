@@ -13,7 +13,8 @@ import {
   type ReactNode,
 } from "react";
 import type { ImpactRepo, Tier } from "@/lib/types";
-import { tierAvatarFrame, tierStyle } from "@/lib/tier";
+import { tierAvatarFrame } from "@/lib/tier";
+import { realmForScore, realmForTier } from "@/lib/realm";
 
 export type ImpactOrbitRepo = Pick<ImpactRepo, "repo" | "stars" | "commits" | "prs">;
 
@@ -351,6 +352,7 @@ function PlanetAvatar({
 export function ImpactOrbit({
   repos,
   tier,
+  score,
   locale,
   commitsLabel,
   prsLabel,
@@ -360,6 +362,7 @@ export function ImpactOrbit({
 }: {
   repos: ImpactOrbitRepo[];
   tier: Tier;
+  score?: number;
   locale: string;
   commitsLabel: string;
   prsLabel: string;
@@ -376,9 +379,9 @@ export function ImpactOrbit({
     return (n: number) => nf.format(n);
   }, [locale]);
   const frame = tierAvatarFrame(tier);
-  const style = tierStyle(tier);
-  const glow = frame.glow;
-  const accent = style.glow;
+  const realm = typeof score === "number" ? realmForScore(score) : realmForTier(tier);
+  const glow = realm.colors.glow;
+  const accent = realm.colors.glow;
 
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);

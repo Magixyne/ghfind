@@ -1,3 +1,4 @@
+import { adventurerLevel, realmForScore, realmForTier } from "@/lib/realm";
 /**
  * Presentational layer for the profile cards (`/api/card/{username}`).
  *
@@ -341,6 +342,8 @@ export interface Identity {
   displayName: string | null;
   avatar: string | null;
   tier: Tier;
+  /** Optional numeric score for precise realm labeling. */
+  score?: number;
   /** Data-URL SVG without font side bearings. */
   tierIcon: string;
   color: string;
@@ -452,7 +455,7 @@ function VariantHeader({ id }: { id: Identity }) {
           padding: "6px 24px",
         }}
       >
-        {TIER_EN[tier]}
+        {(typeof id.score === "number" ? realmForScore(id.score) : realmForTier(tier)).nameEn}
       </div>
     </div>
   );

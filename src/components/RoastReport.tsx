@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { rewriteLegacyRoastMarkdown } from "@/lib/roast-report-legacy";
 import { TIER_KEY } from "@/lib/tier";
 import type { Tier } from "@/lib/types";
+import { realmForScore, realmForTier, remapRoastHeaderLine } from "@/lib/realm";
 
 /**
  * Profile / live / modal roast markdown — compact v13n card layout:
@@ -287,27 +288,41 @@ export function RoastReport({
   markdown,
   className = "",
   tier,
+  score,
+  realmName,
 }: {
   markdown: string;
   className?: string;
-  /** Profile tier — drives score/bar/chip/verdict accents via data-tier-tone. */
+  /** Stored tier — fallback for accents when score is missing. */
   tier?: Tier | null;
+  /** Numeric score — preferred for realm accents + header Lv remap. */
+  score?: number | null;
+  /** Localized realm display name for header remap. */
+  realmName?: string | null;
 }) {
   const t = useTranslations("detail");
   const verdictLabel = t("verdictLabel");
-  const tone = tier ? TIER_KEY[tier] : "elite";
+  const realm =
+    typeof score === "number"
+      ? realmForScore(score)
+      : tier
+        ? realmForTier(tier)
+        : null;
+  const tone = realm?.id ?? (tier ? TIER_KEY[tier] : "elite");
   const { before, dims, after } = useMemo(() => {
-    const rewritten = localizeVerdictLabel(
-      collapseEmptyRisk(rewriteLegacyRoastMarkdown(markdown ?? "")),
-      verdictLabel,
-    );
+    let md = rewriteLegacyRoastMarkdown(markdown ?? "");
+    if (typeof score === "number" && realmName) {
+      md = remapRoastHeaderLine(md, score, realmName);
+    }
+    const rewritten = localizeVerdictLabel(collapseEmptyRisk(md), verdictLabel);
     return splitDimensionSection(rewritten);
-  }, [markdown, verdictLabel]);
+  }, [markdown, verdictLabel, score, realmName]);
 
   return (
     <div
       dir="ltr"
-      data-tier-tone={tone}
+      data-tier-tone={tier ? TIER_KEY[tier] : "elite"}
+      data-realm-tone={realm?.id}
       className={`report roast-report ${className}`.trim()}
     >
       {before ? (

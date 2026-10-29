@@ -8,6 +8,9 @@ import { LiveRoast } from "@/components/LiveRoast";
 // import { RoastReveal } from "@/components/RoastReveal";
 import { splitReport } from "@/lib/report";
 import { TIER_LABEL_EN } from "@/lib/badge";
+import { AdventurerLevel } from "@/components/realm/AdventurerLevel";
+import { RealmChip } from "@/components/realm/RealmGlyph";
+import { nextRealm, realmCssVars, realmForScore, formatAdventurerLevel, preciseScoreTitle } from "@/lib/realm";
 import type { RoastMeta } from "@/lib/types";
 import { JsonLd, profileJsonLd } from "@/components/JsonLd";
 import { SITE_URL, bcp47 } from "@/lib/site";
@@ -19,11 +22,12 @@ import { TierAvatarFrame } from "@/components/TierAvatarFrame";
 import { ImpactOrbit } from "@/components/ImpactOrbit";
 import { DimensionStarChart } from "@/components/DimensionStarChart";
 import { ScoreBreakdown, ScoreBreakdownSummary } from "@/components/ScoreBreakdown";
-import { nextTier, tierFor } from "@/lib/score-presentation";
+import { tierFor } from "@/lib/score-presentation";
 import { roundHalfEven } from "@/lib/score";
 import { DIMENSIONS } from "@/lib/dimensions";
 import { beatPercent } from "@/lib/percentile";
 import { TIER_KEY, tierStyle } from "@/lib/tier";
+import type { RealmId } from "@/lib/realm";
 import { normLang } from "@/lib/lang";
 import { tagsForLocale } from "@/lib/roast-tags";
 import { scoreRedFlagLabel } from "@/lib/score-red-flags";
@@ -80,6 +84,7 @@ export function ProfileView({
   t,
   tDim,
   tTier,
+  tRealm,
 }: {
   locale: string;
   presentation: ProfilePresentation;
@@ -97,12 +102,18 @@ export function ProfileView({
   t: Translator;
   /** "dimensions" namespace. */
   tDim: Translator;
-  /** "tiers" namespace. */
+  /** "tiers" namespace (legacy bridge → realm names). */
   tTier: Translator;
+  /** "realms" namespace. */
+  tRealm: Translator;
 }) {
   const d = presentation.detail;
-  const style = tierStyle(d.tier);
+  const realm = realmForScore(d.final_score);
+  const realmVars = realmCssVars(realm, "dark");
+  const style = tierStyle(d.tier); // kept for a few legacy chip paths during migration
   const tierKey = TIER_KEY[d.tier];
+  const realmName = tRealm(`${realm.id}.name`);
+  const realmBlurb = tRealm(`${realm.id}.blurb`);
   const lang = normLang(locale);
   // English visitors read the English-cached roast; fall back to the empty state
   // (not the Chinese report) so the page never mixes languages.
@@ -182,9 +193,9 @@ export function ProfileView({
   // landing → PK/badge action → spread loop can be read end-to-end.
   const landingSource = classifyLandingSource(referer, fromBadgeRef);
   // Milestone hint: points to the next tier line, plus the "beat %" so far.
-  const promo = nextTier(d.final_score);
+  const promo = nextRealm(d.final_score);
   const promoGap = promo ? (promo.threshold - d.final_score).toFixed(2) : null;
-  const promoTierName = promo ? tTier(`${TIER_KEY[promo.tier]}.name`) : null;
+  const promoTierName = promo ? tRealm(`${promo.realm.id}.name`) : null;
   const beat = rank ? beatPercent(rank.below, rank.total) : null;
   // Popup payload for the homepage handoff — the fresh replay (RoastReveal), the
   // stale re-roast seed and the missing-language seed all reuse it. Built
@@ -395,24 +406,41 @@ export function ProfileView({
       {/* Header card */}
       <div
         data-profile-score-card
+        data-realm={realm.id}
         className={`animate-pop flex flex-col items-center overflow-visible text-center ${
           isAdvxCampaign
             ? "bg-transparent p-0"
-            : "rounded-2xl border border-white/10 bg-white/[0.05] p-6 ring-1"
-        } ${style.ring}`}
-        style={isAdvxCampaign ? undefined : { boxShadow: `0 0 80px -20px ${style.glow}` }}
+            : "rounded-2xl border border-white/10 bg-white/[0.05] p-6"
+        }`}
+        style={
+          isAdvxCampaign
+            ? realmVars
+            : {
+                ...realmVars,
+                boxShadow: `0 0 80px -20px ${realm.colors.glow}`,
+                borderColor: `color-mix(in srgb, ${realm.colors.ring} 12%, transparent)`,
+                borderWidth: 1,
+                borderStyle: "solid",
+              }
+        }
       >
         <h1 className="max-w-full">
           <a
             href={d.profile_url ?? `https://github.com/${d.username}`}
             target="_blank"
             rel="noopener noreferrer"
-            className={`inline-block max-w-full break-all text-xl font-black leading-tight ${style.text} ${
-              isAdvxCampaign
-                ? ""
-                : `rounded-full bg-black/35 px-4 py-1.5 ring-1 ${style.ring} hover:bg-black/45`
+            className={`inline-block max-w-full break-all text-xl font-black leading-tight ${
+              isAdvxCampaign ? "" : "rounded-full bg-black/35 px-4 py-1.5 hover:bg-black/45"
             }`}
-            style={{ boxShadow: `0 0 28px -10px ${style.glow}` }}
+            style={{
+              color: "var(--realm-fg)",
+              ...(isAdvxCampaign
+                ? {}
+                : {
+                    boxShadow: `0 0 28px -10px ${realm.colors.glow}`,
+                    outline: `1px solid color-mix(in srgb, ${realm.colors.ring} 50%, transparent)`,
+                  }),
+            }}
           >
             @{d.username}
           </a>
@@ -429,6 +457,7 @@ export function ProfileView({
           <ImpactOrbit
             repos={impactRepos}
             tier={d.tier}
+            score={d.final_score}
             locale={bcp47(locale)}
             commitsLabel={t("commits")}
             prsLabel={t("prs")}
@@ -438,7 +467,10 @@ export function ProfileView({
             <TierAvatarFrame
               username={d.username}
               avatarUrl={d.avatar_url}
+              score={d.final_score}
               tier={d.tier}
+              realm={realm}
+              realmName={realmName}
               size="lg"
             />
           </ImpactOrbit>
@@ -446,25 +478,30 @@ export function ProfileView({
           <TierAvatarFrame
             username={d.username}
             avatarUrl={d.avatar_url}
+            score={d.final_score}
             tier={d.tier}
+            realm={realm}
+            realmName={realmName}
             size="lg"
             className="mt-5"
           />
         )}
-        <div
-          data-profile-score-value
-          className={`mt-0 text-6xl font-black tabular-nums ${style.text}`}
-        >
-          {d.final_score.toFixed(2)}
-          <span className="text-2xl text-zinc-600">/100</span>
+        <div data-profile-score-value className="mt-1">
+          <AdventurerLevel
+            score={d.final_score}
+            realm={realm}
+            caption={t("adventurerLevel")}
+            size="lg"
+            lang={lang === "en" ? "en" : "zh"}
+          />
         </div>
         {fromHome && <StaleScanHint username={d.username} />}
         <ScoreBreakdownSummary breakdown={scoreBreakdown} copy={scoreBreakdownCopy} />
-        <div className={`mt-1 text-2xl font-bold ${style.text}`}>
-          {style.emoji} {tTier(`${tierKey}.name`)}
+        <div className="mt-2">
+          <RealmChip realm={realm} name={realmName} />
         </div>
-        <div className="mt-1 text-sm font-medium text-zinc-300">
-          {tTier(`${tierKey}.blurb`)}
+        <div className="mt-1 text-sm font-medium text-zinc-400">
+          {realmBlurb}
         </div>
         {shouldStreamRoast || reroastPending ? (
           <p className="mt-2 text-sm text-zinc-400">{t("scoreReadyHint")}</p>
@@ -631,7 +668,7 @@ export function ProfileView({
           avatarUrl={d.avatar_url}
           score={d.final_score}
           tier={d.tier}
-          tierLabel={tTier(`${tierKey}.blurb`)}
+          tierLabel={realmBlurb}
           beat={beat}
           tags={d.tags}
         />
@@ -988,7 +1025,7 @@ export function ProfileView({
                 />
               )}
               */}
-              <RoastReport markdown={roast} tier={d.tier} />
+              <RoastReport markdown={roast} tier={d.tier} score={d.final_score} realmName={realmName} />
             </>
           )
         ) : shouldStreamRoast ? (
@@ -1010,7 +1047,7 @@ export function ProfileView({
             lang={lang}
             staleReport={
               staleRoast ? (
-                <RoastReport markdown={staleRoast} tier={d.tier} />
+                <RoastReport markdown={staleRoast} tier={d.tier} score={d.final_score} realmName={realmName} />
               ) : null
             }
           />

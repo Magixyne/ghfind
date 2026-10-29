@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { BADGE_COLOR, TIER_EN } from "@/lib/badge";
+import { adventurerLevel, realmForScore } from "@/lib/realm";
 import { normalizeUsername } from "@/lib/username";
 import { tierAvatarFrame } from "@/lib/tier";
 import { tierAvatarFrameIconDataUrl } from "@/lib/tier-emoji.server";
@@ -78,10 +79,10 @@ function Player({
       {detail ? (
         <>
           <div style={{ display: "flex", marginTop: 14, fontSize: 76, fontWeight: 800, color, lineHeight: 1 }}>
-            {detail.final_score.toFixed(1)}
+            {`Lv.${adventurerLevel(detail.final_score)}`}
           </div>
           <div style={{ display: "flex", marginTop: 6, fontSize: 30, fontWeight: 800, color }}>
-            {TIER_EN[detail.tier]}
+            {realmForScore(detail.final_score).nameEn}
           </div>
         </>
       ) : (

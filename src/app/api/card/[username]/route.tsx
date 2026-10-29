@@ -1,5 +1,6 @@
 import { getGoProfileCardPresentation } from "@/lib/go-profile.server";
 import { BADGE_COLOR, TIER_EN, TIER_LABEL_EN } from "@/lib/badge";
+import { adventurerLevel, formatAdventurerLevel, realmForScore } from "@/lib/realm";
 import { getCurrentTitleSponsor } from "@/lib/sponsor.server";
 import { USERNAME_RE } from "@/lib/username";
 import { tierAvatarFrame } from "@/lib/tier";
@@ -57,7 +58,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
   }
 
   const tier = detail.tier as Tier;
-  const color = BADGE_COLOR[tier];
+  const realm = realmForScore(detail.final_score);
+  const color = realm.colors.fg;
   const beat = presentation?.percentile?.beat ?? null;
   // Weekly movement — the embed changes week to week, so a card pasted into a
   // README keeps pulling its owner (and their visitors) back.
@@ -78,6 +80,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
     displayName,
     avatar,
     tier,
+    score: detail.final_score,
     tierIcon,
     color,
     palette,
@@ -133,15 +136,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
         </div>
       </div>
 
-      {/* Score */}
+      {/* Score → Adventurer Level */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
+          <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "0.18em", color: palette.muted, textTransform: "uppercase" }}>
+            Adventurer Level
+          </span>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <span style={{ fontSize: 116, fontWeight: 800, color, lineHeight: 1 }}>
-              {detail.final_score.toFixed(2)}
+            <span style={{ fontSize: 52, fontWeight: 800, color, lineHeight: 1, marginBottom: 14, opacity: 0.9 }}>
+              Lv.
             </span>
-            <span style={{ fontSize: 40, color: palette.weak, marginLeft: 8, marginBottom: 10 }}>
-              /100
+            <span style={{ fontSize: 116, fontWeight: 800, color, lineHeight: 1 }} title={`Composite ${detail.final_score.toFixed(2)}`}>
+              {adventurerLevel(detail.final_score)}
             </span>
             {/* Brag surface: only upward movement is shown — a public README
                 embed must never broadcast its owner's decline. */}
@@ -165,10 +171,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
             )}
           </div>
           <div style={{ display: "flex", fontSize: 40, fontWeight: 800, color, marginTop: 8 }}>
-            {TIER_EN[tier]}
+            {realm.nameEn}
           </div>
           <div style={{ display: "flex", fontSize: 22, color: palette.muted, marginTop: 2 }}>
-            {TIER_LABEL_EN[tier]}
+            {realm.blurbEn}
           </div>
         </div>
         {beat !== null && (

@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
-import { TIER_ZH } from "@/lib/badge";
-import { tierStyle } from "@/lib/tier";
+import {
+  realmCssVars,
+  realmForScore,
+  realmForTier,
+  type RealmDef,
+} from "@/lib/realm";
 import type { Tier } from "@/lib/types";
 
 type AvatarFrameSize = "feed" | "sm" | "md" | "lg";
@@ -9,7 +13,12 @@ interface TierAvatarFrameProps {
   avatarContent?: ReactNode;
   username: string;
   avatarUrl: string | null;
-  tier: Tier;
+  /** Preferred: derive realm from numeric score. */
+  score?: number | null;
+  /** Fallback when score is unavailable (stored Tier key). */
+  tier?: Tier | null;
+  realm?: RealmDef;
+  realmName?: string;
   size?: AvatarFrameSize;
   className?: string;
 }
@@ -60,51 +69,66 @@ function withAlpha(hex: string, alpha: number): string {
 }
 
 /**
- * Tier-tinted avatar shell. Ring + glow use {@link tierStyle}.hex so they always
- * match the score/tier label color (inline styles — no Tailwind purge risk).
- * Share/OG cards still draw frame icons via material-card /api/card.
+ * Realm-tinted avatar shell. Ring + glow from realm colors (inline — no purge).
+ * Double ring + aurora for 大乘; soft glow for 炼虚+.
  */
 export function TierAvatarFrame({
   avatarContent,
   username,
   avatarUrl,
+  score,
   tier,
+  realm: realmProp,
+  realmName,
   size = "md",
   className = "",
 }: TierAvatarFrameProps) {
-  const style = tierStyle(tier);
+  const realm =
+    realmProp ??
+    (typeof score === "number" ? realmForScore(score) : tier ? realmForTier(tier) : realmForScore(0));
   const classes = SIZE_CLASS[size];
   const initial = username.slice(0, 1).toUpperCase();
-  const ring = style.hex;
-  const softBg = withAlpha(style.hex, 0.14);
-  const glow = withAlpha(style.hex, size === "feed" ? 0.45 : 0.55);
+  const ring = realm.colors.ring;
+  const softBg = withAlpha(realm.colors.fg, 0.14);
+  const glow = realm.colors.glow;
+  const vars = realmCssVars(realm, "dark");
+  const label = realmName ?? realm.nameZh;
+
+  const shellShadow = realm.effects.doubleRing
+    ? `0 0 0 2px ${ring}, 0 0 0 4px rgba(255,227,138,0.60), 0 0 ${classes.glowSpread} ${glow}`
+    : `0 0 0 2px ${ring}, 0 0 ${classes.glowSpread} ${glow}`;
 
   return (
     <div
+      data-realm={realm.id}
       className={`relative flex shrink-0 items-center justify-center rounded-full ${classes.shell} ${className}`}
       style={{
+        ...vars,
         backgroundColor: softBg,
-        boxShadow: `0 0 0 2px ${ring}, 0 0 ${classes.glowSpread} ${glow}`,
+        boxShadow: shellShadow,
       }}
-      aria-label={`${TIER_ZH[tier]} avatar frame`}
+      aria-label={`${label} avatar frame`}
     >
+      {realm.effects.aurora ? <div className="realm-avatar-aurora" /> : null}
       <div
         className={`absolute ${size === "feed" ? "inset-1" : "inset-2"} rounded-full`}
-        style={{ boxShadow: `inset 0 0 0 1px ${withAlpha(style.hex, 0.35)}` }}
+        style={{ boxShadow: `inset 0 0 0 1px ${withAlpha(realm.colors.fg, 0.35)}` }}
       />
 
       {avatarContent ? (
-        <div className={`relative overflow-hidden rounded-full ring-2 ring-black/80 ${classes.avatar}`}>{avatarContent}</div>
+        <div className={`relative z-[1] overflow-hidden rounded-full ring-2 ring-black/80 ${classes.avatar}`}>
+          {avatarContent}
+        </div>
       ) : avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={avatarUrl}
           alt={username}
-          className={`relative rounded-full object-cover ring-2 ring-black/80 ${classes.avatar}`}
+          className={`relative z-[1] rounded-full object-cover ring-2 ring-black/80 ${classes.avatar}`}
         />
       ) : (
         <div
-          className={`relative flex items-center justify-center rounded-full bg-white/10 font-black text-zinc-100 ring-2 ring-black/80 ${classes.avatar} ${classes.initial}`}
+          className={`relative z-[1] flex items-center justify-center rounded-full bg-white/10 font-black text-zinc-100 ring-2 ring-black/80 ${classes.avatar} ${classes.initial}`}
         >
           {initial}
         </div>

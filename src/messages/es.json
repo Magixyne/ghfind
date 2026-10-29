@@ -400,7 +400,9 @@
     "selfCta": "Evalúa tu propio GitHub →",
     "reportLangNotice": "El reporte de roast de la IA por ahora solo se escribe en inglés y chino — estás leyendo la versión en inglés.",
     "coCreatorShare": "Liderado / cocreado ({share}%)",
-    "scoreReadyHint": "La puntuación ya está. El roast llega enseguida"
+    "scoreReadyHint": "La puntuación ya está. El roast llega enseguida",
+    "adventurerLevel": "Nivel de aventurero",
+    "preciseScoreTitle": "Puntuación {score}"
   },
   "reactions": {
     "heading": "Reacciones de la comunidad",
@@ -425,7 +427,7 @@
   },
   "detailMeta": {
     "unratedTitle": "{username} · Perfil de desarrollador",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — mira el reporte completo del score de {username} en ghfind.com.",
     "descPlain": "Reporte de valor y confianza de GitHub de {username} — ghfind.com.",
     "notFoundTitle": "Cuenta no encontrada · ghfind",
@@ -545,25 +547,25 @@
     "brand": "🔥 ghfind · mira cómo te comparas"
   },
   "tiers": {
-    "god": {
-      "name": "GOD",
-      "blurb": "Legendario · Salón de la Fama"
-    },
-    "elite": {
-      "name": "ELITE",
-      "blurb": "Élite · Dev de primer nivel"
-    },
-    "solid": {
-      "name": "SOLID",
-      "blurb": "Sólido · Confiable"
+    "trash": {
+      "name": "Refinación de Qi",
+      "blurb": "Primeros pasos · Construyendo la base"
     },
     "npc": {
-      "name": "Aprendiz",
-      "blurb": "Construyendo con constancia · Sigue puliendo"
+      "name": "Núcleo Dorado",
+      "blurb": "Núcleo formado · Mostrando filo"
     },
-    "trash": {
-      "name": "Novato",
-      "blurb": "Empezando · Sigue construyendo"
+    "solid": {
+      "name": "Refinación del Vacío",
+      "blurb": "Maestría sin esfuerzo"
+    },
+    "elite": {
+      "name": "Integración Corporal",
+      "blurb": "En armonía · Maestro de élite"
+    },
+    "god": {
+      "name": "Mahayana",
+      "blurb": "Cerca de la cumbre · Salón de la fama"
     }
   },
   "dimensions": {
@@ -662,8 +664,8 @@
         "body": "La instantánea se evalúa en madurez de la cuenta, calidad de proyectos originales, calidad de contribuciones, impacto en el ecosistema, influencia en la comunidad y autenticidad de la actividad, con penalizaciones por farmeo de PRs, inflación de stars y patrones de spam con plantillas."
       },
       {
-        "title": "3. Recibe score, nivel y roast",
-        "body": "Recibes un score reproducible de 0 a 100 con un nivel que va de Trash a God, un desglose por dimensión que muestra exactamente qué frena tu score y — solo si lo pides — un roast sin piedad escrito por IA."
+        "title": "3. Obtén tu nivel de aventurero, reino y roast",
+        "body": "Obtienes un nivel de aventurero reproducible (Lv.1–100), un reino de cultivo de Qi Refining a Mahayana, un desglose por dimensiones que muestra qué baja la puntuación y —solo si lo pides— un roast ingenioso escrito por IA."
       }
     ],
     "numbersHeading": "ghfind en números",
@@ -2092,6 +2094,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "Refinación de Qi",
+      "blurb": "Primeros pasos · Construyendo la base"
+    },
+    "foundation": {
+      "name": "Fundación",
+      "blurb": "Base lista · Progreso constante"
+    },
+    "goldenCore": {
+      "name": "Núcleo Dorado",
+      "blurb": "Núcleo formado · Mostrando filo"
+    },
+    "nascentSoul": {
+      "name": "Alma Nascente",
+      "blurb": "Alma despierta · Estilo propio"
+    },
+    "deity": {
+      "name": "Transformación Divina",
+      "blurb": "Mente clara · Influencia real"
+    },
+    "voidRefining": {
+      "name": "Refinación del Vacío",
+      "blurb": "Maestría sin esfuerzo"
+    },
+    "integration": {
+      "name": "Integración Corporal",
+      "blurb": "En armonía · Maestro de élite"
+    },
+    "mahayana": {
+      "name": "Mahayana",
+      "blurb": "Cerca de la cumbre · Salón de la fama"
     }
   }
 }

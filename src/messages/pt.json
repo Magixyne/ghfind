@@ -400,7 +400,9 @@
     "selfCta": "Avaliar meu próprio GitHub →",
     "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês.",
     "coCreatorShare": "Liderado / cocriado ({share}%)",
-    "scoreReadyHint": "A pontuação já saiu. O roast chega já"
+    "scoreReadyHint": "A pontuação já saiu. O roast chega já",
+    "adventurerLevel": "Nível de aventureiro",
+    "preciseScoreTitle": "Pontuação {score}"
   },
   "reactions": {
     "heading": "Reações da comunidade",
@@ -425,7 +427,7 @@
   },
   "detailMeta": {
     "unratedTitle": "{username} · Perfil de desenvolvedor",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — veja o relatório completo de {username} no ghfind.com.",
     "descPlain": "Relatório de valor e confiança do GitHub de {username} — ghfind.com.",
     "notFoundTitle": "Conta não encontrada · ghfind",
@@ -545,25 +547,25 @@
     "brand": "🔥 ghfind · veja como você se sai"
   },
   "tiers": {
-    "god": {
-      "name": "GOD",
-      "blurb": "Lendário · Hall da Fama"
-    },
-    "elite": {
-      "name": "ELITE",
-      "blurb": "Elite · Dev de primeira"
-    },
-    "solid": {
-      "name": "SOLID",
-      "blurb": "Sólido · Confiável"
+    "trash": {
+      "name": "Refinamento de Qi",
+      "blurb": "Primeiros passos · Construindo a base"
     },
     "npc": {
-      "name": "Aprendiz",
-      "blurb": "Construindo com constância · Continue polindo"
+      "name": "Núcleo Dourado",
+      "blurb": "Núcleo formado · Mostrando fio"
     },
-    "trash": {
-      "name": "Novato",
-      "blurb": "Começando · Continue criando"
+    "solid": {
+      "name": "Refinamento do Vazio",
+      "blurb": "Maestria sem esforço"
+    },
+    "elite": {
+      "name": "Integração Corporal",
+      "blurb": "Em harmonia · Mestre de elite"
+    },
+    "god": {
+      "name": "Mahayana",
+      "blurb": "Perto do topo · Hall da fama"
     }
   },
   "dimensions": {
@@ -662,8 +664,8 @@
         "body": "O snapshot é pontuado em maturidade da conta, qualidade de projetos originais, qualidade das contribuições, impacto no ecossistema, influência na comunidade e autenticidade da atividade, com penalidades por farming de PRs, inflação de stars e padrões de spam de template."
       },
       {
-        "title": "3. Receber nota, nível e zoada",
-        "body": "Você recebe uma nota reproduzível de 0 a 100 com um nível de Trash a God, um detalhamento por dimensão mostrando exatamente o que segura sua nota pra baixo e — só se você pedir — uma zoada impiedosa escrita por IA."
+        "title": "3. Receba nível de aventureiro, reino e roast",
+        "body": "Você recebe um nível de aventureiro reproduzível (Lv.1–100), um reino de cultivo de Qi Refining a Mahayana, um detalhamento por dimensão mostrando o que segura a nota e — só se pedir — um roast espirituoso escrito por IA."
       }
     ],
     "numbersHeading": "O ghfind em números",
@@ -2092,6 +2094,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "Refinamento de Qi",
+      "blurb": "Primeiros passos · Construindo a base"
+    },
+    "foundation": {
+      "name": "Fundação",
+      "blurb": "Base pronta · Progresso constante"
+    },
+    "goldenCore": {
+      "name": "Núcleo Dourado",
+      "blurb": "Núcleo formado · Mostrando fio"
+    },
+    "nascentSoul": {
+      "name": "Alma Nascente",
+      "blurb": "Alma despertada · Estilo próprio"
+    },
+    "deity": {
+      "name": "Transformação Divina",
+      "blurb": "Mente clara · Influência real"
+    },
+    "voidRefining": {
+      "name": "Refinamento do Vazio",
+      "blurb": "Maestria sem esforço"
+    },
+    "integration": {
+      "name": "Integração Corporal",
+      "blurb": "Em harmonia · Mestre de elite"
+    },
+    "mahayana": {
+      "name": "Mahayana",
+      "blurb": "Perto do topo · Hall da fama"
     }
   }
 }

@@ -400,7 +400,9 @@
     "roastStage4": "数字とリポジトリ名を照合中",
     "roastStage5": "仕上げの体裁を整えています",
     "liveRetry": "もう一度試す",
-    "scoreReadyHint": "スコアは出ました。鋭評はもうすぐです"
+    "scoreReadyHint": "スコアは出ました。鋭評はもうすぐです",
+    "adventurerLevel": "冒険者レベル",
+    "preciseScoreTitle": "総合点 {score}"
   },
   "reactions": {
     "heading": "コミュニティの反応",
@@ -425,7 +427,7 @@
   },
   "detailMeta": {
     "unratedTitle": "{username} · 開発者プロフィール",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — {username} の完全スコアレポートは ghfind.com で。",
     "descPlain": "{username} のGitHub価値・信頼レポート — ghfind.com。",
     "notFoundTitle": "アカウントが見つかりません · ghfind",
@@ -545,25 +547,25 @@
     "brand": "🔥 ghfind · 自分の実力を測ってみよう"
   },
   "tiers": {
-    "god": {
-      "name": "神",
-      "blurb": "レジェンド級 · 殿堂入り"
-    },
-    "elite": {
-      "name": "強者",
-      "blurb": "一線級 · トップ開発者"
-    },
-    "solid": {
-      "name": "人権あり",
-      "blurb": "堅実な貢献者 · 信頼できる"
+    "trash": {
+      "name": "練気",
+      "blurb": "仙途の入り口 · 基礎を固める"
     },
     "npc": {
-      "name": "見習い",
-      "blurb": "着実に積み上げ · 作品を磨こう"
+      "name": "金丹",
+      "blurb": "丹成一品 · 鋭さが見える"
     },
-    "trash": {
-      "name": "初心者村",
-      "blurb": "これから · 伸びしろいっぱい"
+    "solid": {
+      "name": "練虚",
+      "blurb": "返璞帰真 · 重きを軽く"
+    },
+    "elite": {
+      "name": "合体",
+      "blurb": "天人合一 · 一線の宗師"
+    },
+    "god": {
+      "name": "大乗",
+      "blurb": "大道が成る · 殿堂の標"
     }
   },
   "dimensions": {
@@ -662,8 +664,8 @@
         "body": "スナップショットをアカウント成熟度、オリジナルプロジェクトの質、コントリビューションの質、エコシステム影響力、コミュニティ影響力、アクティビティの真正性で採点し、PR量産・スター水増し・テンプレスパムのパターンに減点を加えます。"
       },
       {
-        "title": "3. スコア・ティア・ローストを受け取る",
-        "body": "再現可能な0-100点のスコア、「初心者村」から「神」までのティア、スコアを押し下げている要因がはっきり分かるディメンション別の内訳、そして——望んだ場合のみ——容赦ないAIローストが手に入ります。"
+        "title": "3. 冒険者レベル・境界・ローストを受け取る",
+        "body": "再現可能な冒険者レベル（Lv.1–100）、「練気」から「大乗」までの八境界、弱みを示す次元別レポート、そして（依頼したときだけ）AIによる鋭いローストが手に入ります。"
       }
     ],
     "numbersHeading": "数字で見る ghfind",
@@ -2092,6 +2094,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "練気",
+      "blurb": "仙途の入り口 · 基礎を固める"
+    },
+    "foundation": {
+      "name": "築基",
+      "blurb": "土台ができた · 着実に精進"
+    },
+    "goldenCore": {
+      "name": "金丹",
+      "blurb": "丹成一品 · 鋭さが見える"
+    },
+    "nascentSoul": {
+      "name": "元嬰",
+      "blurb": "元嬰が芽吹く · 自らの流儀"
+    },
+    "deity": {
+      "name": "化神",
+      "blurb": "神識が通う · 一帯に影響"
+    },
+    "voidRefining": {
+      "name": "練虚",
+      "blurb": "返璞帰真 · 重きを軽く"
+    },
+    "integration": {
+      "name": "合体",
+      "blurb": "天人合一 · 一線の宗師"
+    },
+    "mahayana": {
+      "name": "大乗",
+      "blurb": "大道が成る · 殿堂の標"
     }
   }
 }

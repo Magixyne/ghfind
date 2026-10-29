@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { TierAvatarFrame } from "@/components/TierAvatarFrame";
+import { AdventurerLevel } from "@/components/realm/AdventurerLevel";
+import { RealmChip } from "@/components/realm/RealmGlyph";
+import { realmForScore } from "@/lib/realm";
 import { DimensionStarChart } from "@/components/DimensionStarChart";
 import { LiveRoast } from "@/components/LiveRoast";
 import { StaleScanHint } from "@/components/StaleScanHint";
@@ -43,6 +46,8 @@ export function PendingProfile({
   const t = useTranslations("detail");
   const tDim = useTranslations("dimensions");
   const tTier = useTranslations("tiers");
+  const tRealm = useTranslations("realms");
+  const tDetail = useTranslations("detail");
   const locale = useLocale();
 
   // Lazy init resolves the scan without a flash in the common cases: the server
@@ -171,18 +176,17 @@ export function PendingProfile({
                 className="mt-5"
               />
               <div className={`mt-4 text-6xl font-black tabular-nums ${style.text}`}>
-                {scoring.final_score.toFixed(2)}
-                <span className="text-2xl text-zinc-600">/100</span>
+                <AdventurerLevel score={scoring.final_score} caption={tDetail("adventurerLevel")} size="lg" />
               </div>
               {fromHome && <StaleScanHint username={metrics.username} />}
               <div className={`mt-1 text-2xl font-bold ${style.text}`}>
-                {style.emoji} {tTier(`${tierKey}.name`)}
+                <RealmChip realm={realmForScore(scoring.final_score)} name={tRealm(`${realmForScore(scoring.final_score).id}.name`)} />
               </div>
               {shouldStreamRoast ? (
                 <p className="mt-2 text-sm text-zinc-400">{t("scoreReadyHint")}</p>
               ) : null}
               <div className="mt-1 text-sm font-medium text-zinc-300">
-                {tTier(`${tierKey}.blurb`)}
+                {tRealm(`${realmForScore(scoring.final_score).id}.blurb`)}
               </div>
 
               {organizations.length > 0 && (

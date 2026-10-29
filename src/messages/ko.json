@@ -400,7 +400,9 @@
     "selfCta": "내 GitHub도 평가받기 →",
     "reportLangNotice": "AI 로스트 리포트는 현재 영어와 중국어만 지원해요 — 지금 보고 계신 건 영어판입니다.",
     "coCreatorShare": "주도·공동 개발 (기여 지분 {share}%)",
-    "scoreReadyHint": "점수는 나왔습니다. 로스트는 곧 도착합니다"
+    "scoreReadyHint": "점수는 나왔습니다. 로스트는 곧 도착합니다",
+    "adventurerLevel": "모험가 레벨",
+    "preciseScoreTitle": "종합 점수 {score}"
   },
   "reactions": {
     "heading": "커뮤니티 반응",
@@ -425,7 +427,7 @@
   },
   "detailMeta": {
     "unratedTitle": "{username} · 개발자 프로필",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — {username}의 전체 점수 리포트를 ghfind.com에서 확인하세요.",
     "descPlain": "{username}의 GitHub 가치·신뢰 리포트 — ghfind.com.",
     "notFoundTitle": "계정을 찾을 수 없음 · ghfind",
@@ -545,25 +547,25 @@
     "brand": "🔥 ghfind · 내 성적 재보기"
   },
   "tiers": {
-    "god": {
-      "name": "갓",
-      "blurb": "레전드 · 명예의 전당급"
-    },
-    "elite": {
-      "name": "고인물",
-      "blurb": "최상위권 · 일류 개발자"
-    },
-    "solid": {
-      "name": "탄탄",
-      "blurb": "알짜 기여자 · 믿어도 되는 계정"
+    "trash": {
+      "name": "연기",
+      "blurb": "선도의 입문 · 기초를 다지다"
     },
     "npc": {
-      "name": "견습생",
-      "blurb": "차곡차곡 쌓는 중 · 작품을 다듬자"
+      "name": "금단",
+      "blurb": "단이 이룸 · 날카로움이 보임"
     },
-    "trash": {
-      "name": "초보 마을",
-      "blurb": "이제 막 시작 · 계속 쌓아가자"
+    "solid": {
+      "name": "연허",
+      "blurb": "소박으로 돌아감 · 거뜬한 경지"
+    },
+    "elite": {
+      "name": "합체",
+      "blurb": "천인합일 · 일선 종사"
+    },
+    "god": {
+      "name": "대승",
+      "blurb": "대도에 가까움 · 전당의 기준"
     }
   },
   "dimensions": {
@@ -662,8 +664,8 @@
         "body": "스냅샷을 계정 성숙도, 오리지널 프로젝트 퀄리티, 기여 퀄리티, 생태계 영향력, 커뮤니티 영향력, 활동 진정성에 따라 채점하고, PR 어뷰징·스타 부풀리기·템플릿 도배 패턴에는 감점을 적용합니다."
       },
       {
-        "title": "3. 점수, 티어, 로스트 받기",
-        "body": "재현 가능한 0-100점과 「초보 마을」부터 「갓」까지의 티어, 점수를 깎아 먹는 요인을 정확히 보여주는 지표별 리포트, 그리고 — 원할 때만 — 재치 있는 AI 로스트을 받게 됩니다."
+        "title": "3. 모험가 레벨·경계·로스트 받기",
+        "body": "재현 가능한 모험가 레벨(Lv.1–100), 「연기」부터 「대승」까지 여덟 경계, 약점을 가리키는 차원별 리포트, 그리고 (요청할 때만) AI가 쓴 뼈 때리는 로스트를 받습니다."
       }
     ],
     "numbersHeading": "숫자로 보는 ghfind",
@@ -2092,6 +2094,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "연기",
+      "blurb": "선도의 입문 · 기초를 다지다"
+    },
+    "foundation": {
+      "name": "축기",
+      "blurb": "기반이 잡힘 · 꾸준히 정진"
+    },
+    "goldenCore": {
+      "name": "금단",
+      "blurb": "단이 이룸 · 날카로움이 보임"
+    },
+    "nascentSoul": {
+      "name": "원영",
+      "blurb": "원영이 싹틈 · 자신만의 길"
+    },
+    "deity": {
+      "name": "화신",
+      "blurb": "신식이 통함 · 한 지역에 영향"
+    },
+    "voidRefining": {
+      "name": "연허",
+      "blurb": "소박으로 돌아감 · 거뜬한 경지"
+    },
+    "integration": {
+      "name": "합체",
+      "blurb": "천인합일 · 일선 종사"
+    },
+    "mahayana": {
+      "name": "대승",
+      "blurb": "대도에 가까움 · 전당의 기준"
     }
   }
 }
