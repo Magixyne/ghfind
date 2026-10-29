@@ -591,6 +591,38 @@ html[data-theme="light"] .roast-report[data-tier-tone="trash"] {
   --roast-tier-muted: rgba(190, 18, 60, 0.5);
 }
 
+/* Score-first roast placeholder. The ring reuses --roast-tier. Shimmer is a
+ * hint of upcoming text and is removed when the visitor asks for less motion. */
+.roast-progress-card {
+  transition: opacity 250ms ease;
+}
+.roast-progress-shimmer > div {
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in oklab, var(--foreground) 8%, transparent) 20%,
+    color-mix(in oklab, var(--foreground) 18%, transparent) 40%,
+    color-mix(in oklab, var(--foreground) 8%, transparent) 60%
+  );
+  background-size: 200% 100%;
+  animation: roast-progress-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes roast-progress-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.roast-progress-reveal {
+  animation: roast-progress-reveal 250ms ease;
+}
+@keyframes roast-progress-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .roast-progress-shimmer { display: none; }
+  .roast-progress-card { transition: none; }
+  .roast-progress-reveal { animation: none; }
+}
+
 .roast-report .roast-h1 {
   margin: 0.15rem 0 0.55rem;
   font-size: 1.15rem;

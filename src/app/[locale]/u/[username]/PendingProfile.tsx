@@ -178,6 +178,9 @@ export function PendingProfile({
               <div className={`mt-1 text-2xl font-bold ${style.text}`}>
                 {style.emoji} {tTier(`${tierKey}.name`)}
               </div>
+              {shouldStreamRoast ? (
+                <p className="mt-2 text-sm text-zinc-400">{t("scoreReadyHint")}</p>
+              ) : null}
               <div className="mt-1 text-sm font-medium text-zinc-300">
                 {tTier(`${tierKey}.blurb`)}
               </div>
@@ -301,7 +304,7 @@ export function PendingProfile({
 
             {/* Direct profile reads remain read-only; the homepage handoff streams. */}
             <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-7">
-              <h2 className="mb-3 text-lg font-bold text-orange-400">{t("roastHeading")}</h2>
+              <h2 className={`mb-3 text-lg font-bold ${style.text}`}>{t("roastHeading")}</h2>
               {shouldStreamRoast ? (
                 <LiveRoast
                   username={metrics.username}
