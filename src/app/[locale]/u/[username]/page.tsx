@@ -54,7 +54,7 @@ export async function generateMetadata({
     return { title: t("notFoundTitle") };
   }
 
-  const tt = await getTranslations({ locale, namespace: "tiers" });
+  const tt = await getTranslations({ locale, namespace: "realms" });
   const { title, description, image, imageAlt, path, indexable } = profileMetadata(
     locale,
     d,
@@ -125,10 +125,11 @@ export default async function AccountPage({
   // when it's still fresh, or via a forced regeneration when it has gone stale.
   // Direct visits / shared links (no param) keep the popup-free SSR page.
   const fromHome = query.roasting === "1";
-  const [t, tDim, tTier, roastState, comments, session, requestHeaders] = await Promise.all([
+  const [t, tDim, tTier, tRealm, roastState, comments, session, requestHeaders] = await Promise.all([
     getTranslations("detail"),
     getTranslations("dimensions"),
     getTranslations("tiers"),
+    getTranslations("realms"),
     loadProfileRoastState(d, locale, fromHome, getLiveScan),
     getProfileComments(d.username),
     oauthConfigured() ? auth() : Promise.resolve(null),
@@ -171,6 +172,7 @@ export default async function AccountPage({
       t={asTranslator(t)}
       tDim={asTranslator(tDim)}
       tTier={asTranslator(tTier)}
+      tRealm={asTranslator(tRealm)}
     />
   );
 }

@@ -348,13 +348,10 @@
     "impactDisclosure": "Contribuições notáveis ({count})",
     "worksHeading": "🛠 Trabalhos em destaque",
     "worksSub": "Repositórios próprios populares e fixados",
-    "stackHeading": "🧬 Stack e áreas",
-    "stackLangLabel": "Principais linguagens",
-    "stackTopicsLabel": "Áreas",
     "orgsLabel": "Organizações",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "Roast",
+    "verdictLabel": "Veredito curto",
     "roastEmpty": "Esta zoada ainda não foi arquivada — <a>julgue de novo pela página inicial</a> pra gerar.",
     "scoreStateStaleTitle": "Pontuação histórica",
     "scoreStateStaleBody": "Esta pontuação usa regras antigas. Ela continua visível até ser substituída por uma nova varredura verificada.",
@@ -392,15 +389,12 @@
     "modalViewProfile": "Ver perfil completo",
     "modalBadgeCta": "Pegar seu badge do GitHub",
     "modalClose": "Fechar",
-    "battlesHeading": "⚔️ Batalhas",
-    "battlesSub": "Duelos que este dev já travou",
-    "battleWin": "Vitória",
-    "battleLoss": "Derrota",
-    "battleTie": "Empate",
     "selfCta": "Avaliar meu próprio GitHub →",
     "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês.",
     "coCreatorShare": "Liderado / cocriado ({share}%)",
-    "scoreReadyHint": "A pontuação já saiu. O roast chega já"
+    "scoreReadyHint": "A pontuação já saiu. O roast chega já",
+    "adventurerLevel": "Nível de aventureiro",
+    "preciseScoreTitle": "Pontuação {score}"
   },
   "reactions": {
     "heading": "Reações da comunidade",
@@ -425,7 +419,7 @@
   },
   "detailMeta": {
     "unratedTitle": "{username} · Perfil de desenvolvedor",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — veja o relatório completo de {username} no ghfind.com.",
     "descPlain": "Relatório de valor e confiança do GitHub de {username} — ghfind.com.",
     "notFoundTitle": "Conta não encontrada · ghfind",
@@ -545,25 +539,25 @@
     "brand": "🔥 ghfind · veja como você se sai"
   },
   "tiers": {
-    "god": {
-      "name": "GOD",
-      "blurb": "Lendário · Hall da Fama"
-    },
-    "elite": {
-      "name": "ELITE",
-      "blurb": "Elite · Dev de primeira"
-    },
-    "solid": {
-      "name": "SOLID",
-      "blurb": "Sólido · Confiável"
+    "trash": {
+      "name": "Condensação Qi",
+      "blurb": "Primeiros passos · Construindo a base"
     },
     "npc": {
-      "name": "NPC",
-      "blurb": "Mediano · Sem destaque"
+      "name": "Formação Núcleo",
+      "blurb": "Núcleo formado · Mostrando fio"
     },
-    "trash": {
-      "name": "TRASH",
-      "blurb": "Baixo valor · Provável fábrica de atividade"
+    "solid": {
+      "name": "Têmpera Espacial",
+      "blurb": "Maestria sem esforço"
+    },
+    "elite": {
+      "name": "Integ. Corporal",
+      "blurb": "Em harmonia · Mestre de elite"
+    },
+    "god": {
+      "name": "Grande Ascensão",
+      "blurb": "Perto do topo · Hall da fama"
     }
   },
   "dimensions": {
@@ -662,8 +656,8 @@
         "body": "O snapshot é pontuado em maturidade da conta, qualidade de projetos originais, qualidade das contribuições, impacto no ecossistema, influência na comunidade e autenticidade da atividade, com penalidades por farming de PRs, inflação de stars e padrões de spam de template."
       },
       {
-        "title": "3. Receber nota, nível e zoada",
-        "body": "Você recebe uma nota reproduzível de 0 a 100 com um nível de Trash a God, um detalhamento por dimensão mostrando exatamente o que segura sua nota pra baixo e — só se você pedir — uma zoada impiedosa escrita por IA."
+        "title": "3. Receba nível de aventureiro, reino e roast",
+        "body": "Você recebe um nível de aventureiro reproduzível (Lv.1–100), um reino de cultivo de Condensação Qi a Grande Ascensão, um detalhamento por dimensão mostrando o que segura a nota e — só se pedir — um roast espirituoso escrito por IA."
       }
     ],
     "numbersHeading": "O ghfind em números",
@@ -2092,6 +2086,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "Condensação Qi",
+      "blurb": "Primeiros passos · Construindo a base"
+    },
+    "foundation": {
+      "name": "Fundação",
+      "blurb": "Base pronta · Progresso constante"
+    },
+    "goldenCore": {
+      "name": "Formação Núcleo",
+      "blurb": "Núcleo formado · Mostrando fio"
+    },
+    "nascentSoul": {
+      "name": "Alma Nascente",
+      "blurb": "Alma despertada · Estilo próprio"
+    },
+    "deity": {
+      "name": "Transf. Divina",
+      "blurb": "Mente clara · Influência real"
+    },
+    "voidRefining": {
+      "name": "Têmpera Espacial",
+      "blurb": "Maestria sem esforço"
+    },
+    "integration": {
+      "name": "Integ. Corporal",
+      "blurb": "Em harmonia · Mestre de elite"
+    },
+    "mahayana": {
+      "name": "Grande Ascensão",
+      "blurb": "Perto do topo · Hall da fama"
     }
   }
 }

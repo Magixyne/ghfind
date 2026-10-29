@@ -22,6 +22,7 @@ import type {
   TopRepo,
 } from "./types";
 import type { PublicScanOwnedRepoFact, PublicScanPrFact } from "./scan-run-types";
+import { cursorBeforeWatermark, mergeInventoryRepos, type CursorRepo } from "./scan-cursor";
 
 const GITHUB_API = "https://api.github.com";
 const README_FETCH_LIMIT = 1024 * 1024;
@@ -276,6 +277,8 @@ export async function ghFetch(
 }
 
 interface RestRepo {
+  /** GitHub numeric repository id. Present on the GraphQL inventory path. */
+  id?: string;
   name: string;
   full_name?: string;
   private?: boolean;
@@ -373,6 +376,7 @@ interface CollectionScope {
 }
 
 interface OriginalInventoryNode {
+  databaseId?: number | null;
   name: string; nameWithOwner: string; isFork: boolean; diskUsage: number;
   stargazerCount: number; forkCount: number; description: string | null; pushedAt: string | null;
   primaryLanguage: { name: string } | null;
@@ -381,14 +385,34 @@ interface OriginalInventoryNode {
   repositoryTopics: { nodes: { topic: { name: string } }[] };
 }
 
+export interface OriginalInventoryOptions {
+  /** Full public inventory. Ignores the quick page cap and any watermark. */
+  full?: boolean;
+  /**
+   * Newest stored `pushedAt`. Pages stop once a repo is strictly older.
+   * Same-second siblings are kept. GraphQL `endCursor` is not a resume token.
+   * Empty means the existing full or quick page.
+   */
+  since?: string;
+}
+
 /** Server-side fork exclusion; owner-only REST still includes forks. */
-export async function fetchOriginalInventory(username: string, full = false): Promise<{
+export async function fetchOriginalInventory(
+  username: string,
+  fullOrOptions: boolean | OriginalInventoryOptions = false,
+): Promise<{
   repos: RestRepo[]; forks: number; incomplete: boolean;
 }> {
+  const options: OriginalInventoryOptions = typeof fullOrOptions === "boolean"
+    ? { full: fullOrOptions }
+    : fullOrOptions;
+  const full = options.full === true;
+  const since = options.since?.trim() ?? "";
+  const incremental = since.length > 0 && !full;
   const repos: RestRepo[] = [];
   let after: string | null = null;
   let forks = 0;
-  for (let page = 0; full || page < QUICK_REPO_PAGES; page++) {
+  for (let page = 0; full || incremental || page < QUICK_REPO_PAGES; page++) {
     const data: { user: { forks: { totalCount: number }; repositories: {
       nodes: OriginalInventoryNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null };
     } } | null } = await graphql(`query OriginalInventory($login: String!, $after: String, $count: Int!) {
@@ -396,7 +420,7 @@ export async function fetchOriginalInventory(username: string, full = false): Pr
         forks: repositories(first: 1, privacy: PUBLIC, ownerAffiliations: [OWNER], isFork: true) { totalCount }
         repositories(first: $count, after: $after, privacy: PUBLIC, ownerAffiliations: [OWNER], isFork: false,
           orderBy: {field: PUSHED_AT, direction: DESC}) {
-          nodes { name nameWithOwner isFork diskUsage stargazerCount forkCount description pushedAt
+          nodes { databaseId name nameWithOwner isFork diskUsage stargazerCount forkCount description pushedAt
             primaryLanguage { name } issues(states: OPEN) { totalCount }
             openPullRequests: pullRequests(states: OPEN) { totalCount }
             repositoryTopics(first: 20) { nodes { topic { name } } } }
@@ -407,20 +431,95 @@ export async function fetchOriginalInventory(username: string, full = false): Pr
     if (!data.user?.repositories || !data.user.forks) throw new GitHubDataUnavailableError("GitHub original inventory unavailable.");
     forks = data.user.forks.totalCount;
     const connection = data.user.repositories;
+    const pageRepos: RestRepo[] = [];
     for (const node of connection.nodes) {
       if (node.isFork) continue;
-      repos.push({ name: node.name, full_name: node.nameWithOwner, fork: false, size: node.diskUsage,
+      pageRepos.push({
+        id: node.databaseId != null && Number.isFinite(node.databaseId) ? String(node.databaseId) : undefined,
+        name: node.name, full_name: node.nameWithOwner, fork: false, size: node.diskUsage,
         stargazers_count: node.stargazerCount, forks_count: node.forkCount, description: node.description,
         pushed_at: node.pushedAt, language: node.primaryLanguage?.name ?? null,
         // Match REST open_issues_count, which includes open PRs.
         open_issues_count: node.issues.totalCount + (node.openPullRequests?.totalCount ?? 0), topics: node.repositoryTopics.nodes.map(n => n.topic.name) });
     }
-    if (!connection.pageInfo.hasNextPage) return { repos, forks, incomplete: false };
+    if (incremental) {
+      // Equal timestamps stay. The merge dedupes by repo id, so a second
+      // item pushed in the same second is not dropped.
+      let stopped = false;
+      for (const repo of pageRepos) {
+        if (cursorBeforeWatermark(repo.pushed_at, since)) {
+          stopped = true;
+          continue;
+        }
+        repos.push(repo);
+      }
+      if (stopped || !connection.pageInfo.hasNextPage) return { repos, forks, incomplete: false };
+    } else {
+      repos.push(...pageRepos);
+      if (!connection.pageInfo.hasNextPage) return { repos, forks, incomplete: false };
+    }
     const cursor = connection.pageInfo.endCursor;
     if (!connection.nodes.length || !cursor || cursor === after) throw new GitHubDataUnavailableError("GitHub original inventory cursor made no progress.");
     after = cursor;
   }
   return { repos, forks, incomplete: true };
+}
+
+function restRepoToCursor(repo: RestRepo): CursorRepo | null {
+  const fullName = repo.full_name?.trim() || repo.name;
+  if (!repo.id?.trim() && !fullName) return null;
+  return {
+    id: repo.id?.trim() ?? "",
+    name: repo.name,
+    fullName,
+    size: repo.size ?? 0,
+    stars: repo.stargazers_count ?? 0,
+    forks: repo.forks_count ?? 0,
+    openIssues: repo.open_issues_count ?? 0,
+    description: repo.description ?? null,
+    pushedAt: repo.pushed_at ?? null,
+    language: repo.language ?? null,
+    topics: repo.topics ?? [],
+  };
+}
+
+function cursorRepoToRest(repo: CursorRepo): RestRepo {
+  return {
+    id: repo.id || undefined,
+    name: repo.name,
+    full_name: repo.fullName,
+    fork: false,
+    size: repo.size,
+    stargazers_count: repo.stars,
+    forks_count: repo.forks,
+    open_issues_count: repo.openIssues,
+    language: repo.language,
+    description: repo.description,
+    pushed_at: repo.pushedAt,
+    topics: repo.topics,
+  };
+}
+
+/**
+ * Incremental inventory upserts the delta into the previous page and keeps
+ * the last full fork total. A full or unwatermarked pull uses the page as-is.
+ * Deletes wait for the next full reconcile.
+ */
+function mergeInventoryBaseline(
+  page: { repos: RestRepo[]; forks: number },
+  baseline: { repos: CursorRepo[]; forkCount: number } | undefined,
+  since: string,
+): { repos: RestRepo[]; forks: number } {
+  if (!since || !baseline) return page;
+  const delta = page.repos.flatMap((repo) => {
+    const cursor = restRepoToCursor(repo);
+    return cursor ? [cursor] : [];
+  });
+  const merged = mergeInventoryRepos(baseline.repos, delta);
+  return {
+    repos: merged.map(cursorRepoToRest),
+    forks: baseline.forkCount > 0 ? baseline.forkCount : page.forks,
+  };
 }
 
 export interface DurableOwnedRepositoryPage {
@@ -4887,11 +4986,28 @@ export interface CollectOptions {
   cache?: CollectCache;
   /** Full public inventory/history; only run inside an admitted background owner. */
   full?: boolean;
+  /**
+   * Inventory watermark (`pushedAt`). Set only when incremental scan is on
+   * and this run is not a full reconcile. PR, commit-year, and workflow
+   * pulls ignore it and stay full.
+   */
+  inventorySince?: string;
+  /**
+   * Previous inventory page to merge a delta into. Incremental pulls upsert
+   * by repo id and do not delete. Fork total is kept from the last full read
+   * when the caller passes one.
+   */
+  inventoryBaseline?: { repos: CursorRepo[]; forkCount: number };
   /** Wall-clock budget for this collect. Homepage scoring sets this so the
    *  Worker can fail and serve a legacy fallback before Cloudflare's ~100s 524. */
   deadlineMs?: number;
   /** Extra abort signal combined with `deadlineMs` when both are set. */
   signal?: AbortSignal;
+  /**
+   * Receives the inventory page this collect scored, after an incremental
+   * merge when one was applied. The cursor writer uses it. Scoring ignores it.
+   */
+  captureInventory?: (page: { repos: CursorRepo[]; forkCount: number }) => void;
 }
 
 export async function collect(username: string, options: CollectOptions = {}): Promise<{
@@ -4918,6 +5034,7 @@ export async function collect(username: string, options: CollectOptions = {}): P
     if (deadlineMs != null) return withCollectDeadline(deadlineMs, run);
     return collectSignalContext.run(signal!, run);
   }
+  const captureInventory = options.captureInventory;
   if (!hasGithubToken()) {
     throw new GitHubAuthRequiredError("GITHUB_TOKEN is required for accurate scoring.");
   }
@@ -4933,8 +5050,20 @@ export async function collect(username: string, options: CollectOptions = {}): P
 
   const reasons = new Set<string>();
   const scope: CollectionScope = { full: options.full, note: reason => { reasons.add(reason); } };
-  const inventory = await fetchOriginalInventory(login, options.full);
-  const repos = inventory.repos;
+  const since = options.full ? "" : options.inventorySince?.trim() ?? "";
+  const inventory = await fetchOriginalInventory(login, { full: options.full, since });
+  const mergedInventory = mergeInventoryBaseline(inventory, options.inventoryBaseline, since);
+  const repos = mergedInventory.repos;
+  const inventoryForks = mergedInventory.forks;
+  if (captureInventory) {
+    captureInventory({
+      repos: repos.flatMap((repo) => {
+        const cursor = restRepoToCursor(repo);
+        return cursor ? [cursor] : [];
+      }),
+      forkCount: inventoryForks,
+    });
+  }
   if (inventory.incomplete) scope.note("original_repos_page_limit");
   if (!options.full && user.public_repos > QUICK_REPO_PAGES * GITHUB_PAGE_SIZE) scope.note("public_repos_quick_limit");
 
@@ -5251,11 +5380,11 @@ export async function collect(username: string, options: CollectOptions = {}): P
     followers,
     following,
     public_repos: user.public_repos ?? 0,
-    fetched_repo_count: repos.length + inventory.forks,
+    fetched_repo_count: repos.length + inventoryForks,
     original_repo_count: original.length + attributedOriginalRepos.length,
     nonempty_original_repo_count:
       nonemptyOriginal.length + scoredNonemptyOriginalRepos.filter((r) => r.attributed_original).length,
-    fork_repo_count: inventory.forks,
+    fork_repo_count: inventoryForks,
     empty_original_repo_count: empty.length,
     total_stars: starRepos.reduce((a, r) => a + (r.stars ?? 0)*projectShare(r), 0),
     max_stars: starRepos.reduce((a, r) => Math.max(a, (r.stars ?? 0)*projectShare(r)), 0),
