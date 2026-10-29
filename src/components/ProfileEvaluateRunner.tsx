@@ -141,14 +141,22 @@ export function ProfileEvaluateRunner({
   );
 
   useEffect(() => {
-    void run();
+    // Defer past the effect body so setState inside `run` is not synchronous
+    // with the effect (react-hooks/set-state-in-effect).
+    const id = window.setTimeout(() => {
+      void run();
+    }, 0);
+    return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot mount kickoff
   }, []);
 
   // After the user solves Turnstile on the profile, continue automatically.
   useEffect(() => {
     if (!needVerify || !token) return;
-    void run(token);
+    const id = window.setTimeout(() => {
+      void run(token);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [needVerify, token, run]);
 
   const retry = () => {
