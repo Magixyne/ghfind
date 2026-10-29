@@ -13,7 +13,6 @@ import {
   type ReactNode,
 } from "react";
 import type { ImpactRepo, Tier } from "@/lib/types";
-import { tierAvatarFrame } from "@/lib/tier";
 import { realmForScore, realmForTier } from "@/lib/realm";
 
 export type ImpactOrbitRepo = Pick<ImpactRepo, "repo" | "stars" | "commits" | "prs">;
@@ -378,7 +377,6 @@ export function ImpactOrbit({
     });
     return (n: number) => nf.format(n);
   }, [locale]);
-  const frame = tierAvatarFrame(tier);
   const realm = typeof score === "number" ? realmForScore(score) : realmForTier(tier);
   const glow = realm.colors.glow;
   const accent = realm.colors.glow;

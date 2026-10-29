@@ -3,8 +3,6 @@ import { BADGE_COLOR, TIER_EN, TIER_LABEL_EN } from "@/lib/badge";
 import { adventurerLevel, formatAdventurerLevel, realmForScore } from "@/lib/realm";
 import { getCurrentTitleSponsor } from "@/lib/sponsor.server";
 import { USERNAME_RE } from "@/lib/username";
-import { tierAvatarFrame } from "@/lib/tier";
-import { tierAvatarFrameIconDataUrl } from "@/lib/tier-emoji.server";
 import type { Tier } from "@/lib/types";
 import {
   Brand,
@@ -64,10 +62,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
   // Weekly movement — the embed changes week to week, so a card pasted into a
   // README keeps pulling its owner (and their visitors) back.
   const delta = presentation?.delta ?? null;
-  const [avatar, tierIcon] = await Promise.all([
-    avatarDataUrl(detail.avatar_url),
-    tierAvatarFrameIconDataUrl(tierAvatarFrame(tier).icon),
-  ]);
+  const avatar = await avatarDataUrl(detail.avatar_url);
   const displayName =
     detail.display_name && /^[\x20-\x7e]+$/.test(detail.display_name) ? detail.display_name : null;
   const tags = (detail.tags.en ?? []).slice(0, 4);
@@ -81,7 +76,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
     avatar,
     tier,
     score: detail.final_score,
-    tierIcon,
     color,
     palette,
     qr,
@@ -129,7 +123,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
             username={detail.username}
             avatar={avatar}
             tier={tier}
-            tierIcon={tierIcon}
             color={color}
             palette={palette}
           />
