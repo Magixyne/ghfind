@@ -281,6 +281,8 @@ describe("roast generator flag", () => {
     vi.stubEnv("ROAST_V13_SCOPE", "background");
     expect(roastGenerator()).toBe("v12");
     expect(roastGenerator({ background: true })).toBe("v13");
+    // The foreground durable path is allowed to run v13 before the scope flips to all.
+    expect(roastGenerator({ foreground: true })).toBe("v13");
   });
 });
 

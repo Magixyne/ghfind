@@ -164,6 +164,7 @@ export function Roaster({
         // protocol (T progress / M meta / E error) followed by report markdown.
         await consumeRoastStream(res, {
           onGenerator: (generator) => progressRef.current.setGenerator(generator),
+          onStarted: (startedAt) => progressRef.current.noteStarted(startedAt),
           onThinking: (label) => progressRef.current.noteThinking(label),
           onMeta: (meta) => {
             progressRef.current.markComplete();
