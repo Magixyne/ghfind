@@ -263,7 +263,7 @@ describe("buildRoastMessages", () => {
 
   it("requires clearer name-vs-substance callouts for NPC and trash tiers without insults", () => {
     const [zhSys] = buildRoastMessages(scan, "zh");
-    expect(zhSys.content).toContain("NPC / 拉完了：说清楚落差，仍留台阶");
+    expect(zhSys.content).toContain("NPC / 新手村：说清楚落差，仍留台阶");
     expect(zhSys.content).toContain("GitHub 更像作品展板");
     expect(zhSys.content).toContain("名气跑在仓库前面");
     expect(zhSys.content).toContain("两个以上证据点");

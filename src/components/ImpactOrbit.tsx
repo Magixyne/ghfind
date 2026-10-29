@@ -37,7 +37,7 @@ const HALF_W = STAGE_W / 2;
 /**
  * Gyroscope / atom: rotateZ −40 / 0 / +40 (≥35° apart) so paths cross;
  * rotateX 50 / 62 / 74 for clearly different openness.
- * Radii ~0.58 / 0.80 / 0.96 of half-width; inner ry clears avatar+medal ≥10px.
+ * Radii ~0.58 / 0.80 / 0.96 of half-width; inner ry clears the avatar ring ≥10px.
  */
 const ORBITS: OrbitDef[] = [
   {
@@ -341,134 +341,6 @@ function PlanetAvatar({
   );
 }
 
-function FrostCard({
-  repo,
-  formatStars,
-  activity,
-  accent,
-  shift,
-  side,
-}: {
-  repo: ImpactOrbitRepo;
-  formatStars: (n: number) => string;
-  activity: string;
-  accent: string;
-  shift: { x: number; y: number };
-  side: "left" | "right";
-}) {
-  const sideStyle: CSSProperties =
-    side === "right"
-      ? {
-          left: "100%",
-          top: "50%",
-          marginLeft: 8,
-          transform: `translate(0, -50%) translate(${shift.x}px, ${shift.y}px)`,
-        }
-      : {
-          right: "100%",
-          top: "50%",
-          marginRight: 8,
-          transform: `translate(0, -50%) translate(${shift.x}px, ${shift.y}px)`,
-        };
-
-  return (
-    <div
-      className="pointer-events-none absolute z-50 whitespace-nowrap rounded-md px-2 py-1 text-left shadow-lg"
-      data-testid="impact-orbit-frost"
-      style={{
-        ...sideStyle,
-        background: "rgba(24, 24, 27, 0.72)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        border: `1px solid ${withAlpha(accent, 0.5)}`,
-        minWidth: "max-content",
-      }}
-      role="tooltip"
-    >
-      <div className="text-[11px] font-semibold leading-tight text-zinc-100">{repo.repo}</div>
-      <div className="mt-0.5 whitespace-nowrap text-[10px] tabular-nums leading-tight text-zinc-300">
-        ⭐ {formatStars(repo.stars)}
-        {activity ? <span className="ms-1.5 text-zinc-400">{activity}</span> : null}
-      </div>
-    </div>
-  );
-}
-
-function CompactPlanetRow({
-  repos,
-  accent,
-  glow,
-  formatStars,
-  formatCount,
-  commitsLabel,
-  prsLabel,
-  activeRepo,
-  setActiveRepo,
-  armedRepo,
-  setArmedRepo,
-}: {
-  repos: PlacedPlanet[];
-  accent: string;
-  glow: string;
-  formatStars: (n: number) => string;
-  formatCount: (n: number) => string;
-  commitsLabel: string;
-  prsLabel: string;
-  activeRepo: string | null;
-  setActiveRepo: (repo: string | null) => void;
-  armedRepo: string | null;
-  setArmedRepo: (repo: string | null) => void;
-}) {
-  return (
-    <div
-      className="impact-orbit-compact mt-3 flex max-w-full flex-wrap items-center justify-center gap-2"
-      data-testid="impact-orbit-compact"
-    >
-      {repos.map((repo) => {
-        const activity = activityParts(repo, commitsLabel, prsLabel, formatCount);
-        const label = planetAriaLabel(repo, commitsLabel, prsLabel, formatCount);
-        const active = activeRepo === repo.repo;
-        return (
-          <div key={repo.repo} className="relative">
-            <a
-              href={`https://github.com/${repo.repo}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={label}
-              className="relative block rounded-full outline-none transition-transform hover:scale-125 focus-visible:scale-125 focus-visible:ring-2 focus-visible:ring-white/40"
-              onMouseEnter={() => setActiveRepo(repo.repo)}
-              onMouseLeave={() => setActiveRepo(null)}
-              onFocus={() => setActiveRepo(repo.repo)}
-              onBlur={() => setActiveRepo(null)}
-              onClick={(event) => {
-                if (typeof window === "undefined") return;
-                if (!window.matchMedia("(pointer: coarse)").matches) return;
-                if (armedRepo !== repo.repo) {
-                  event.preventDefault();
-                  setArmedRepo(repo.repo);
-                  setActiveRepo(repo.repo);
-                }
-              }}
-            >
-              <PlanetAvatar owner={repo.owner} size={repo.sizePx} accent={accent} glow={glow} />
-            </a>
-            {active ? (
-              <FrostCard
-                repo={repo}
-                formatStars={formatStars}
-                activity={activity}
-                accent={accent}
-                shift={{ x: 0, y: 0 }}
-                side="right"
-              />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function ImpactOrbit({
   repos,
   tier,
@@ -516,6 +388,8 @@ export function ImpactOrbit({
   const [armedRepo, setArmedRepo] = useState<string | null>(null);
   const [hoverProj, setHoverProj] = useState<Projected | null>(null);
   const [frostPos, setFrostPos] = useState<{ left: number; top: number } | null>(null);
+  /** Fit the fixed-size stage into narrow score cards (e.g. 360–390px phones). */
+  const [fitScale, setFitScale] = useState(1);
 
   const orbitPaths = useMemo(
     () => ORBITS.map((orbit) => ({ id: orbit.id, ...splitOrbitPaths(orbit) })),
@@ -778,6 +652,22 @@ export function ImpactOrbit({
     }
   }, [activeRepo, placed, applyPlanetStyle, paint, startLoop, stopLoop]);
 
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+    // Measure the score-card content box, not the stage itself (stage is
+    // STAGE_W wide and would otherwise always report fitScale=1).
+    const target = root.parentElement ?? root;
+    const update = () => {
+      const available = target.clientWidth;
+      const next = available > 0 ? Math.min(1, available / STAGE_W) : 1;
+      setFitScale((prev) => (Math.abs(prev - next) < 0.01 ? prev : next));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(target);
+    return () => ro.disconnect();
+  }, [placed.length]);
 
   if (placed.length === 0) {
     return <div className={className}>{children}</div>;
@@ -786,14 +676,14 @@ export function ImpactOrbit({
   return (
     <div
       ref={rootRef}
-      className={`impact-orbit-root flex flex-col items-center ${className}`}
+      className={`impact-orbit-root flex w-full max-w-full flex-col items-center overflow-x-clip ${className}`}
       data-testid="impact-orbit-root"
     >
       <h2 className="sr-only">{sectionTitle}</h2>
 
       <div
         ref={stageRef}
-        className="impact-orbit-stage relative -mx-3 hidden items-center justify-center min-[400px]:flex"
+        className="impact-orbit-stage relative flex items-center justify-center"
         data-testid="impact-orbit-stage"
         style={
           {
@@ -803,6 +693,9 @@ export function ImpactOrbit({
             transformStyle: "preserve-3d",
             overflow: "visible",
             "--impact-orbit-size": `${STAGE_W}px`,
+            transform: fitScale < 1 ? `scale(${fitScale})` : undefined,
+            transformOrigin: "top center",
+            marginBottom: fitScale < 1 ? -(STAGE_H * (1 - fitScale)) : undefined,
           } as CSSProperties
         }
       >
@@ -923,23 +816,6 @@ background: "rgba(24, 24, 27, 0.72)",
               );
             })()
           : null}
-      </div>
-
-      <div className="flex flex-col items-center min-[400px]:hidden" data-testid="impact-orbit-narrow">
-        {children}
-        <CompactPlanetRow
-          repos={placed}
-          accent={accent}
-          glow={glow}
-          formatStars={formatStars}
-          formatCount={formatStars}
-          commitsLabel={commitsLabel}
-          prsLabel={prsLabel}
-          activeRepo={activeRepo}
-          setActiveRepo={setActiveRepo}
-          armedRepo={armedRepo}
-          setArmedRepo={setArmedRepo}
-        />
       </div>
     </div>
   );

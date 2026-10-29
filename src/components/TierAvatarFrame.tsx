@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  TIER_AVATAR_FRAME_VECTORS,
-  tierAvatarFrame,
-  tierAvatarFrameIconPath,
-} from "@/lib/tier";
-import type { TierAvatarFrameEmojiSize } from "@/lib/tier";
+import { tierAvatarFrame } from "@/lib/tier";
 import type { Tier } from "@/lib/types";
 
 type AvatarFrameSize = "feed" | "sm" | "md" | "lg";
@@ -23,36 +18,36 @@ const SIZE_CLASS: Record<
   {
     shell: string;
     avatar: string;
-    emojiIcon: Record<TierAvatarFrameEmojiSize, string>;
     initial: string;
   }
 > = {
   feed: {
     shell: "h-10 w-10",
     avatar: "h-8 w-8",
-    emojiIcon: { normal: "h-3 w-3", large: "h-3.5 w-3.5" },
     initial: "text-sm",
   },
   sm: {
     shell: "h-16 w-16",
     avatar: "h-12 w-12",
-    emojiIcon: { normal: "h-[13px] w-[13px]", large: "h-[18px] w-[18px]" },
     initial: "text-xl",
   },
   md: {
     shell: "h-24 w-24",
     avatar: "h-[72px] w-[72px]",
-    emojiIcon: { normal: "h-[17px] w-[17px]", large: "h-6 w-6" },
     initial: "text-3xl",
   },
   lg: {
     shell: "h-28 w-28",
     avatar: "h-20 w-20",
-    emojiIcon: { normal: "h-5 w-5", large: "h-[30px] w-[30px]" },
     initial: "text-4xl",
   },
 };
 
+/**
+ * Tier-tinted avatar shell (ring / glow). Decoration that used to sit on the
+ * ring were removed from the live profile UI in favor of ImpactOrbit; share
+ * cards still draw frame icons via material-card /api/card.
+ */
 export function TierAvatarFrame({
   avatarContent,
   username,
@@ -63,7 +58,6 @@ export function TierAvatarFrame({
 }: TierAvatarFrameProps) {
   const frame = tierAvatarFrame(tier);
   const classes = SIZE_CLASS[size];
-  const emojiIconClass = classes.emojiIcon[frame.emojiSize];
   const initial = username.slice(0, 1).toUpperCase();
 
   return (
@@ -73,24 +67,6 @@ export function TierAvatarFrame({
       aria-label={`${tier} avatar frame`}
     >
       <div className={`absolute ${size === "feed" ? "inset-1" : "inset-2"} rounded-full border border-white/10`} />
-      {frame.placements.map((placement) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={`${frame.emoji}-${placement}`}
-          src={tierAvatarFrameIconPath(frame.icon)}
-          alt=""
-          aria-hidden="true"
-          className={`tier-avatar-emoji-shell absolute z-10 block border-0 bg-transparent shadow-none ${emojiIconClass}`}
-          style={{
-            left: `${50 + TIER_AVATAR_FRAME_VECTORS[placement].x * 50}%`,
-            top: `${50 + TIER_AVATAR_FRAME_VECTORS[placement].y * 50}%`,
-            transform: "translate(-50%, -50%)",
-            backgroundColor: "transparent",
-            border: "none",
-            boxShadow: "none",
-          }}
-        />
-      ))}
 
       {avatarContent ? (
         <div className={`relative overflow-hidden rounded-full ring-2 ring-black/80 ${classes.avatar}`}>{avatarContent}</div>

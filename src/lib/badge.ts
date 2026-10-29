@@ -13,13 +13,22 @@ import type { Tier } from "./types";
 
 export type BadgeLang = "en" | "zh";
 
-/** English tier words (the stored tier is already the Chinese form). */
+/** English tier words. Canonical stored tier stays Chinese (incl. 拉完了). */
 export const TIER_EN: Record<Tier, string> = {
   夯: "GOD",
   顶级: "ELITE",
   人上人: "SOLID",
   NPC: "NPC",
-  拉完了: "TRASH",
+  拉完了: "NEWBIE",
+};
+
+/** Chinese display words (lowest tier shown as 新手村, not the stored key). */
+export const TIER_ZH: Record<Tier, string> = {
+  夯: "夯",
+  顶级: "顶级",
+  人上人: "人上人",
+  NPC: "NPC",
+  拉完了: "新手村",
 };
 
 /** English tier blurbs (for the all-English shareable card). */
@@ -28,7 +37,7 @@ export const TIER_LABEL_EN: Record<Tier, string> = {
   顶级: "Elite · Top-tier dev",
   人上人: "Solid · Trustworthy",
   NPC: "Average · Unremarkable",
-  拉完了: "Low-value · Likely farmed",
+  拉完了: "Just getting started · Keep shipping",
 };
 
 /** Right-segment background per tier (vivid -500 shades, white text on top). */
@@ -134,7 +143,7 @@ export function buildBadge(opts: {
       color: NEUTRAL,
     });
   }
-  const word = lang === "zh" ? opts.tier : TIER_EN[opts.tier];
+  const word = lang === "zh" ? TIER_ZH[opts.tier] : TIER_EN[opts.tier];
   const delta =
     typeof opts.delta === "number" && opts.delta >= 0.05
       ? ` ↑${opts.delta.toFixed(1)}`

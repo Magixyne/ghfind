@@ -14,7 +14,7 @@ describe("tier avatar frames", () => {
       顶级: "🥇",
       人上人: "👍",
       NPC: "🙂",
-      拉完了: "💩",
+      拉完了: "🌱",
     };
 
     expect(Object.keys(TIER_AVATAR_FRAMES)).toHaveLength(5);
@@ -39,6 +39,11 @@ describe("tier avatar frames", () => {
       "bottom-left",
     ]);
     expect(tierAvatarFrame("NPC").placements).toEqual(["bottom"]);
+    expect(tierAvatarFrame("拉完了")).toMatchObject({
+      placements: ["bottom"],
+      icon: "smile",
+      emoji: "🌱",
+    });
   });
 
   it("keeps solid green and NPC blue across shared tier styles", () => {

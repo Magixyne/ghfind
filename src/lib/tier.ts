@@ -111,18 +111,9 @@ export const TIER_AVATAR_FRAMES: Record<Tier, TierAvatarFrame> = {
     glow: "rgba(56,189,248,0.45)",
   },
   拉完了: {
-    emoji: "💩",
-    icon: "poop",
-    placements: [
-      "top",
-      "top-right",
-      "right",
-      "bottom-right",
-      "bottom",
-      "bottom-left",
-      "left",
-      "top-left",
-    ],
+    emoji: "🌱",
+    icon: "smile",
+    placements: ["bottom"],
     emojiSize: "normal",
     ring: "ring-rose-500",
     bg: "bg-rose-400/20",
@@ -165,11 +156,11 @@ export const TIER_STYLES: Record<Tier, TierStyle> = {
   },
   拉完了: {
     tier: "拉完了",
-    emoji: "💩",
+    emoji: "🌱",
     text: "text-rose-400",
     ring: "ring-rose-500/50",
     glow: "rgba(244,63,94,0.30)",
-    blurb: "低价值 · 疑似刷量 / AI 机器人",
+    blurb: "起步阶段 · 多练多攒作品",
   },
 };
 
