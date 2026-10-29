@@ -31,6 +31,7 @@ vi.mock("../scan-slots", () => ({
 vi.mock("../scan-core", () => ({
   buildScanResult: mocks.buildScanResult,
   logFreshScanFailure: mocks.logFreshScanFailure,
+  discardIncrementalCursor: vi.fn(),
 }));
 vi.mock("../db", () => ({
   publishCompleteQuickScan: mocks.publishCompleteQuickScan,
