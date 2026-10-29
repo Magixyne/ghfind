@@ -524,6 +524,7 @@ export function Roaster({
                         tDetail("roastStage5"),
                       ][progress.stageIndex] ?? tDetail("roastStage1")
                     }
+                    score={scan.scoring.final_score}
                     tier={display.tier}
                   />
                 </div>
@@ -552,6 +553,7 @@ export function Roaster({
               <DimensionStarChart
                 scores={scan.scoring.sub_scores}
                 labels={dimensionLabels}
+                score={scan.scoring.final_score}
                 tier={display.tier}
               />
             </div>

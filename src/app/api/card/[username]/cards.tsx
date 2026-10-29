@@ -307,6 +307,8 @@ export interface Identity {
   tier: Tier;
   /** Optional numeric score for precise realm labeling. */
   score?: number;
+  /** Card copy language for realm name. */
+  lang?: "zh" | "en";
   /** @deprecated unused — avatar stickers removed. */
   tierIcon?: string;
   color: string;
@@ -398,7 +400,10 @@ function VariantHeader({ id }: { id: Identity }) {
           padding: "6px 24px",
         }}
       >
-        {(typeof id.score === "number" ? realmForScore(id.score) : realmForTier(tier)).nameEn}
+        {(() => {
+          const r = typeof id.score === "number" ? realmForScore(id.score) : realmForTier(tier);
+          return id.lang === "zh" ? r.nameZh : r.nameEn;
+        })()}
       </div>
     </div>
   );

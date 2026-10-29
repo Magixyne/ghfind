@@ -517,7 +517,8 @@ export function ProfileView({
         {isAdvxCampaign && roastLine && (
           <p
             data-advx-mobile-roast
-            className="mt-4 w-full border-s-2 border-orange-400/50 ps-4 text-start text-[0.95rem] leading-relaxed text-zinc-100 lg:hidden"
+            className="mt-4 w-full border-s-2 ps-4 text-start text-[0.95rem] leading-relaxed text-zinc-100 lg:hidden"
+            style={{ borderColor: "color-mix(in srgb, var(--realm-fg) 55%, transparent)" }}
           >
             🔥 {roastLine}
           </p>
@@ -579,20 +580,33 @@ export function ProfileView({
       {/* My standing — concrete rank, "beat %", a milestone hint to the next
           tier, and an inline re-detect button to refresh the score. */}
       <div
+        data-realm={realm.id}
         className={
           isAdvxCampaign
             ? `mt-5 bg-transparent p-0 text-center ${advxDivider}`
-            : "mt-5 rounded-2xl border border-orange-300/30 bg-orange-500/[0.07] p-4 text-center"
+            : "mt-5 rounded-2xl border p-4 text-center"
+        }
+        style={
+          isAdvxCampaign
+            ? undefined
+            : {
+                borderColor: "color-mix(in srgb, var(--realm-ring) 35%, transparent)",
+                backgroundColor: "color-mix(in srgb, var(--realm-glow) 55%, transparent)",
+                ...realmVars,
+              }
         }
       >
         {!isAdvxCampaign && (
-          <div className="text-xs font-semibold uppercase tracking-wide text-orange-200/90">
+          <div
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: "var(--realm-fg)" }}
+          >
             {t("rankTitle")}
           </div>
         )}
         {rank ? (
           <>
-            <div className={`mt-1 text-4xl font-black tabular-nums ${style.text}`}>
+            <div className="mt-1 text-4xl font-black tabular-nums" style={{ color: "var(--realm-fg)" }}>
               #{rank.rank}
               <span className="ms-1 text-sm font-medium text-zinc-400">
                 {t("rankUnit", { total: rank.total })}
@@ -699,6 +713,7 @@ export function ProfileView({
         <DimensionStarChart
           scores={d.sub_scores}
           labels={dimensionLabels}
+          score={d.final_score}
           tier={d.tier}
           compact={isAdvxCampaign}
         />

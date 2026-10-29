@@ -685,6 +685,15 @@ html[data-theme="light"] .roast-report[data-realm-tone="voidRefining"] { --roast
 html[data-theme="light"] .roast-report[data-realm-tone="integration"] { --roast-accent: #6F3FC4; }
 html[data-theme="light"] .roast-report[data-realm-tone="mahayana"] { --roast-accent: #A87700; }
 
+
+/* When realm tone is present, map accent into the vars roast markdown uses. */
+.roast-report[data-realm-tone] {
+  --roast-tier: var(--roast-accent);
+  --roast-tier-soft: var(--roast-glow);
+  --roast-tier-border: color-mix(in srgb, var(--roast-accent) 40%, transparent);
+  --roast-tier-muted: color-mix(in srgb, var(--roast-accent) 55%, transparent);
+}
+
 /* Score-first roast placeholder. The ring reuses --roast-tier. Shimmer is a
  * hint of upcoming text and is removed when the visitor asks for less motion. */
 .roast-progress-card {
@@ -1157,39 +1166,60 @@ html[data-theme="light"] .roast-report[data-realm-tone="mahayana"] { --roast-acc
 }
 
 .dimension-star-radar {
+  /* Fallback brand orange only when no realm is attached. */
   --dimension-star-stroke: #f97316;
   --dimension-star-fill: rgba(249, 115, 22, 0.16);
   --dimension-star-shadow: rgba(249, 115, 22, 0.18);
 }
 
-.dimension-star-radar[data-tone="god"] {
-  --dimension-star-stroke: #f59e0b;
-  --dimension-star-fill: rgba(245, 158, 11, 0.16);
-  --dimension-star-shadow: rgba(245, 158, 11, 0.2);
+/* Realm-colored radar (stroke / fill / score labels / dots). */
+.dimension-star-radar[data-realm="qi"],
+.dimension-star-radar[data-tone="qi"] {
+  --dimension-star-stroke: #8B9099;
+  --dimension-star-fill: rgba(139, 144, 153, 0.16);
+  --dimension-star-shadow: rgba(139, 144, 153, 0.18);
 }
-
-.dimension-star-radar[data-tone="elite"] {
-  --dimension-star-stroke: #a78bfa;
-  --dimension-star-fill: rgba(167, 139, 250, 0.15);
-  --dimension-star-shadow: rgba(167, 139, 250, 0.18);
+.dimension-star-radar[data-realm="foundation"],
+.dimension-star-radar[data-tone="foundation"] {
+  --dimension-star-stroke: #B0565A;
+  --dimension-star-fill: rgba(176, 86, 90, 0.16);
+  --dimension-star-shadow: rgba(176, 86, 90, 0.2);
 }
-
-.dimension-star-radar[data-tone="solid"] {
-  --dimension-star-stroke: #34d399;
-  --dimension-star-fill: rgba(52, 211, 153, 0.14);
-  --dimension-star-shadow: rgba(52, 211, 153, 0.16);
+.dimension-star-radar[data-realm="goldenCore"],
+.dimension-star-radar[data-tone="goldenCore"] {
+  --dimension-star-stroke: #C08457;
+  --dimension-star-fill: rgba(192, 132, 87, 0.16);
+  --dimension-star-shadow: rgba(192, 132, 87, 0.2);
 }
-
-.dimension-star-radar[data-tone="npc"] {
-  --dimension-star-stroke: #94a3b8;
-  --dimension-star-fill: rgba(148, 163, 184, 0.14);
-  --dimension-star-shadow: rgba(148, 163, 184, 0.14);
+.dimension-star-radar[data-realm="nascentSoul"],
+.dimension-star-radar[data-tone="nascentSoul"] {
+  --dimension-star-stroke: #DCC88F;
+  --dimension-star-fill: rgba(220, 200, 143, 0.16);
+  --dimension-star-shadow: rgba(220, 200, 143, 0.22);
 }
-
-.dimension-star-radar[data-tone="trash"] {
-  --dimension-star-stroke: #a1a1aa;
-  --dimension-star-fill: rgba(161, 161, 170, 0.14);
-  --dimension-star-shadow: rgba(161, 161, 170, 0.16);
+.dimension-star-radar[data-realm="deity"],
+.dimension-star-radar[data-tone="deity"] {
+  --dimension-star-stroke: #6DB396;
+  --dimension-star-fill: rgba(109, 179, 150, 0.16);
+  --dimension-star-shadow: rgba(109, 179, 150, 0.2);
+}
+.dimension-star-radar[data-realm="voidRefining"],
+.dimension-star-radar[data-tone="voidRefining"] {
+  --dimension-star-stroke: #4A9BE0;
+  --dimension-star-fill: rgba(74, 155, 224, 0.16);
+  --dimension-star-shadow: rgba(74, 155, 224, 0.22);
+}
+.dimension-star-radar[data-realm="integration"],
+.dimension-star-radar[data-tone="integration"] {
+  --dimension-star-stroke: #A97CF5;
+  --dimension-star-fill: rgba(169, 124, 245, 0.16);
+  --dimension-star-shadow: rgba(169, 124, 245, 0.24);
+}
+.dimension-star-radar[data-realm="mahayana"],
+.dimension-star-radar[data-tone="mahayana"] {
+  --dimension-star-stroke: #F6C744;
+  --dimension-star-fill: rgba(246, 199, 68, 0.18);
+  --dimension-star-shadow: rgba(246, 199, 68, 0.26);
 }
 
 html[data-theme="light"] .dimension-star-radar {
@@ -1197,36 +1227,55 @@ html[data-theme="light"] .dimension-star-radar {
   --dimension-star-fill: rgba(194, 65, 12, 0.11);
   --dimension-star-shadow: rgba(194, 65, 12, 0.14);
 }
-
-html[data-theme="light"] .dimension-star-radar[data-tone="god"] {
-  --dimension-star-stroke: #a16207;
-  --dimension-star-fill: rgba(161, 98, 7, 0.12);
-  --dimension-star-shadow: rgba(161, 98, 7, 0.16);
+html[data-theme="light"] .dimension-star-radar[data-realm="qi"],
+html[data-theme="light"] .dimension-star-radar[data-tone="qi"] {
+  --dimension-star-stroke: #5A5F68;
+  --dimension-star-fill: rgba(90, 95, 104, 0.12);
+  --dimension-star-shadow: rgba(90, 95, 104, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="foundation"],
+html[data-theme="light"] .dimension-star-radar[data-tone="foundation"] {
+  --dimension-star-stroke: #8E3A3E;
+  --dimension-star-fill: rgba(142, 58, 62, 0.12);
+  --dimension-star-shadow: rgba(142, 58, 62, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="goldenCore"],
+html[data-theme="light"] .dimension-star-radar[data-tone="goldenCore"] {
+  --dimension-star-stroke: #8F5A30;
+  --dimension-star-fill: rgba(143, 90, 48, 0.12);
+  --dimension-star-shadow: rgba(143, 90, 48, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="nascentSoul"],
+html[data-theme="light"] .dimension-star-radar[data-tone="nascentSoul"] {
+  --dimension-star-stroke: #8A7231;
+  --dimension-star-fill: rgba(138, 114, 49, 0.12);
+  --dimension-star-shadow: rgba(138, 114, 49, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="deity"],
+html[data-theme="light"] .dimension-star-radar[data-tone="deity"] {
+  --dimension-star-stroke: #2C7457;
+  --dimension-star-fill: rgba(44, 116, 87, 0.12);
+  --dimension-star-shadow: rgba(44, 116, 87, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="voidRefining"],
+html[data-theme="light"] .dimension-star-radar[data-tone="voidRefining"] {
+  --dimension-star-stroke: #1C64A3;
+  --dimension-star-fill: rgba(28, 100, 163, 0.12);
+  --dimension-star-shadow: rgba(28, 100, 163, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="integration"],
+html[data-theme="light"] .dimension-star-radar[data-tone="integration"] {
+  --dimension-star-stroke: #6F3FC4;
+  --dimension-star-fill: rgba(111, 63, 196, 0.12);
+  --dimension-star-shadow: rgba(111, 63, 196, 0.14);
+}
+html[data-theme="light"] .dimension-star-radar[data-realm="mahayana"],
+html[data-theme="light"] .dimension-star-radar[data-tone="mahayana"] {
+  --dimension-star-stroke: #A87700;
+  --dimension-star-fill: rgba(168, 119, 0, 0.14);
+  --dimension-star-shadow: rgba(168, 119, 0, 0.16);
 }
 
-html[data-theme="light"] .dimension-star-radar[data-tone="elite"] {
-  --dimension-star-stroke: #6d28d9;
-  --dimension-star-fill: rgba(109, 40, 217, 0.1);
-  --dimension-star-shadow: rgba(109, 40, 217, 0.13);
-}
-
-html[data-theme="light"] .dimension-star-radar[data-tone="solid"] {
-  --dimension-star-stroke: #047857;
-  --dimension-star-fill: rgba(4, 120, 87, 0.1);
-  --dimension-star-shadow: rgba(4, 120, 87, 0.12);
-}
-
-html[data-theme="light"] .dimension-star-radar[data-tone="npc"] {
-  --dimension-star-stroke: #475569;
-  --dimension-star-fill: rgba(71, 85, 105, 0.1);
-  --dimension-star-shadow: rgba(71, 85, 105, 0.12);
-}
-
-html[data-theme="light"] .dimension-star-radar[data-tone="trash"] {
-  --dimension-star-stroke: #52525b;
-  --dimension-star-fill: rgba(82, 82, 91, 0.1);
-  --dimension-star-shadow: rgba(82, 82, 91, 0.12);
-}
 
 .dimension-star-radar .recharts-radar-polygon .recharts-polygon {
   fill: var(--dimension-star-fill);
