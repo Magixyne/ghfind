@@ -67,7 +67,7 @@ export class RoastJob extends DurableObject<Env> {
   claim(username: string, lang: string): { job: RoastJobRecord; started: boolean; binding: boolean } {
     const existing = this.read();
     if (existing && existing.state === "running") {
-      return { job: existing, started: false, binding: Boolean(this.env.GHFIND_API) };
+      return { job: existing, started: false, binding: Boolean(this.env.ROAST_API) };
     }
     const now = Date.now();
     const job: RoastJobRecord = {
