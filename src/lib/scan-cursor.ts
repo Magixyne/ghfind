@@ -321,7 +321,7 @@ export function ensureScanCursorSchema(db: Client): Promise<void> {
 
 /** Test hook. Production keeps the table after the first successful create. */
 export function resetScanCursorSchemaForTests(): void {
-  cursorSchemaReady = false;
+  cursorSchemaReady = null;
 }
 
 export async function loadScanCursors(db: Client, username: string): Promise<{
