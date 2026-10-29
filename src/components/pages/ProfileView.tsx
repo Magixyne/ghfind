@@ -1,9 +1,11 @@
 import ReactMarkdown from "react-markdown";
+import { RoastReport } from "../RoastReport";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
 import { aggregateLanguages, collectTopics } from "@/lib/profile-insights";
 import { LiveRoast } from "@/components/LiveRoast";
-import { RoastReveal } from "@/components/RoastReveal";
+// Profile popup disabled 2026-10-28 (owner request); keep import for possible re-enable
+// import { RoastReveal } from "@/components/RoastReveal";
 import { splitReport } from "@/lib/report";
 import { TIER_LABEL_EN } from "@/lib/badge";
 import type { RoastMeta } from "@/lib/types";
@@ -23,6 +25,7 @@ import { DIMENSIONS } from "@/lib/dimensions";
 import { beatPercent } from "@/lib/percentile";
 import { TIER_KEY, tierStyle } from "@/lib/tier";
 import { normLang } from "@/lib/lang";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { scoreRedFlagLabel } from "@/lib/score-red-flags";
 import { RescanButton } from "@/components/RescanButton";
 import { StaleScanHint } from "@/components/StaleScanHint";
@@ -463,6 +466,16 @@ export function ProfileView({
         <div className="mt-1 text-sm font-medium text-zinc-300">
           {tTier(`${tierKey}.blurb`)}
         </div>
+        {shouldStreamRoast || reroastPending ? (
+          <p className="mt-2 text-sm text-zinc-400">{t("scoreReadyHint")}</p>
+        ) : null}
+        {isOwner && (
+          <RescanButton
+            username={d.username}
+            scannedAt={d.scanned_at}
+            className="mt-4 w-full max-w-xs"
+          />
+        )}
 
         {isAdvxCampaign && roastLine && (
           <p
@@ -473,26 +486,25 @@ export function ProfileView({
           </p>
         )}
 
-        {d.tags.zh.length + d.tags.en.length > 0 && (
-          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-            {d.tags.zh.map((tag, i) => (
-              <span
-                key={`zh-${tag}-${i}`}
-                className="rounded-full bg-orange-500/10 px-2 py-0.5 text-xs text-orange-200/90"
-              >
-                #{tag}
-              </span>
-            ))}
-            {d.tags.en.map((tag, i) => (
-              <span
-                key={`en-${tag}-${i}`}
-                className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-200/90"
-              >
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const shown = tagsForLocale(d.tags, locale);
+          if (shown.length === 0) return null;
+          return (
+            <div
+              className="mt-4 flex max-w-md flex-wrap justify-center gap-2"
+              aria-label="tags"
+            >
+              {shown.map((tag, i) => (
+                <span
+                  key={`${tag}-${i}`}
+                  className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
 
         {(organizations.length > 0 || company) && (
           <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
@@ -598,9 +610,6 @@ export function ProfileView({
             {/* Watch this handle — feeds the homepage following module. */}
             <FollowButton username={d.username} className="mt-3" />
           </>
-        )}
-        {isOwner && (
-          <RescanButton username={d.username} scannedAt={d.scanned_at} className="mt-3" />
         )}
       </div>
 
@@ -937,7 +946,7 @@ export function ProfileView({
             : "mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-7"
         }
       >
-        <h2 className="mb-3 text-lg font-bold text-orange-400">{t("roastHeading")}</h2>
+        <h2 className={`mb-3 text-lg font-bold ${style.text}`}>{t("roastHeading")}</h2>
         {/* LLM content only exists in zh/en; a ja/ko visitor reads the English
             side, so tell them why the report language differs from the UI. */}
         {lang !== locale && (roast || roastLine) && (
@@ -962,7 +971,8 @@ export function ProfileView({
               username={d.username}
               scan={liveScan}
               refresh
-              openModalOnMount
+              // Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+              openModalOnMount={false}
               fallbackReport={revealBody}
               fallbackMeta={revealMeta ?? undefined}
               profileName={d.display_name}
@@ -973,6 +983,7 @@ export function ProfileView({
             />
           ) : (
             <>
+              {/* Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
               {fromHome && revealMeta && (
                 // Homepage handoff onto a fresh (<24h) roast: the SSR report
                 // stays, and the stored result pops as the share modal.
@@ -986,16 +997,16 @@ export function ProfileView({
                   materialVersion={d.scanned_at}
                 />
               )}
-              <div dir="ltr" className="report text-[0.95rem] text-zinc-200">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{roast}</ReactMarkdown>
-              </div>
+              */}
+              <RoastReport markdown={roast} tier={d.tier} />
             </>
           )
         ) : shouldStreamRoast ? (
           <LiveRoast
             username={d.username}
             scan={liveScan}
-            openModalOnMount={fromHome}
+            // Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+            openModalOnMount={false}
             fallbackMeta={fromHome ? (revealMeta ?? undefined) : undefined}
             profileName={d.display_name}
             profileAvatarUrl={d.avatar_url}
@@ -1009,9 +1020,7 @@ export function ProfileView({
             lang={lang}
             staleReport={
               staleRoast ? (
-                <div dir="ltr" className="report text-[0.95rem] text-zinc-200">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{staleRoast}</ReactMarkdown>
-                </div>
+                <RoastReport markdown={staleRoast} tier={d.tier} />
               ) : null
             }
           />

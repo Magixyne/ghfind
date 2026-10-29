@@ -73,7 +73,7 @@ const WORKER_LEASE_SECONDS = 14 * 60;
 export async function runAutoReroastQueue({
   store = autoReroastStore(),
   produce = inlineModelProducer,
-  maxJobs = 3,
+  maxJobs = 5,
   budgetMs = 8 * 60_000,
   now = () => Date.now(),
 }: {

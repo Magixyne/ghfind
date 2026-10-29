@@ -201,10 +201,11 @@ export function buildPublicSignatureWork(
  */
 export async function buildScanResult(
   username: string,
-  options: { deadlineMs?: number } = {},
+  options: { deadlineMs?: number; full?: boolean } = {},
 ): Promise<ScanResult> {
   const collected = await collect(username, {
     cache: collectorCache,
+    full: options.full,
     deadlineMs: options.deadlineMs ?? COLLECT_DEADLINE_MS,
   });
   const scan = {
@@ -244,6 +245,7 @@ export function applyPublicContributionAggregate(
     impact_prestige_score: impact.impact_prestige_score,
     impact_depth_raw: impact.impact_depth_raw,
     impact_repo_count: impact.impact_repo_count,
+    impact_repos: impact.impact_repos,
     impact_commit_count: impact.impact_commit_count,
     impact_pr_count: impact.impact_pr_count,
     ...quality,

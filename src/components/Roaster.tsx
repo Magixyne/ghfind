@@ -1,9 +1,11 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { RoastReport } from "./RoastReport";
 import remarkGfm from "remark-gfm";
 import { Link, useRouter } from "@/i18n/navigation";
 import { DIMENSIONS } from "@/lib/dimensions";
@@ -28,6 +30,8 @@ import { Turnstile, turnstileEnabled } from "./Turnstile";
 import { isStaleScanPayload, StaleScanHint } from "./StaleScanHint";
 import { Omnibox } from "./Omnibox";
 import { DimensionStarChart } from "./DimensionStarChart";
+import { RoastProgressCard } from "./RoastProgressCard";
+import { useRoastProgress } from "./useRoastProgress";
 import { SITE_URL } from "@/lib/site";
 import { normLang } from "@/lib/lang";
 import { trackEvent } from "@/lib/track";
@@ -65,9 +69,6 @@ export function Roaster({
   const [scanning, setScanning] = useState(false);
   const [scanPending, setScanPending] = useState(false);
   const [roasting, setRoasting] = useState(false);
-  // Live progress label streamed from the server during the (slow, reasoning-model)
-  // judge → roast wait, so the card shows "正在校准评分… (8s)" instead of a frozen spinner.
-  const [thinking, setThinking] = useState("");
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [report, setReport] = useState("");
   const [error, setError] = useState("");
@@ -86,6 +87,11 @@ export function Roaster({
   const [metaRoast, setMetaRoast] = useState<RoastLine | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
   const lastPrefillRef = useRef<string | null>(null);
+  const progress = useRoastProgress(roasting, scan?.metrics.username || username || "pending", locale);
+  const progressRef = useRef(progress);
+  useEffect(() => {
+    progressRef.current = progress;
+  });
 
   // Deep-link prefill (?username=): seed the Omnibox; it renders the value and
   // the user hits Enter to roast. (Focus/scroll now live inside the Omnibox.)
@@ -98,10 +104,10 @@ export function Roaster({
 
   const runRoast = useCallback(
     async (scanResult: ScanResult) => {
+      progressRef.current.reset();
       setRoasting(true);
       setReport("");
       setMetaRoast(null);
-      setThinking("");
 
       // Apply a decoded RoastMeta (header fast path or in-band M-frame) to the
       // score card / tags / one-liner.
@@ -157,9 +163,16 @@ export function Roaster({
         // Shared decoder: reads the X-Roast-Meta header fallback, then the frame
         // protocol (T progress / M meta / E error) followed by report markdown.
         await consumeRoastStream(res, {
-          onThinking: setThinking,
-          onMeta: applyMeta,
-          onReport: setReport,
+          onGenerator: (generator) => progressRef.current.setGenerator(generator),
+          onThinking: (label) => progressRef.current.noteThinking(label),
+          onMeta: (meta) => {
+            progressRef.current.markComplete();
+            applyMeta(meta);
+          },
+          onReport: (text) => {
+            if (text.trim()) progressRef.current.markComplete();
+            setReport(text);
+          },
           onError: (data) => {
             if (!handleError(data)) setError(t("errRoastFailed"));
           },
@@ -197,7 +210,6 @@ export function Roaster({
       setDisplay(null);
       setTags(null);
       setMetaRoast(null);
-      setThinking("");
       setScanning(true);
       // Funnel top: the user committed to a roast. `source` lets us split the
       // home scanner from other entry points if they get instrumented later.
@@ -472,10 +484,19 @@ export function Roaster({
             <div className={`mt-1 text-2xl font-bold ${style.text}`}>
               {style.emoji} {tTier(`${TIER_KEY[display.tier]}.name`)}
             </div>
+            {roasting && !roastLine && !reportBody ? (
+              <p className="mt-2 text-sm text-zinc-400">{tDetail("scoreReadyHint")}</p>
+            ) : null}
 
             {/* Savage one-liner only — full scoring report renders below the card */}
-            <div className="mt-4 w-full rounded-xl border border-orange-500/20 bg-orange-500/[0.04] p-4 text-start">
-              <div className="mb-2 text-base font-bold text-orange-400">{t("roastLabel")}</div>
+            <div
+              className={
+                roasting && !roastLine
+                  ? "mt-4 w-full text-start"
+                  : "mt-4 w-full rounded-xl border border-orange-500/20 bg-orange-500/[0.04] p-4 text-start"
+              }
+            >
+              <div className={`mb-2 text-base font-bold ${style.text}`}>{t("roastLabel")}</div>
               {roastLine ? (
                 <p
                   className={`text-sm leading-relaxed text-zinc-100 ${
@@ -484,25 +505,33 @@ export function Roaster({
                 >
                   {roastLine}
                 </p>
-              ) : (
-                <div className="flex flex-col items-center gap-3 py-3 text-center">
-                  <div className="flex gap-1.5">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400 [animation-delay:-0.3s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400 [animation-delay:-0.15s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400" />
-                  </div>
-                  <div className="text-sm text-zinc-400 tabular-nums">
-                    {roasting ? thinking || t("roastThinking") : t("roastPending")}
-                  </div>
+              ) : roasting && !progress.hidden ? (
+                <div className={progress.fading ? "opacity-0 transition-opacity duration-300 motion-reduce:transition-none" : ""}>
+                  <RoastProgressCard
+                    percent={progress.percent}
+                    title={tDetail("roastProgressTitle")}
+                    stage={
+                      [
+                        tDetail("roastStage1"),
+                        tDetail("roastStage2"),
+                        tDetail("roastStage3"),
+                        tDetail("roastStage4"),
+                        tDetail("roastStage5"),
+                      ][progress.stageIndex] ?? tDetail("roastStage1")
+                    }
+                    tier={display.tier}
+                  />
                 </div>
+              ) : (
+                <p className="text-center text-sm text-foreground/70">{t("roastPending")}</p>
               )}
 
-              {tags && (tags.zh.length > 0 || tags.en.length > 0) && (
-                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
-                  {[...tags.zh, ...tags.en].map((tag, i) => (
+              {tagsForLocale(tags, locale).length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                  {tagsForLocale(tags, locale).map((tag, i) => (
                     <span
                       key={`${tag}-${i}`}
-                      className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-200"
+                      className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
                     >
                       #{tag}
                     </span>
@@ -578,14 +607,11 @@ export function Roaster({
               outside the card, above the leaderboard */}
           {reportBody && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-7">
-              <div
-                dir="ltr"
-                className={`report text-[0.95rem] text-zinc-200 ${
-                  roasting && !roastLine ? "caret" : ""
-                }`}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportBody}</ReactMarkdown>
-              </div>
+              <RoastReport
+                markdown={reportBody}
+                className={roasting && !roastLine ? "caret" : ""}
+                tier={display?.tier}
+              />
             </div>
           )}
 

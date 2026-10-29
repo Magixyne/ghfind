@@ -126,7 +126,7 @@
     "title": "El código fuente y el algoritmo de scoring son open source · Ver en GitHub"
   },
   "home": {
-    "brand": "Sin piedad",
+    "brand": "Roast",
     "headline": "Descubre a los mejores developers — y conviértete en uno.",
     "subtitle": "Empieza con un score de 0 a 100 brutalmente honesto. Mira dónde estás parado y hacia dónde ir.",
     "boardHeading": "🏆 Los mejores developers",
@@ -354,7 +354,7 @@
     "orgsLabel": "Organizaciones",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "🔥 Roast completo",
+    "roastHeading": "Roast",
     "roastEmpty": "Este roast todavía no está archivado — <a>vuelve a juzgar desde la página de inicio</a> para generarlo.",
     "scoreStateStaleTitle": "Puntuación histórica",
     "scoreStateStaleBody": "Esta puntuación pertenece a reglas anteriores. Seguirá visible hasta que un nuevo escaneo verificado la reemplace.",
@@ -378,6 +378,13 @@
     "liveRateLimited": "Demasiados roasts ahora mismo — inténtalo en un minuto.",
     "liveExpired": "El escaneo expiró antes de que el roast terminara.",
     "liveGoHome": "Roastear de nuevo desde la página de inicio →",
+    "liveRetry": "Reintentar",
+    "roastProgressTitle": "Escribiendo tu roast…",
+    "roastStage1": "Leyendo el escaneo",
+    "roastStage2": "Eligiendo lo que merece escribirse",
+    "roastStage3": "Redactando los remates",
+    "roastStage4": "Comprobando cifras y nombres de repos",
+    "roastStage5": "Cerrando la maquetación",
     "modalTitle": "🔥 Tu roast ya llegó",
     "modalRoastHeading": "Roast completo",
     "modalFirstJudged": "🥇 Eres la primera persona en ser juzgada — pionero de verdad",
@@ -392,7 +399,8 @@
     "battleTie": "Empate",
     "selfCta": "Evalúa tu propio GitHub →",
     "reportLangNotice": "El reporte de roast de la IA por ahora solo se escribe en inglés y chino — estás leyendo la versión en inglés.",
-    "coCreatorShare": "Liderado / cocreado ({share}%)"
+    "coCreatorShare": "Liderado / cocreado ({share}%)",
+    "scoreReadyHint": "La puntuación ya está. El roast llega enseguida"
   },
   "reactions": {
     "heading": "Reacciones de la comunidad",
@@ -409,10 +417,10 @@
     "clown": "No puedo con esto"
   },
   "rescan": {
-    "button": "🔄 Volver a detectar",
-    "scanning": "Escaneando…",
-    "roasting": "Roasteando…",
-    "error": "La detección falló, inténtalo más tarde",
+    "button": "Reevaluar",
+    "scanning": "Analizando…",
+    "roasting": "Generando comentario…",
+    "error": "La evaluación falló, inténtalo más tarde",
     "cooldown": "Podrás refrescar en {hours}h"
   },
   "detailMeta": {
@@ -430,7 +438,7 @@
     "judging": "Juzgando…",
     "byoLink": "Usa tu propio modelo / API key",
     "scanning": "Desenterrando el historial de {username}… leyendo commits, revisando PRs, contando stars, olfateando actividad inflada",
-    "roastLabel": "🔥 Roast",
+    "roastLabel": "Roast",
     "roastThinking": "La IA está cocinando un roast sin piedad — ya casi sale…",
     "roastPending": "Preparando el roast",
     "firstJudged": "🥇 Eres la primera persona en ser juzgada — pionero de verdad",
@@ -2058,6 +2066,10 @@
       "undoDislike": "Deshacer no me gusta",
       "undoRepost": "Deshacer republicación",
       "unfollow": "Dejar de seguir",
+      "viewQuotedPost": "Ver publicación citada",
+      "quotedPostPreviewUnavailable": "Vista previa no disponible",
+      "viewAttachedLink": "Ver enlace adjunto",
+      "attachedLinkPreviewUnavailable": "Abre el enlace para ver el contenido",
       "viewOnX": "Ver publicación original en X",
       "showOriginal": "Original",
       "showTranslated": "Traducido",

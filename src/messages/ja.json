@@ -25,11 +25,11 @@
     "signOutFailed": "ログアウトできませんでした。接続を確認して再試行してください。"
   },
   "meta": {
-    "title": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
-    "description": "ghfind（毒舌GitHub採点）：GitHubアカウントを入力すると、30秒で0-100点の価値・信頼スコアと辛口ローストが出ます。自分の弱点を直視して成長の方向を掴み、発見ボードで注目すべき優良開発者を見つけ、自分も見つけてもらう。水増しアカウント・AI botの検出にも対応。",
-    "ogTitle": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
-    "ogDescription": "ghfind：GitHubアカウントを採点してトップ開発者を発見。30秒で0-100点の実力スコア + 容赦ない毒舌ロースト、開発者ランキングも。",
-    "twDescription": "30秒でGitHubアカウントを採点 + 毒舌ロースト。ghfindで最強の開発者を発見しよう。",
+    "title": "ghfind | GitHub風趣採点・自己診断で成長・トップ開発者を発見",
+    "description": "ghfind（GitHub風趣採点）：GitHubアカウントを入力すると、30秒で0-100点の価値・信頼スコアとウィットなローストが出ます。自分の弱点を直視して成長の方向を掴み、発見ボードで注目すべき優良開発者を見つけ、自分も見つけてもらう。水増しアカウント・AI botの検出にも対応。",
+    "ogTitle": "ghfind | GitHub風趣採点・自己診断で成長・トップ開発者を発見",
+    "ogDescription": "ghfind：GitHubアカウントを採点してトップ開発者を発見。30秒で0-100点の実力スコア + 客観的でウィットに富むロースト、開発者ランキングも。",
+    "twDescription": "30秒でGitHubアカウントを採点 + ウィットロースト。ghfindで最強の開発者を発見しよう。",
     "siteName": "ghfind"
   },
   "nav": {
@@ -126,7 +126,7 @@
     "title": "ソースコードと採点アルゴリズムはオープンソース · GitHubで見る"
   },
   "home": {
-    "brand": "毒舌",
+    "brand": "風趣",
     "headline": "最強の開発者を見つけろ。そして、その一人になれ。",
     "subtitle": "まずは忖度ゼロの0–100点診断から。今の立ち位置と、進むべき方向が見える。",
     "boardHeading": "🏆 最強の開発者たち",
@@ -392,7 +392,15 @@
     "battleTie": "分",
     "selfCta": "自分のGitHubも採点する →",
     "reportLangNotice": "AIローストレポートは現在英語と中国語のみ対応です。表示中は英語版です。",
-    "coCreatorShare": "主導・共同開発（割合 {share}%）"
+    "coCreatorShare": "主導・共同開発（割合 {share}%）",
+    "roastProgressTitle": "講評を書いています…",
+    "roastStage1": "スキャン結果を読み込み中",
+    "roastStage2": "書く価値のある点を選別中",
+    "roastStage3": "オチを下書き中",
+    "roastStage4": "数字とリポジトリ名を照合中",
+    "roastStage5": "仕上げの体裁を整えています",
+    "liveRetry": "もう一度試す",
+    "scoreReadyHint": "スコアは出ました。鋭評はもうすぐです"
   },
   "reactions": {
     "heading": "コミュニティの反応",
@@ -409,10 +417,10 @@
     "clown": "草"
   },
   "rescan": {
-    "button": "🔄 再スキャン",
+    "button": "再評価する",
     "scanning": "スキャン中…",
-    "roasting": "ロースト中…",
-    "error": "スキャンに失敗しました。あとで再試行を",
+    "roasting": "コメント生成中…",
+    "error": "評価に失敗しました。後でもう一度お試しください",
     "cooldown": "再スキャンまであと {hours} 時間"
   },
   "detailMeta": {
@@ -431,7 +439,7 @@
     "byoLink": "自分のモデル / APIキーを使う",
     "scanning": "{username} の身辺調査中…コミットを読み、PRを漁り、スターを数え、水増しの痕跡を嗅ぎ回っています",
     "roastLabel": "🔥 ロースト",
-    "roastThinking": "AIが渾身の毒舌を練っています。もうすぐお出しします…",
+    "roastThinking": "AIがウィットな観察を練っています。もうすぐお出しします…",
     "roastPending": "ローストを準備中",
     "firstJudged": "🥇 最初に審判された一人目、まさに開拓者",
     "rankLine": "<hl>📊 全体 {rank} 位</hl><muted> / 開発者 {total} 人中</muted>",
@@ -446,7 +454,7 @@
     "errEmpty": "まずGitHubユーザー名かプロフィールURLを入力してください。",
     "errNeedTurnstile": "先に下の認証を完了してください。",
     "errRoastFailed": "ローストの生成に失敗。あとで再試行するか、自分のキーをどうぞ。",
-    "errNetworkRoast": "接続が切れて、毒舌が途中で止まりました。",
+    "errNetworkRoast": "接続が切れて、ローストが途中で止まりました。",
     "errScanFailed": "スキャンに失敗しました。あとで再試行を。",
     "largeAccountCollecting": "大規模アカウントのデータを収集中…",
     "errScanPending": "公開 PR と commit の全履歴を収集中です。準備でき次第、自動的に続行します。",
@@ -896,7 +904,7 @@
     "summonRoasting": "ロースト中…",
     "summonError": "召喚に失敗しました。あとで再試行を",
     "bothMissing": "どちらもまだ審判されていません。先に召喚してから対決を。",
-    "verdictGenerating": "🤖 AIが渾身の毒舌ジャッジを練っています…",
+    "verdictGenerating": "🤖 AIがウィットなジャッジを練っています…",
     "adviceHeading": "💡 レベルアップのヒント",
     "saveImage": "📸 対戦画像を保存",
     "saving": "レンダリング中…",
@@ -904,7 +912,7 @@
     "embedCopied": "✅ コピー済み。READMEに貼ってください",
     "shareText": "{a} vs {b} —— どっちがガチ？このGitHub対決を ghfind.com で観戦 ⚔️",
     "trendingHeading": "🔥 話題の対戦",
-    "trendingSub": "いちばん観戦されているGitHub開発者PK。毒舌ジャッジを見に行こう",
+    "trendingSub": "いちばん観戦されているGitHub開発者PK。ウィットなジャッジを見に行こう",
     "trendingEmpty": "まだ対戦がありません。ホームで「a vs b」と入力して、最初の一発を撃ちましょう。",
     "notRated": "未審判",
     "verdictMissing": "判定はまだお預け。まずはリングに召喚してから。",
@@ -2058,6 +2066,10 @@
       "undoDislike": "興味なしを取り消す",
       "undoRepost": "リポストを取り消す",
       "unfollow": "フォロー解除",
+      "viewQuotedPost": "引用ポストを見る",
+      "quotedPostPreviewUnavailable": "プレビューを表示できません",
+      "viewAttachedLink": "添付リンクを見る",
+      "attachedLinkPreviewUnavailable": "リンクを開いて内容を確認",
       "viewOnX": "X で元の投稿を見る",
       "showOriginal": "原文",
       "showTranslated": "翻訳",

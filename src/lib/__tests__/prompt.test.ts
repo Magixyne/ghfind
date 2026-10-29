@@ -82,7 +82,9 @@ describe("buildRoastMessages", () => {
       const payload = JSON.parse(user.content.match(/```json\n([\s\S]*)\n```/)![1]);
       expect(payload.top_repos[0].open_issues).toBeUndefined();
       expect(payload.top_repos[0].open_issue_count).toBe(0);
-      expect(system.content).toContain("open_issue_count");
+      // v12 payload may still carry the verified count; prompts must ban backlog framing.
+      expect(system.content).toMatch(/open.issue|开放 Issue|open issue/i);
+      expect(system.content).toMatch(/不是短板|not\s+a flaw|不要.*清 Issue|never suggest.*clear issues/i);
       expect(system.content).toMatch(/open pull requests|开放 PR/);
     }
   });
@@ -90,14 +92,14 @@ describe("buildRoastMessages", () => {
   it("defaults to the Chinese system prompt", () => {
     const [sys] = buildRoastMessages(scan);
     expect(sys.role).toBe("system");
-    expect(sys.content).toContain("GitHub 毒舌锐评写手");
+    expect(sys.content).toContain("GitHub 锐评写手");
     expect(sys.content).toContain("分数、档位、六维分和质量风险都已由确定性评分引擎给出");
   });
 
   it("selects the English system prompt for lang=en", () => {
     const [sys, user] = buildRoastMessages(scan, "en");
-    expect(sys.content).toMatch(/savage GitHub report writer/i);
-    expect(sys.content).not.toContain("毒舌 GitHub 锐评写手");
+    expect(sys.content).toMatch(/witty GitHub report writer/i);
+    expect(sys.content).not.toContain("GitHub 毒舌锐评写手");
     // user preamble is English, payload is still the scan JSON
     expect(user.content).toMatch(/scoring data/i);
     expect(user.content).toContain("sample-user");
@@ -214,15 +216,14 @@ describe("buildRoastMessages", () => {
     expect(zhSys.content).toContain("被评分引擎压到/封顶/裁定");
     expect(zhSys.content).toContain("仓库证据必须使用完整");
     expect(zhSys.content).toContain("owner/small-repo 与 owner/flagship");
-    expect(zhSys.content).toContain("外部 PR 里将近六成");
+    expect(zhSys.content).toContain("外部 PR 里很大一块");
     expect(zhSys.content).toContain("别只写审计结论");
 
     const [enSys] = buildRoastMessages(scan, "en");
-    expect(enSys.content).toContain("Presentation hygiene and roast strength");
+    expect(enSys.content).toContain("Presentation hygiene and tone");
     expect(enSys.content).toContain("Never expose internal field names");
     expect(enSys.content).toContain("do not write judge_result, delta, verdict");
     expect(enSys.content).toContain("scoring engine capped/decided");
-    expect(enSys.content).toContain("Repository evidence must use full");
     expect(enSys.content).toContain("do not merely list audit facts");
   });
 
@@ -244,52 +245,51 @@ describe("buildRoastMessages", () => {
 
   it("pushes the writer toward sharper data-grounded roast copy", () => {
     const [zhSys] = buildRoastMessages(scan, "zh");
-    expect(zhSys.content).toContain("扎心度要求");
-    expect(zhSys.content).toContain("先落事实，再补一刀");
-    expect(zhSys.content).toContain("禁止温吞词");
+    expect(zhSys.content).toContain("调笑度要求");
+    expect(zhSys.content).toContain("先落事实，再给一句俏皮观察");
+    expect(zhSys.content).toContain("禁止温吞套话");
     expect(zhSys.content).toContain("每段关键评价至少带一个具体数字");
-    expect(zhSys.content).toContain("对中高分用户不要自动客气");
+    expect(zhSys.content).toContain("对中高分用户不要空洞吹捧");
+    expect(zhSys.content).toContain("开放 Issue 数不是短板");
 
     const [enSys] = buildRoastMessages(scan, "en");
-    expect(enSys.content).toContain("Make It Sting");
-    expect(enSys.content).toContain("fact first, jab second");
+    expect(enSys.content).toContain("Make It Witty");
+    expect(enSys.content).toContain("fact first, then a witty observation");
     expect(enSys.content).toContain("Ban bland phrasing");
     expect(enSys.content).toContain("Each key judgment needs at least one concrete number");
-    expect(enSys.content).toContain("Do not automatically soften for high scores");
+    expect(enSys.content).toContain("Do not automatically fluff high scores");
+    expect(enSys.content).toContain("Open-issue counts are **not** a flaw");
   });
 
-  it("requires harsher direct callouts for NPC and trash tiers", () => {
+  it("requires clearer name-vs-substance callouts for NPC and trash tiers without insults", () => {
     const [zhSys] = buildRoastMessages(scan, "zh");
-    expect(zhSys.content).toContain("NPC / 拉完了强制火力");
-    expect(zhSys.content).toContain("GitHub 当谈资简历");
-    expect(zhSys.content).toContain("开源人设包装");
-    expect(zhSys.content).toContain("像是在作秀");
-    expect(zhSys.content).toContain("至少命中 **两个证据点**");
-    expect(zhSys.content).toContain("NPC/拉完了不得留情面");
+    expect(zhSys.content).toContain("NPC / 拉完了：说清楚落差，仍留台阶");
+    expect(zhSys.content).toContain("GitHub 更像作品展板");
+    expect(zhSys.content).toContain("名气跑在仓库前面");
+    expect(zhSys.content).toContain("两个以上证据点");
+    expect(zhSys.content).toContain("用调笑不是羞辱");
 
     const [enSys] = buildRoastMessages(scan, "en");
-    expect(enSys.content).toContain("NPC / TRASH Mandatory Heat");
-    expect(enSys.content).toContain("GitHub resume theater");
-    expect(enSys.content).toContain("open-source persona packaging");
-    expect(enSys.content).toContain("looks like performance");
-    expect(enSys.content).toContain("connect at least **two evidence points**");
-    expect(enSys.content).toContain("NPC/TRASH cannot be polite");
+    expect(enSys.content).toContain("Scale tone by tier");
+    expect(enSys.content).toContain("name-vs-substance");
+    expect(enSys.content).toContain("constructive off-ramp");
   });
 
-  it("makes the top roast the main attack instead of the report summary", () => {
+  it("makes the top roast the main shareable observation instead of the report summary", () => {
     const [zhSys] = buildRoastMessages(scan, "zh");
-    expect(zhSys.content).toContain("页面顶部卡片的主毒舌");
-    expect(zhSys.content).toContain("必须承担最强攻击和传播梗");
-    expect(zhSys.content).toContain("不能把火力留到正文“一句话结论”");
+    expect(zhSys.content).toContain("页面顶部卡片的主观察句");
+    expect(zhSys.content).toContain("最好玩、最想转发的一句准确观察");
+    expect(zhSys.content).toContain("不能把笑点留到正文“一句话结论”");
     expect(zhSys.content).toContain("英文 ≤140 chars");
-    expect(zhSys.content).toContain("正文一句话结论负责价值判断和补刀，不能比顶部更狠");
+    expect(zhSys.content).toContain("正文一句话结论负责价值判断和补充观察");
 
     const [enSys] = buildRoastMessages(scan, "en");
-    expect(enSys.content).toContain("top-card main roast");
-    expect(enSys.content).toContain("must carry the strongest attack");
-    expect(enSys.content).toContain("Do not save the sharpest hit for the report TL;DR");
+    expect(enSys.content).toContain("top-card main observation");
+    expect(enSys.content).toContain("funniest accurate shareable line");
+    expect(enSys.content).toContain("Do not save the best tease for the report TL;DR");
+
     expect(enSys.content).toContain("English ≤140 chars");
-    expect(enSys.content).toContain("must not outgun the top roast");
+    expect(enSys.content).toContain("must not repeat each other");
   });
 
   it("no longer asks for an inline 🔥 roast line in the report body", () => {
@@ -895,7 +895,7 @@ describe("language evidence attribution", () => {
       const rule = payload.context_notes.language_evidence;
       for (const text of lang === "en"
         ? ["not evidence of engineering ability", "tags, the top roast, report, or recommendations", "not proof that its author made the original mistake", "brand spellings", "verifiable missing installation", "instead of inventing English mistakes"]
-        : ["不是开发能力", "标签、顶部短评、报告正文或建议", "不能反推错误由作者制造", "品牌写法", "可验证的内容", "不得为了凑毒舌编造英文错误"]) {
+        : ["不是开发能力", "标签、顶部短评、报告正文或建议", "不能反推错误由作者制造", "品牌写法", "可验证的内容", "不得为了凑笑点捏造语言错误"]) {
         expect(rule).toContain(text);
       }
       expect(payload.metrics.bio).toBe(input.metrics.bio);

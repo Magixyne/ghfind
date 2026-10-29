@@ -25,11 +25,11 @@
     "signOutFailed": "未能退出登录，请检查网络后重试。"
   },
   "meta": {
-    "title": "ghfind | 毒舌 GitHub 评分 · 开发者自测成长 · 发现最佳开发者",
-    "description": "ghfind（毒舌 GitHub 评分）：输入 GitHub 账号，30 秒得到 0-100 分价值与信任评分和一句扎心毒舌点评，看清差距、知道往哪努力，自测并持续成长；再逛发现榜找到值得关注的优质开发者，也让世界发现你。专治刷量号、AI 机器人、收藏夹开发者。",
-    "ogTitle": "ghfind | 毒舌 GitHub 评分 · 开发者自测成长 · 发现最佳开发者",
-    "ogDescription": "ghfind：给 GitHub 账号打分，发现最佳开发者。30 秒出 0-100 分含金量评分 + 一句毒舌点评，还能逛开发者榜单。",
-    "twDescription": "30 秒给 GitHub 账号打分 + 毒舌点评，在 ghfind 发现最佳开发者。",
+    "title": "ghfind | GitHub 锐评评分 · 开发者自测成长 · 发现最佳开发者",
+    "description": "ghfind（GitHub 锐评评分）：输入 GitHub 账号，30 秒得到 0-100 分价值与信任评分和一句客观调笑的锐评，看清差距、知道往哪努力；再逛发现榜找到值得关注的优质开发者。",
+    "ogTitle": "ghfind | GitHub 锐评评分 · 开发者自测成长 · 发现最佳开发者",
+    "ogDescription": "ghfind（GitHub 锐评评分）：输入 GitHub 账号，30 秒得到 0-100 分价值与信任评分和一句客观调笑的锐评，看清差距、知道往哪努力；再逛发现榜找到值得关注的优质开发者。",
+    "twDescription": "30 秒给 GitHub 账号打分 + 客观调笑锐评，在 ghfind 发现最佳开发者。",
     "siteName": "ghfind"
   },
   "nav": {
@@ -55,7 +55,7 @@
     "groupTools": "集成",
     "beta": "Beta",
     "hint": {
-      "roast": "30 秒给 GitHub 账号打分，附一句毒舌点评",
+      "roast": "30 秒给 GitHub 账号打分，附一句客观调笑锐评",
       "versus": "两位开发者正面 PK，看谁更强",
       "leaderboard": "按评分浏览优质开发者",
       "projectBoards": "按领域发现值得关注的开源项目",
@@ -73,7 +73,7 @@
     "cliApi": "CLI & API",
     "jobs": "招聘",
     "talentMatch": "人才匹配",
-    "feed": "推荐流"
+    "feed": "社区动态"
   },
   "globalSearch": {
     "open": "打开全局搜索",
@@ -126,7 +126,7 @@
     "title": "源码与评分算法均开源 · 在 GitHub 查看"
   },
   "home": {
-    "brand": "毒舌",
+    "brand": "锐评",
     "headline": "在 AI 时代，发现「人」的价值。",
     "subtitle": "输入 GitHub 账号，发现每一次 PR 背后的含金量。",
     "boardHeading": "🏆 发现最佳开发者",
@@ -354,8 +354,8 @@
     "orgsLabel": "组织",
     "commits": "提交",
     "prs": "PR",
-    "roastHeading": "🔥 毒舌点评全文",
-    "roastEmpty": "这份锐评还没存档 —— <a>去首页重新审判一次</a> 即可生成。",
+    "roastHeading": "🔥 锐评全文",
+    "roastEmpty": "这份锐评还没存档 —— <a>去首页重新评测一次</a> 即可生成。",
     "scoreStateStaleTitle": "历史评分",
     "scoreStateStaleBody": "这份评分来自旧版规则；在可信重扫完成前继续展示，但不会冒充当前评分。",
     "scoreStateRescanAction": "重新评测",
@@ -392,7 +392,15 @@
     "battleTie": "平",
     "selfCta": "测测你自己的 GitHub 含金量 →",
     "reportLangNotice": "AI 锐评目前仅提供中英文版本，当前显示英文版。",
-    "coCreatorShare": "主导/共建（计分份额 {share}%）"
+    "coCreatorShare": "主导/共建（计分份额 {share}%）",
+    "roastProgressTitle": "正在写你的锐评…",
+    "roastStage1": "读取扫描结果",
+    "roastStage2": "挑出值得写的事",
+    "roastStage3": "起草笑点",
+    "roastStage4": "核对数字和仓库名",
+    "roastStage5": "排版收尾",
+    "liveRetry": "再试一次",
+    "scoreReadyHint": "分数已出炉，锐评马上就到"
   },
   "reactions": {
     "heading": "社区反应",
@@ -409,11 +417,11 @@
     "clown": "绷不住"
   },
   "rescan": {
-    "button": "🔄 重新检测",
-    "scanning": "检测中…",
+    "button": "重新评测",
+    "scanning": "评测中…",
     "roasting": "生成点评中…",
-    "error": "检测失败，请稍后重试",
-    "cooldown": "{hours} 小时后可重新检测"
+    "error": "评测失败，请稍后重试",
+    "cooldown": "{hours} 小时后可重新评测"
   },
   "detailMeta": {
     "unratedTitle": "{username} · 开发者档案",
@@ -430,8 +438,8 @@
     "judging": "审判中…",
     "byoLink": "用自己的模型 / API Key",
     "scanning": "正在扒 {username} 的老底…读 commit、查 PR、数 star、抓刷量痕迹",
-    "roastLabel": "🔥 毒舌点评",
-    "roastThinking": "AI 正在憋一段毒舌点评，马上端上来…",
+    "roastLabel": "🔥 锐评",
+    "roastThinking": "AI 正在打磨一句客观又好笑的锐评…",
     "roastPending": "准备生成点评",
     "firstJudged": "🥇 你是第一个被审判的，前无古人",
     "rankLine": "<hl>📊 全站第 {rank} 名</hl><muted> / 共 {total} 人</muted>",
@@ -445,14 +453,14 @@
     "shareBeat": "，超越了 {beat}% 的开发者",
     "errEmpty": "请先输入 GitHub 用户名或主页链接。",
     "errNeedTurnstile": "请先完成下方的人机校验。",
-    "errRoastFailed": "毒舌生成失败，稍后再试或换用自己的 Key。",
-    "errNetworkRoast": "网络中断，毒舌没说完。",
+    "errRoastFailed": "锐评生成失败，稍后再试或换用自己的 Key。",
+    "errNetworkRoast": "网络中断，锐评没说完。",
     "errScanFailed": "扫描失败，稍后再试。",
     "largeAccountCollecting": "大号数据采集中",
     "errScanPending": "正在补全该账号的全部公开 PR 与 commit，完成后会自动继续。",
     "errNetworkScan": "网络出错，连 GitHub 都连不上。",
     "dataUpdating": "数据更新中…",
-    "byoReasonQuota": "免费额度用完了 😵 填入你自己的 API Key 继续毒舌（OpenAI / StepFun / Groq 都行）。",
+    "byoReasonQuota": "免费额度用完了 😵 填入你自己的 API Key 继续锐评（OpenAI / StepFun / Groq 都行）。",
     "byoReasonRate": "你今天点评得有点多啦 🥵 歇会儿，或填入自己的 API Key 不限量继续。",
     "byoReasonDefault": "服务端还没配默认模型，填入你自己的 API Key 即可开评。"
   },
@@ -615,8 +623,8 @@
     "heading": "常见问题",
     "items": [
       {
-        "q": "什么是毒舌 GitHub 评分？",
-        "a": "ghfind 提供毒舌 GitHub 评分：基于账号的公开贡献给出评分和点评，帮助你了解自己的开源表现，也找到值得关注的开发者。它从账号成熟度、原创与主导项目质量、贡献质量、生态影响力、社区影响力、活跃真实性六个加权维度，为任意账号打出 0–100 分。还会给出辛辣的吐槽、开源排行榜和可以挂到 GitHub 的徽章。"
+        "q": "什么是锐评 GitHub 评分？",
+        "a": "ghfind 提供锐评 GitHub 评分：基于账号的公开贡献给出评分和点评，帮助你了解自己的开源表现，也找到值得关注的开发者。它从账号成熟度、原创与主导项目质量、贡献质量、生态影响力、社区影响力、活跃真实性六个加权维度，为任意账号打出 0–100 分。还会给出辛辣的吐槽、开源排行榜和可以挂到 GitHub 的徽章。"
       },
       {
         "q": "如何联系我们？",
@@ -649,7 +657,7 @@
   },
   "homeIntro": {
     "whatHeading": "ghfind 是什么？",
-    "whatBody": "ghfind 提供毒舌 GitHub 评分：基于账号的公开贡献给出评分和点评，帮助你了解自己的开源表现，也找到值得关注的开发者。它从账号成熟度、原创与主导项目质量、贡献质量、生态影响力、社区影响力、活跃真实性六个加权维度，为任意账号打出 0–100 分。还会给出辛辣的吐槽、开源排行榜和可以挂到 GitHub 的徽章。",
+    "whatBody": "ghfind 提供锐评 GitHub 评分：基于账号的公开贡献给出评分和点评，帮助你了解自己的开源表现，也找到值得关注的开发者。它从账号成熟度、原创与主导项目质量、贡献质量、生态影响力、社区影响力、活跃真实性六个加权维度，为任意账号打出 0–100 分。还会给出辛辣的吐槽、开源排行榜和可以挂到 GitHub 的徽章。",
     "howHeading": "ghfind 如何工作",
     "steps": [
       {
@@ -662,7 +670,7 @@
       },
       {
         "title": "3. 得到分数、段位和吐槽",
-        "body": "你会得到一个可复现的 0–100 分、从「拉完了」到「夯」的段位、一份指出短板的分维度报告，以及（只在你主动要求时）一段毒舌 AI 吐槽。"
+        "body": "你会得到一个可复现的 0–100 分、从「拉完了」到「夯」的段位、一份指出短板的分维度报告，以及（只在你主动要求时）一段锐评 AI 吐槽。"
       }
     ],
     "numbersHeading": "用数字看 ghfind",
@@ -805,7 +813,7 @@
     "metaDescription": "ghfind 用开源、确定性的引擎为任意 GitHub 账号打出 0–100 的真实贡献含金量与可信度评分，并帮助你发现顶尖开发者。",
     "heading": "关于 ghfind",
     "paragraphs": [
-      "ghfind 提供毒舌 GitHub 评分：基于账号的公开贡献给出评分和点评，帮助你了解自己的开源表现，也找到值得关注的开发者。它为任意账号打出 0–100 的真实贡献含金量与可信度评分，使用一套只基于公开 GitHub 数据的完全确定性引擎。相同输入永远得到相同分数——分数本身不涉及任何大语言模型——因此结果可复现、可审计，而非黑箱。",
+      "ghfind 提供锐评 GitHub 评分：基于账号的公开贡献给出评分和点评，帮助你了解自己的开源表现，也找到值得关注的开发者。它为任意账号打出 0–100 的真实贡献含金量与可信度评分，使用一套只基于公开 GitHub 数据的完全确定性引擎。相同输入永远得到相同分数——分数本身不涉及任何大语言模型——因此结果可复现、可审计，而非黑箱。",
       "分数由六个加权维度构成，合计 100 分：账号成熟度、原创与主导项目质量、贡献质量、生态影响力、社区影响力、活动真实性。在这一事实内核之上，ghfind 还提供可选的 AI 吐槽、开发者对战、按语言 / 组织 / 项目划分的排行榜，以及可嵌入自己主页的 README 评分徽章。",
       "评分引擎以 github-account-value skill 的形式按 AGPL 开源，网站、官方 npm 与 PyPI 包、命令行工具、Model Context Protocol 服务器都跑在同一套代码路径上。ghfind 的目标是让 GitHub 贡献变得可读：奖励真实的开源工作，让值得关注的开发者浮出水面，并通过看模式而非看原始数量，让刷出来的账号一眼可辨。"
     ]
@@ -903,7 +911,7 @@
     "summonRoasting": "生成中…",
     "summonError": "召唤失败，稍后再试",
     "bothMissing": "这两位都还没被审判，先召唤上场再对决。",
-    "verdictGenerating": "🤖 AI 正在憋一段毒舌裁决…",
+    "verdictGenerating": "🤖 AI 正在写风趣裁决…",
     "adviceHeading": "💡 进步建议",
     "saveImage": "📸 保存对战图",
     "saving": "生成中…",
@@ -2065,6 +2073,10 @@
       "undoDislike": "取消不喜欢",
       "undoRepost": "取消转发",
       "unfollow": "取消关注",
+      "viewQuotedPost": "查看引用推文",
+      "quotedPostPreviewUnavailable": "引用内容暂不可预览",
+      "viewAttachedLink": "查看附带链接",
+      "attachedLinkPreviewUnavailable": "打开链接查看内容",
       "viewOnX": "在 X 查看原帖",
       "showOriginal": "原文",
       "showTranslated": "译文",
