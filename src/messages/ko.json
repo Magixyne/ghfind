@@ -394,7 +394,15 @@
     "coCreatorShare": "주도·공동 개발 (기여 지분 {share}%)",
     "scoreReadyHint": "점수는 나왔습니다. 로스트는 곧 도착합니다",
     "adventurerLevel": "모험가 레벨",
-    "preciseScoreTitle": "종합 점수 {score}"
+    "preciseScoreTitle": "종합 점수 {score}",
+    "liveTimeout": "평가 대기 시간이 초과되어 중단했습니다. 나중에 다시 시도하세요. 기존 점수와 이전 평가는 유지됩니다.",
+    "scoreStateRescanTimeout": "재평가 대기 시간이 초과되었습니다. 나중에 다시 시도하세요",
+    "evaluateStageFetch": "데이터 가져오는 중",
+    "evaluateStageAnalyze": "저장소 분석 중",
+    "evaluateStageRoast": "로스트 생성 중",
+    "evaluateError": "이번엔 완료하지 못했습니다. 다시 시도해 주세요.",
+    "evaluateTimeout": "이번 생성에 시간이 좀 걸렸어요. 다시 시도해 주세요.",
+    "evaluateRetry": "다시 시도"
   },
   "reactions": {
     "heading": "커뮤니티 반응",
@@ -415,7 +423,8 @@
     "scanning": "검사 중…",
     "roasting": "코멘트 생성 중…",
     "error": "평가에 실패했습니다. 잠시 후 다시 시도하세요",
-    "cooldown": "{hours}시간 후 다시 평가 가능"
+    "cooldown": "{hours}시간 후 다시 평가 가능",
+    "timeout": "평가 대기 시간이 초과되었습니다. 나중에 다시 시도하세요"
   },
   "detailMeta": {
     "unratedTitle": "{username} · 개발자 프로필",

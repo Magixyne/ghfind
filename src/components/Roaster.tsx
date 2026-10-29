@@ -11,6 +11,8 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { DIMENSIONS } from "@/lib/dimensions";
 import { splitReport } from "@/lib/report";
 import { consumeRoastStream, pendingScanKey } from "@/lib/roast-stream";
+import { writePendingEvaluate } from "@/lib/home-handoff";
+import { isRoastClientTimeout, roastClientSignal } from "@/lib/roast-client-timeout";
 import { readScanResponse } from "@/lib/scan-job-client";
 import { TIER_KEY, tierStyle } from "@/lib/tier";
 import type { RoastLine, RoastMeta, ScanResult, SubScoreKey, Tags, Tier } from "@/lib/types";
@@ -153,6 +155,7 @@ export function Roaster({
         const res = await fetch("/api/roast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: roastClientSignal(),
           // `lang` selects the English vs Chinese prompt + per-language cache.
           body: JSON.stringify({ scan: scanResult, byoKey, lang: locale }),
         });
@@ -182,8 +185,8 @@ export function Roaster({
             if (!handleError(data)) setError(t("errRoastFailed"));
           },
         });
-      } catch {
-        setError(t("errNetworkRoast"));
+      } catch (error) {
+        setError(t(isRoastClientTimeout(error) ? "errRoastTimeout" : "errNetworkRoast"));
       } finally {
         setRoasting(false);
       }
@@ -215,10 +218,27 @@ export function Roaster({
       setDisplay(null);
       setTags(null);
       setMetaRoast(null);
-      setScanning(true);
       // Funnel top: the user committed to a roast. `source` lets us split the
       // home scanner from other entry points if they get instrumented later.
       trackEvent("scan_start", { source: analyticsSource });
+      const byoKeyEarly: ByoKeyConfig | null = loadByoKey();
+      const forceProfileHandoffEarly =
+        process.env.NODE_ENV !== "production" && searchParams.get("profile") === "1";
+      // Default path: leave the homepage immediately so the profile route owns
+      // the waiting shell (skeleton + stage spinner). BYO-key stays on-home.
+      if (!byoKeyEarly || forceProfileHandoffEarly) {
+        writePendingEvaluate(uname, {
+          turnstileToken: token || undefined,
+          campaign: campaign ?? null,
+          startedAt: Date.now(),
+        });
+        setScanning(true);
+        const profileParams = new URLSearchParams({ roasting: "1" });
+        if (campaign) profileParams.set("campaign", campaign);
+        router.push(`/u/${uname}?${profileParams.toString()}`);
+        return;
+      }
+      setScanning(true);
       const presentScan = (result: ScanResult) => {
         setScanPending(false);
         setStaleScan(isStaleScanPayload(result));

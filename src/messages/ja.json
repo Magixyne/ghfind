@@ -394,7 +394,15 @@
     "liveRetry": "もう一度試す",
     "scoreReadyHint": "スコアは出ました。鋭評はもうすぐです",
     "adventurerLevel": "冒険者レベル",
-    "preciseScoreTitle": "総合点 {score}"
+    "preciseScoreTitle": "総合点 {score}",
+    "liveTimeout": "講評の待機がタイムアウトしました。後でもう一度お試しください。既存のスコアと旧版講評は残ります。",
+    "scoreStateRescanTimeout": "再評価がタイムアウトしました。後でもう一度お試しください",
+    "evaluateStageFetch": "データ取得中",
+    "evaluateStageAnalyze": "リポジトリ分析中",
+    "evaluateStageRoast": "鋭評を生成中",
+    "evaluateError": "今回は完了できませんでした。再試行してもう一度どうぞ。",
+    "evaluateTimeout": "生成に少し時間がかかりすぎました。再試行してもう一度どうぞ。",
+    "evaluateRetry": "再試行"
   },
   "reactions": {
     "heading": "コミュニティの反応",
@@ -415,7 +423,8 @@
     "scanning": "スキャン中…",
     "roasting": "コメント生成中…",
     "error": "評価に失敗しました。後でもう一度お試しください",
-    "cooldown": "再スキャンまであと {hours} 時間"
+    "cooldown": "再スキャンまであと {hours} 時間",
+    "timeout": "講評がタイムアウトしました。後でもう一度お試しください"
   },
   "detailMeta": {
     "unratedTitle": "{username} · 開発者プロフィール",

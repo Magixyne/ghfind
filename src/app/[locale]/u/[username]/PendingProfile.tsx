@@ -9,6 +9,7 @@ import { RealmChip } from "@/components/realm/RealmGlyph";
 import { realmForScore } from "@/lib/realm";
 import { DimensionStarChart } from "@/components/DimensionStarChart";
 import { LiveRoast } from "@/components/LiveRoast";
+import { ProfileEvaluateRunner } from "@/components/ProfileEvaluateRunner";
 import { StaleScanHint } from "@/components/StaleScanHint";
 import { StaleScoreRescan } from "@/components/StaleScoreRescan";
 import { DIMENSIONS } from "@/lib/dimensions";
@@ -34,6 +35,7 @@ export function PendingProfile({
   initialScan,
   fromHome = false,
   advx = false,
+  evaluateDemo = null,
 }: {
   username: string;
   initialScan: ScanResult | null;
@@ -42,6 +44,8 @@ export function PendingProfile({
    * and report stream in place; the score remains deterministic. */
   fromHome?: boolean;
   advx?: boolean;
+  /** Non-production only: set from `?evaluateDemo=timeout` for evidence captures. */
+  evaluateDemo?: "timeout" | "wait" | null;
 }) {
   const t = useTranslations("detail");
   const tDim = useTranslations("dimensions");
@@ -76,8 +80,21 @@ export function PendingProfile({
     if (!resolved) {
       return (
         <main className="flex w-full flex-1 items-center justify-center px-5 py-20">
-          <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-orange-300/40 border-t-orange-200" />
+          <span className="inline-block h-6 w-6 motion-safe:animate-spin motion-reduce:animate-none rounded-full border-2 border-orange-300/40 border-t-orange-200" />
         </main>
+      );
+    }
+    // Homepage handoff arrived before the scan finished → run evaluate here.
+    if (fromHome) {
+      return (
+        <ProfileEvaluateRunner
+          username={username}
+          evaluateDemo={evaluateDemo}
+          onReady={(next) => {
+            setScan(next);
+            setResolved(true);
+          }}
+        />
       );
     }
     // No scan anywhere (direct visit to an unscanned handle) → point home.
@@ -134,7 +151,10 @@ export function PendingProfile({
   });
 
   return (
-    <main className="relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20">
+    <main
+      data-profile-evaluate="ready"
+      className="profile-reveal relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20"
+    >
       <div className="relative z-10 flex w-full max-w-4xl flex-col">
         <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-zinc-200">
           {t("back")}

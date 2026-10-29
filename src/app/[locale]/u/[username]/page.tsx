@@ -16,6 +16,7 @@ import { loadProfileRoastState, profileMetadata } from "@/lib/pages/profile";
 import { maybeScheduleVisitRefresh } from "@/lib/scan-background-refresh";
 import { decodeRouteParam } from "@/lib/route-params";
 import { asTranslator } from "@/lib/translator";
+import { isProductionDeployment } from "@/lib/deploy-env";
 
 // Profile comments must be fresh; score/roast data is still fetched from the DB
 // and remains cached at the persistence layer where applicable.
@@ -116,6 +117,12 @@ export default async function AccountPage({
         initialScan={scan ?? null}
         fromHome={roasting}
         advx={isAdvxCampaign}
+        evaluateDemo={
+          !isProductionDeployment() &&
+          (query.evaluateDemo === "timeout" || query.evaluateDemo === "wait")
+            ? (query.evaluateDemo as "timeout" | "wait")
+            : null
+        }
       />
     );
   }

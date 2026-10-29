@@ -1,8 +1,10 @@
 /**
  * Attach a foreground roast request to the one durable v13 job for this
  * profile and language. Generation itself runs on the RoastJob alarm; this
- * loop only relays progress and the persisted report. Past the chain budget
- * the job is abandoned and the caller falls back to v12.
+ * loop only relays progress and the persisted report. Past the interactive
+ * attach budget the job is abandoned and the caller falls back to v12; the
+ * Durable Object chain may still finish in the background under the longer
+ * chain budget.
  */
 import type { Lang } from "./lang";
 import type { RoastMeta, Tags, Tier } from "./types";

@@ -394,7 +394,15 @@
     "liveRetry": "Try again",
     "scoreReadyHint": "Level is ready — roast incoming",
     "adventurerLevel": "Adventurer Level",
-    "preciseScoreTitle": "Composite {score}"
+    "preciseScoreTitle": "Composite {score}",
+    "liveTimeout": "The roast timed out — stopped waiting. Retry later; any existing score and prior roast stay on the page.",
+    "scoreStateRescanTimeout": "Re-evaluation timed out — stopped waiting. Try again later",
+    "evaluateStageFetch": "Fetching data",
+    "evaluateStageAnalyze": "Analyzing repos",
+    "evaluateStageRoast": "Writing the roast",
+    "evaluateError": "That run did not finish. Tap retry to try again.",
+    "evaluateTimeout": "That took a bit long. Tap retry to try again.",
+    "evaluateRetry": "Retry"
   },
   "reactions": {
     "heading": "Community reactions",
@@ -415,7 +423,8 @@
     "scanning": "Scanning…",
     "roasting": "Roasting…",
     "error": "Evaluation failed, try again later",
-    "cooldown": "Available again in {hours}h"
+    "cooldown": "Available again in {hours}h",
+    "timeout": "Roast timed out — stopped waiting. Try again later"
   },
   "detailMeta": {
     "unratedTitle": "{username} · Developer profile",
