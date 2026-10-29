@@ -6,9 +6,9 @@
  * change. Development bypasses these caches entirely so local prompt/scoring
  * edits are visible on the next request.
  */
-// v17 credits current maintainers, content-weighted core PRs and bot-free
-// contributor totals in co-built/org project attribution.
-export const SCORE_CACHE_VERSION = "v17";
+// v19 saturates contribution quality and ecosystem impact on smooth curves.
+// A few tiny pull requests, or every pull request in one repo, no longer fill those dimensions.
+export const SCORE_CACHE_VERSION = "v19";
 // v12 keeps language proficiency out of engineering judgments and roast targets.
 export const ROAST_CACHE_VERSION = "v12";
 /**

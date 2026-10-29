@@ -30,6 +30,7 @@ import { beatPercent } from "@/lib/percentile";
 import { buildRoastMessages } from "@/lib/prompt";
 import { reportMatchesLang } from "@/lib/report";
 import { sanitizeIdentityClaims } from "@/lib/identity";
+import { RESCAN_COOLDOWN_MS } from "@/lib/freshness";
 import {
   acquireRoastLock,
   checkRoastRequestRateLimit,
@@ -47,6 +48,7 @@ import {
 import { tierFor } from "@/lib/score";
 import type { RoastLine, RoastMeta, ScanResult, Tags, Tier } from "@/lib/types";
 import { USERNAME_RE } from "@/lib/username";
+import { sanitizeRoastTags } from "./roast-tags";
 
 /**
  * POST /api/roast implementation (src/app/api/roast/route.ts re-exports it).
@@ -58,6 +60,8 @@ import { USERNAME_RE } from "@/lib/username";
 
 /** Response header carrying the score meta (base64'd JSON; it contains CJK). */
 export const ROAST_META_HEADER = "X-Roast-Meta";
+/** Which copy chain this response will run. Clients use it to pick a progress τ. */
+export const ROAST_GENERATOR_HEADER = "X-Roast-Generator";
 
 const EMPTY_ROAST_LINE: RoastLine = { zh: "", en: "" };
 
@@ -75,7 +79,8 @@ interface RoastBody {
   byoKey?: ByoKey;
   /** UI locale → report language. Defaults to zh (see {@link normLang}). */
   lang?: string;
-  /** Ask for a fresh scan; a compatible cached/archive roast is still replayed
+  /** Ask to regenerate when the stored scan is past the manual rescan cooldown;
+   * a compatible cached/archive roast is still replayed while the scan is fresh
    * when the score is unchanged, so this flag cannot burn LLM credit needlessly. */
   refresh?: boolean;
 }
@@ -153,16 +158,11 @@ function parseTags(head: string): Tags {
     if (!mm) return [];
     return mm[1].split(/[,，、]/).map((t) => t.trim());
   };
-  const clean = (arr: string[], maxLen: number): string[] =>
-    Array.from(
-      new Set(
-        arr
-          .map((t) => t.replace(/[#@]/g, "").trim())
-          .filter(Boolean)
-          .map((t) => t.slice(0, maxLen)),
-      ),
-    ).slice(0, 5);
-  return { zh: clean(grab("zh"), 10), en: clean(grab("en"), 24) };
+  // Substance-only: drop follower-ratio / time-window trivia; cap at 4.
+  return {
+    zh: sanitizeRoastTags(grab("zh"), 10),
+    en: sanitizeRoastTags(grab("en"), 24),
+  };
 }
 
 const ROAST_LINE_MAX_CHARS = 180;
@@ -514,6 +514,7 @@ function roastResponse(body: ReadableStream<Uint8Array> | string, meta: RoastMet
       "Cache-Control": "no-store",
       "X-Accel-Buffering": "no",
       [ROAST_META_HEADER]: metaHeader(meta),
+      [ROAST_GENERATOR_HEADER]: roastGenerator(),
     },
   });
 }
@@ -779,7 +780,16 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
       );
     }
 
-    const cachedRoast = await getCachedRoast(username, lang);
+    // Align with Go `roastFreshness` (24h): honor refresh only when the stored
+    // scan is older than the manual rescan cooldown. A force-rescan that just
+    // published a new snapshot keeps refreshHonored=false so a compatible roast
+    // can still replay when the score itself did not change.
+    const refreshHonored =
+      body.refresh === true &&
+      (scoreIdentity.scannedAt == null ||
+        Date.now() - scoreIdentity.scannedAt > RESCAN_COOLDOWN_MS);
+
+    const cachedRoast = refreshHonored ? null : await getCachedRoast(username, lang);
     if (
       cachedRoast?.snapshot_hash === snapshotHash &&
       reportMatchesLang(cachedRoast.report, lang)
@@ -804,7 +814,7 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
     }
     if (cachedRoast) await clearCachedRoast(username, lang);
 
-    const archivedRoast = await getArchivedRoast(username, lang);
+    const archivedRoast = refreshHonored ? null : await getArchivedRoast(username, lang);
     if (archivedRoast && reportMatchesLang(archivedRoast.report, lang)) {
       const meta = await metaForStoredRoast(
         archivedRoast.final_score,
@@ -1027,7 +1037,7 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
         const stageLabel: Record<string, string> =
           lang === "en"
             ? { angles: "Picking the sharpest facts…", writer: "Writing roast…", editor: "Fact-checking every line…" }
-            : { angles: "正在挑选扎心事实…", writer: "正在撰写锐评…", editor: "正在逐句核对事实…" };
+            : { angles: "正在挑选有趣事实…", writer: "正在撰写锐评…", editor: "正在逐句核对事实…" };
         let stage = stageLabel.angles;
         beat(stage, true);
         const ticker = setInterval(() => beat(stage, true), 3000);

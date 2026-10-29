@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { RoastReport } from "./RoastReport";
+import { RoastProgressCard } from "./RoastProgressCard";
+import { useRoastProgress } from "./useRoastProgress";
 import { Link } from "@/i18n/navigation";
 import { consumeRoastingHandoff, readSessionScan, stripRoastingParam } from "@/lib/home-handoff";
 import { splitReport } from "@/lib/report";
 import { normLang } from "@/lib/lang";
+import { tagsForLocale } from "@/lib/roast-tags";
 import { consumeRoastStream } from "@/lib/roast-stream";
+import { readRoastStart } from "@/lib/roast-progress";
 import type { RoastLine, RoastMeta, ScanResult, Tags } from "@/lib/types";
 import { RoastResultModal } from "./RoastResultModal";
 
@@ -21,6 +24,9 @@ import { RoastResultModal } from "./RoastResultModal";
  * the caller's). On completion it refreshes the server-rendered page once, so
  * the freshly persisted profile (rank, reactions, badge) replaces this shell.
  */
+// Profile popup disabled 2026-10-28 (owner request); keep code for possible re-enable
+const PROFILE_POPUP_ENABLED = false;
+
 export function LiveRoast({
   username,
   scan,
@@ -66,6 +72,7 @@ export function LiveRoast({
   const locale = useLocale();
   const router = useRouter();
   const started = useRef(false);
+  const generationRef = useRef(0);
   const openedHandoffPopupRef = useRef(false);
   // Popup lifecycle: `closedRef` remembers a user dismissal (never reopen on
   // late frames); `doneRef` gates the deferred page refresh — closing mid-stream
@@ -75,7 +82,6 @@ export function LiveRoast({
   const doneRef = useRef(false);
   const refreshedRef = useRef(false);
 
-  const [thinking, setThinking] = useState("");
   const [report, setReport] = useState("");
   const [meta, setMeta] = useState<RoastMeta | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
@@ -88,6 +94,14 @@ export function LiveRoast({
   // Handoff fallback: on a hard reload the caller may have no scan prop, but the
   // homepage stash can still be in sessionStorage. Resolved once at mount.
   const [sessionScan] = useState(() => (scan ? null : readSessionScan(username)));
+  const [attempt, setAttempt] = useState(0);
+  const [awaitingRoast, setAwaitingRoast] = useState(true);
+  const [resumeProgress] = useState(() => readRoastStart(username, locale) != null);
+  const progress = useRoastProgress(awaitingRoast, username, locale, { resume: resumeProgress });
+  const progressRef = useRef(progress);
+  useEffect(() => {
+    progressRef.current = progress;
+  });
 
   // Refresh the server page once (a one-shot guard prevents a refresh loop if the
   // row still isn't visible afterward). For a fresh roast this is deferred until
@@ -106,10 +120,12 @@ export function LiveRoast({
   useEffect(() => {
     if (started.current) return; // guard against StrictMode double-invoke
     started.current = true;
+    const generation = generationRef.current;
     // Spend the homepage handoff exactly once for this history entry. This
     // guards a remounted profile subtree from opening a second result popup
     // while its server-rendered props still say `openModalOnMount`.
-    openedHandoffPopupRef.current = openModalOnMount && consumeRoastingHandoff();
+    openedHandoffPopupRef.current =
+      PROFILE_POPUP_ENABLED && openModalOnMount && consumeRoastingHandoff();
     if (openedHandoffPopupRef.current && fallbackMeta) setModalMeta(fallbackMeta);
     // Failure downgrade: with fallback content the old report renders (and the
     // already-open popup keeps its stored content) instead of an error line —
@@ -118,7 +134,9 @@ export function LiveRoast({
       key: string,
       streamFallback?: { report?: string; meta?: RoastMeta },
     ) => {
+      if (generation !== generationRef.current) return;
       doneRef.current = true;
+      setAwaitingRoast(false);
       setSettled(true);
       const reportFallback = streamFallback?.report ?? fallbackReport;
       const metaFallback = streamFallback?.meta ?? fallbackMeta;
@@ -156,25 +174,33 @@ export function LiveRoast({
 
         let latestMeta: RoastMeta | null = null;
         const { errored, fresh } = await consumeRoastStream(res, {
-          onThinking: setThinking,
+          onGenerator: (generator) => progressRef.current.setGenerator(generator),
+          onThinking: (label) => progressRef.current.noteThinking(label),
           onMeta: (m) => {
             latestMeta = m;
+            if (generation === generationRef.current) progressRef.current.markComplete();
             setMeta(m);
             // Mount-time popup: swap the seeded (old/deterministic) card for the
             // real result the moment the meta frame lands — unless dismissed.
             if (openedHandoffPopupRef.current && !closedRef.current) setModalMeta(m);
           },
-          onReport: setReport,
+          onReport: (text) => {
+            if (text.trim()) progressRef.current.markComplete();
+            setReport(text);
+          },
           onError: (data) => fail(mapError(data?.error), data?.fallback),
         });
-        if (errored) return;
+        if (errored || generation !== generationRef.current) return;
+        progressRef.current.markComplete();
 
         doneRef.current = true;
+        setAwaitingRoast(false);
         setSettled(true);
         if (closedRef.current) {
           // Popup already dismissed mid-stream — refresh into the full profile.
           refreshOnce();
         } else if (
+          PROFILE_POPUP_ENABLED &&
           ((fresh && !openModalOnMount) || openedHandoffPopupRef.current) &&
           latestMeta
         ) {
@@ -189,7 +215,7 @@ export function LiveRoast({
         fail("liveError");
       }
     })();
-  }, [username, scan, sessionScan, locale, refresh, openModalOnMount, fallbackReport, fallbackMeta, refreshOnce]);
+  }, [username, scan, sessionScan, locale, refresh, openModalOnMount, fallbackReport, fallbackMeta, refreshOnce, attempt]);
 
   const effScan = scan ?? sessionScan;
   // The popup outlives an error: a mount-time popup seeded with scan data keeps
@@ -221,12 +247,27 @@ export function LiveRoast({
     return (
       <>
         {modal}
-        <p className="text-sm text-zinc-400">
-          {t(errorKey)}{" "}
-          <Link href="/" className="text-orange-400 hover:underline">
-            {t("liveGoHome")}
-          </Link>
-        </p>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-foreground/80">
+          <p>{t(errorKey)}</p>
+          <button
+            type="button"
+            className="mt-3 text-sm font-medium text-orange-400 hover:underline"
+            onClick={() => {
+              generationRef.current += 1;
+              started.current = false;
+              doneRef.current = false;
+              progress.reset();
+              setErrorKey(null);
+              setReport("");
+              setMeta(null);
+              setSettled(false);
+              setAwaitingRoast(true);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            {t("liveRetry")}
+          </button>
+        </div>
       </>
     );
   }
@@ -234,33 +275,37 @@ export function LiveRoast({
   const { body: reportBody, roast: inlineRoast } = splitReport(report);
   const line = pickLine(meta?.roast_line, locale) || inlineRoast;
   const tags = meta?.tags;
+  const stages = [t("roastStage1"), t("roastStage2"), t("roastStage3"), t("roastStage4"), t("roastStage5")];
+  const stage = stages[Math.min(progress.stageIndex, stages.length - 1)] ?? stages[0];
+  const waiting = awaitingRoast && !line && !reportBody;
+  const showProgress = waiting || (progress.fading && !progress.hidden);
 
   return (
     <>
       {modal}
+      {showProgress ? (
+        <div className={progress.fading ? "mb-4 opacity-0 transition-opacity duration-300 motion-reduce:transition-none" : "opacity-100"}>
+          <RoastProgressCard
+            percent={progress.percent}
+            title={t("roastProgressTitle")}
+            stage={stage}
+            liveStage={stage}
+            tier={scan?.scoring?.tier ?? fallbackMeta?.tier}
+          />
+        </div>
+      ) : null}
       {line ? (
         <p className="mb-4 rounded-xl border border-orange-500/30 bg-orange-500/[0.08] p-4 text-[0.95rem] leading-relaxed text-zinc-100">
           🔥 {line}
         </p>
-      ) : (
-        <div className="mb-4 flex flex-col items-center gap-3 py-4 text-center">
-          <div className="flex gap-1.5">
-            <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400 [animation-delay:-0.3s]" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400 [animation-delay:-0.15s]" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400" />
-          </div>
-          <div className="text-sm text-zinc-400 tabular-nums">
-            {thinking || t("livePending")}
-          </div>
-        </div>
-      )}
+      ) : null}
 
-      {tags && (tags.zh.length > 0 || tags.en.length > 0) && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {tagsList(tags).map((tag, i) => (
+      {tagsForLocale(tags, locale).length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {tagsForLocale(tags, locale).map((tag, i) => (
             <span
               key={`${tag}-${i}`}
-              className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-200"
+              className="rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400"
             >
               #{tag}
             </span>
@@ -268,11 +313,11 @@ export function LiveRoast({
         </div>
       )}
 
-      {reportBody && (
-        <div dir="ltr" className={`report text-[0.95rem] text-zinc-200 ${report ? "caret" : ""}`}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportBody}</ReactMarkdown>
+      {reportBody && !waiting ? (
+        <div className="roast-progress-reveal">
+          <RoastReport markdown={reportBody} className={report ? "caret" : ""} tier={scan?.scoring?.tier ?? fallbackMeta?.tier} />
         </div>
-      )}
+      ) : null}
     </>
   );
 }
@@ -289,6 +334,3 @@ function pickLine(line: RoastLine | undefined, locale: string): string {
   return normLang(locale) === "en" ? line.en : line.zh;
 }
 
-function tagsList(tags: Tags): string[] {
-  return [...tags.zh, ...tags.en];
-}

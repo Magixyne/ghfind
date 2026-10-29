@@ -126,7 +126,7 @@
     "title": "Mã nguồn & thuật toán chấm điểm đều mã nguồn mở · Xem trên GitHub"
   },
   "home": {
-    "brand": "Cực gắt",
+    "brand": "Nhận xét",
     "headline": "Khám phá những dev giỏi nhất — và trở thành một trong số họ.",
     "subtitle": "Bắt đầu bằng một điểm số 0–100 thật đến phũ phàng. Biết mình đang ở đâu, và nên đi về đâu.",
     "boardHeading": "🏆 Những dev xịn nhất",
@@ -354,7 +354,7 @@
     "orgsLabel": "Tổ chức",
     "commits": "commit",
     "prs": "PR",
-    "roastHeading": "🔥 Toàn văn cà khịa",
+    "roastHeading": "Nhận xét",
     "roastEmpty": "Bài cà khịa này chưa được lưu trữ — <a>phán xét lại từ trang chủ</a> để tạo nó.",
     "scoreStateStaleTitle": "Điểm lịch sử",
     "scoreStateStaleBody": "Điểm này dùng bộ quy tắc cũ. Nó vẫn được hiển thị cho đến khi một lần quét lại đã xác minh thay thế.",
@@ -378,6 +378,13 @@
     "liveRateLimited": "Nhiều người đang cà khịa quá — thử lại sau một phút nhé.",
     "liveExpired": "Phiên quét đã hết hạn trước khi màn cà khịa hoàn tất.",
     "liveGoHome": "Cà khịa lại từ trang chủ →",
+    "liveRetry": "Thử lại",
+    "roastProgressTitle": "Đang viết bài cà khịa…",
+    "roastStage1": "Đang đọc kết quả quét",
+    "roastStage2": "Đang chọn điều đáng viết",
+    "roastStage3": "Đang nháp câu cà khịa",
+    "roastStage4": "Đang đối chiếu số và tên kho",
+    "roastStage5": "Đang chỉnh trang kết thúc",
     "modalTitle": "🔥 Kết quả cà khịa đã về",
     "modalRoastHeading": "Toàn văn cà khịa",
     "modalFirstJudged": "🥇 Bạn là người đầu tiên bị phán xét — đúng chất tiên phong",
@@ -392,7 +399,8 @@
     "battleTie": "Hòa",
     "selfCta": "Chấm điểm GitHub của chính bạn →",
     "reportLangNotice": "Báo cáo cà khịa của AI hiện chỉ được viết bằng tiếng Anh và tiếng Trung — bạn đang đọc bản tiếng Anh.",
-    "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)"
+    "coCreatorShare": "Dẫn dắt / đồng xây dựng ({share}%)",
+    "scoreReadyHint": "Điểm đã ra. Nhận xét tới ngay"
   },
   "reactions": {
     "heading": "Phản ứng cộng đồng",
@@ -409,10 +417,10 @@
     "clown": "Chịu luôn"
   },
   "rescan": {
-    "button": "🔄 Quét lại",
+    "button": "Đánh giá lại",
     "scanning": "Đang quét…",
-    "roasting": "Đang cà khịa…",
-    "error": "Quét thất bại, thử lại sau nhé",
+    "roasting": "Đang tạo nhận xét…",
+    "error": "Đánh giá thất bại, thử lại sau",
     "cooldown": "Có thể làm mới sau {hours}h"
   },
   "detailMeta": {
@@ -430,7 +438,7 @@
     "judging": "Đang phán xét…",
     "byoLink": "Dùng model / API key của riêng bạn",
     "scanning": "Đang đào bới lịch sử của {username}… đọc commit, soi PR, đếm star, đánh hơi hoạt động cày ảo",
-    "roastLabel": "🔥 Cà khịa",
+    "roastLabel": "Nhận xét",
     "roastThinking": "AI đang nấu một màn cà khịa cực gắt — sắp ra lò rồi…",
     "roastPending": "Đang chuẩn bị màn cà khịa",
     "firstJudged": "🥇 Bạn là người đầu tiên bị phán xét — đúng chất tiên phong",
@@ -2059,6 +2067,10 @@
       "undoDislike": "Hủy không thích",
       "undoRepost": "Hủy đăng lại",
       "unfollow": "Bỏ theo dõi",
+      "viewQuotedPost": "Xem bài viết được trích dẫn",
+      "quotedPostPreviewUnavailable": "Không có bản xem trước",
+      "viewAttachedLink": "Xem liên kết đính kèm",
+      "attachedLinkPreviewUnavailable": "Mở liên kết để xem nội dung",
       "viewOnX": "Xem bài gốc trên X",
       "showOriginal": "Bản gốc",
       "showTranslated": "Bản dịch",

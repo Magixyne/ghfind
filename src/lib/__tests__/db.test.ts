@@ -747,6 +747,20 @@ describe("canonical score materialization", () => {
     await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toBeNull();
   });
 
+  it("persists actual partial/full coverage and exposes it from the exact score snapshot", async () => {
+    const username = "fiction-coverage";
+    const partial = { ...syntheticScan(username), collection: {
+      mode: "quick" as const, coverage: "partial_public" as const, truncation_reasons: ["external_merged_pr_cap"],
+    } };
+    expect(await db.publishCompleteQuickScan(partial, 1_910_000_005_001)).toBeTruthy();
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({ scan_coverage: "partial_public" });
+    await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toBeNull();
+    const full = { ...partial, collection: { mode: "full" as const, coverage: "complete_public" as const, truncation_reasons: [] } };
+    expect(await db.publishCompleteQuickScan(full, 1_910_000_005_002)).toBeTruthy();
+    await expect(db.getAccountDetail(username)).resolves.toMatchObject({ scan_coverage: "complete_public" });
+    await expect(db.getCurrentCanonicalQuickScan(username)).resolves.toMatchObject({ scan: { collection: full.collection } });
+  });
+
   it("keeps a verified public snapshot readable after the scores row moves off the read order", async () => {
     const username = "verified-v10-after-overwrite-fixture";
     const scannedAt = 1_910_000_020_000;

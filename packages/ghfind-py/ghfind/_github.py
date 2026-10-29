@@ -1753,6 +1753,7 @@ def collect(username: str) -> Dict[str, Any]:
         "doc_like_impact_pr_count": impact["doc_like_impact_pr_count"],
         "unverified_impact_pr_count": impact["unverified_impact_pr_count"],
         "impact_repo_count": impact["impact_repo_count"],
+        "impact_repos": impact.get("impact_repos") or [],
         "impact_commit_count": impact["impact_commit_count"],
         "external_trivial_pr_count": external_trivial_pr_count,
         "star_inflation_suspect": star_inflation_suspect,

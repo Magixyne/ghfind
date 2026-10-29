@@ -21,6 +21,7 @@ import {
 import { selectCacheStore, type CacheStore } from "./cache-store";
 import { selectAtomicStore, type AtomicStore } from "./atomic-store";
 import { admitAutoRescan, type AutoRescanAdmission } from "./auto-rescan";
+import { admitAutoRefreshOnVisit } from "./auto-refresh-on-visit";
 import { parsePayload, scanSlot, scanSlots, slotCoordinator } from "./scan-slots";
 import {
   durableObjectLimiter,
@@ -235,6 +236,14 @@ export async function admitVersionUpgradeRescan(
   return admitAutoRescan(atomicStore(), username, { maxPerHour });
 }
 
+/** Per-user 24h slot + hourly budget for on-visit score refresh (see auto-refresh-on-visit.ts). */
+export async function admitVisitRefresh(
+  username: string,
+  maxPerHour: number,
+): Promise<AutoRescanAdmission> {
+  return admitAutoRefreshOnVisit(atomicStore(), username, { maxPerHour });
+}
+
 export async function setCachedScan(username: string, scan: ScanResult): Promise<void> {
   if (bypassGeneratedCaches()) return;
   const slots = scanSlots();
@@ -365,7 +374,7 @@ return redis.call('GET', KEYS[1])`;
 export async function coalesceScan(
   username: string,
   producer: () => Promise<ScanResult>,
-  options: { force?: boolean; background?: boolean; continueOnDeadline?: boolean } = {},
+  options: { force?: boolean; background?: boolean; continueOnDeadline?: boolean; full?: boolean } = {},
 ): Promise<ScanResult> {
   if (bypassGeneratedCaches() && !isProductionDeployment()) return producer();
   const backgroundWait = options.background ? async () => {} : undefined;
@@ -378,7 +387,7 @@ export async function coalesceScan(
       try { baseline = (await slot.revision()) ?? ""; }
       catch { throw new ScanBusyError(); }
     }
-    const continueOnDeadline = options.continueOnDeadline === true && !options.background;
+    const continueOnDeadline = options.continueOnDeadline === true;
     return protectedScan({
       coordinator: slotCoordinator(slot, SCAN_PRODUCER_CAPACITY_KEY, true),
       key: scanKey(username),
@@ -392,11 +401,13 @@ export async function coalesceScan(
       staleTtl: SCAN_STALE_TTL_SECONDS,
       wait: backgroundWait,
       attempts: backgroundAttempts,
-      leaseMs: continueOnDeadline ? SCAN_BACKGROUND_LEASE_MS : undefined,
-      continueWaitMs: continueOnDeadline ? SCAN_CONTINUE_WAIT_MS : undefined,
+      leaseMs: continueOnDeadline || options.background ? SCAN_BACKGROUND_LEASE_MS : undefined,
+      continueWaitMs: continueOnDeadline ? (options.background ? 0 : SCAN_CONTINUE_WAIT_MS) : undefined,
       continueProduce: continueOnDeadline
         ? async (owner) => {
-            const marked = await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS);
+            const marked = options.full || options.force
+              ? await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS, { full: options.full === true, refresh: options.force === true })
+              : await slot.markPending(owner, username, SCAN_BACKGROUND_LEASE_MS);
             if (marked === 1) return "deferred";
             if (marked === -1) return "inline";
             throw new ScanBusyError();
@@ -417,6 +428,7 @@ export async function coalesceScan(
     catch { throw new ScanBusyError(); }
   }
   return protectedScan({ redis: r, key, revisionKey,
+    leaseMs: options.background ? SCAN_BACKGROUND_LEASE_MS : undefined,
     read: options.force ? async () => {
       try {
         const value = await r.eval(READ_REFRESHED_SCAN, [key, revisionKey], [baseline]) as ScanResult | string | null;
@@ -510,7 +522,7 @@ export function rateLimitHeaders(result: RateLimitResult): Record<string, string
 
 /** Per-principal sliding-window limiter for scan and bounded public-read routes. */
 export async function checkRateLimit(principal: string): Promise<RateLimitResult> {
-  const scanLimiter = rateLimiter("rl:scan", 10, "60 s");
+  const scanLimiter = rateLimiter("rl:scan", 15, "60 s");
   if (!scanLimiter) return unavailableRateLimitResult("scan", "missing_redis_config");
   try {
     const { success, limit, remaining, reset } = await scanLimiter.limit(principal);
@@ -747,8 +759,8 @@ export async function checkMcpRateLimit(ip: string): Promise<RateLimitResult> {
  * daily cap. Only gates the default model; BYO keys are not limited.
  */
 export async function checkRoastRateLimit(principal: string): Promise<RateLimitResult> {
-  const roastMinuteLimiter = rateLimiter("rl:roast:m", 8, "60 s");
-  const roastDayLimiter = rateLimiter("rl:roast:d", 60, "1 d");
+  const roastMinuteLimiter = rateLimiter("rl:roast:m", 12, "60 s");
+  const roastDayLimiter = rateLimiter("rl:roast:d", 100, "1 d");
   if (!roastMinuteLimiter || !roastDayLimiter) return unavailableRateLimitResult("roast_generation", "missing_redis_config");
   try {
     const [minute, day] = await Promise.all([

@@ -1787,13 +1787,15 @@ function mapPublicScanJob(row: Record<string, unknown>): PublicScanJob {
 }
 
 /**
- * Atomically publish a bounded quick scan and its deterministic score.
- * The quick snapshot is the production score contract for every account.
+ * Publish collected evidence and its deterministic score. The name remains for
+ * existing callers; collection metadata distinguishes quick/full and completeness.
  */
 export async function publishCompleteQuickScan(
   scan: ScanResult,
   scannedAt = Date.now(),
 ): Promise<ScoreWriteIdentity | null> {
+  const coverage = scan.collection?.coverage ?? "complete_public";
+  const sources = coverage === "complete_public" ? PUBLIC_SCAN_COMPLETE_SOURCES : { ...PUBLIC_SCAN_PENDING_SOURCES, quick: "complete" as const };
   const snapshot = JSON.stringify(scan);
   const snapshotHash = createHash("sha256").update(snapshot).digest("hex");
   const materialized = materializeCanonicalScore({
@@ -1804,7 +1806,7 @@ export async function publishCompleteQuickScan(
     collectionVersion: PUBLIC_SCAN_COLLECTION_VERSION,
     scannedAt,
     mode: "quick",
-    sourceStatus: PUBLIC_SCAN_COMPLETE_SOURCES,
+    sourceStatus: sources,
   });
   if (!materialized) return null;
 
@@ -1825,18 +1827,20 @@ export async function publishCompleteQuickScan(
               (id, username, score_version, collection_version, state, coverage,
                source_status, quick_scan, snapshot, snapshot_hash,
                started_at, completed_at, updated_at)
-            SELECT ?, ?, ?, ?, 'complete_public', 'complete_public', ?, ?, ?, ?, ?, ?, ?
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE NOT EXISTS (
               SELECT 1 FROM public_scan_runs
               WHERE username = ? AND score_version = ? AND collection_version = ?
-                AND state = 'complete_public' AND snapshot_hash = ? AND started_at = ?
+                AND state = ? AND snapshot_hash = ? AND started_at = ?
             )`,
       args: [
         randomUUID(),
         materialized.scoreEntry.username,
         SCORE_CACHE_VERSION,
         PUBLIC_SCAN_COLLECTION_VERSION,
-        JSON.stringify(PUBLIC_SCAN_COMPLETE_SOURCES),
+        coverage,
+        coverage,
+        JSON.stringify(sources),
         snapshot,
         snapshot,
         snapshotHash,
@@ -1846,6 +1850,7 @@ export async function publishCompleteQuickScan(
         materialized.scoreEntry.username,
         SCORE_CACHE_VERSION,
         PUBLIC_SCAN_COLLECTION_VERSION,
+        coverage,
         snapshotHash,
         scannedAt,
       ],
@@ -6059,6 +6064,7 @@ export async function filterExistingRepoKeys(keys: string[]): Promise<Set<string
 }
 
 export interface AccountDetail {
+  scan_coverage?: PublicScanCoverage | "quick";
   username: string;
   display_name: string | null;
   avatar_url: string | null;
@@ -6535,7 +6541,15 @@ export async function getAccountDetail(username: string): Promise<AccountDetail 
     const staleEn = canonicalScore && resolvedCurrentScore && !enCurrent
       ? staleRoastArtifact(r.roast_en_version, r.roast_en)
       : null;
+    let scanCoverage: PublicScanCoverage | "quick" = "quick";
+    if (r.score_source_collection_version === PUBLIC_SCAN_COLLECTION_VERSION && typeof r.score_source_snapshot_hash === "string") {
+      const evidence = await db.execute({ sql: `SELECT coverage FROM public_scan_runs WHERE username = ? AND snapshot_hash = ? AND collection_version = ? ORDER BY started_at DESC LIMIT 1`,
+        args: [String(r.username).toLowerCase(), r.score_source_snapshot_hash, PUBLIC_SCAN_COLLECTION_VERSION] });
+      const value = evidence.rows[0]?.coverage;
+      if (value === "partial_public" || value === "complete_public") scanCoverage = value;
+    }
     return {
+      scan_coverage: scanCoverage,
       username: String(r.username),
       display_name: r.display_name as string | null,
       avatar_url: r.avatar_url as string | null,

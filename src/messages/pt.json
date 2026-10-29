@@ -126,7 +126,7 @@
     "title": "Código-fonte e algoritmo de pontuação são open source · Ver no GitHub"
   },
   "home": {
-    "brand": "Brutal",
+    "brand": "Roast",
     "headline": "Descubra os melhores desenvolvedores — e vire um deles.",
     "subtitle": "Comece com uma nota de 0 a 100 brutalmente honesta. Veja onde você está e pra onde ir.",
     "boardHeading": "🏆 Melhores desenvolvedores",
@@ -354,7 +354,7 @@
     "orgsLabel": "Organizações",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "🔥 Zoada completa",
+    "roastHeading": "Roast",
     "roastEmpty": "Esta zoada ainda não foi arquivada — <a>julgue de novo pela página inicial</a> pra gerar.",
     "scoreStateStaleTitle": "Pontuação histórica",
     "scoreStateStaleBody": "Esta pontuação usa regras antigas. Ela continua visível até ser substituída por uma nova varredura verificada.",
@@ -378,6 +378,13 @@
     "liveRateLimited": "Zoadas demais agora — tente de novo em um minuto.",
     "liveExpired": "O scan expirou antes de a zoada terminar.",
     "liveGoHome": "Zoar de novo pela página inicial →",
+    "liveRetry": "Tentar de novo",
+    "roastProgressTitle": "Escrevendo sua zoada…",
+    "roastStage1": "Lendo o resultado do scan",
+    "roastStage2": "Escolhendo o que vale escrever",
+    "roastStage3": "Rascunhando as piadas",
+    "roastStage4": "Conferindo números e nomes de repositórios",
+    "roastStage5": "Fechando a diagramação",
     "modalTitle": "🔥 Sua zoada chegou",
     "modalRoastHeading": "Zoada completa",
     "modalFirstJudged": "🥇 Você é a primeira pessoa julgada — pioneirismo de verdade",
@@ -392,7 +399,8 @@
     "battleTie": "Empate",
     "selfCta": "Avaliar meu próprio GitHub →",
     "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês.",
-    "coCreatorShare": "Liderado / cocriado ({share}%)"
+    "coCreatorShare": "Liderado / cocriado ({share}%)",
+    "scoreReadyHint": "A pontuação já saiu. O roast chega já"
   },
   "reactions": {
     "heading": "Reações da comunidade",
@@ -409,10 +417,10 @@
     "clown": "Nem tenta"
   },
   "rescan": {
-    "button": "🔄 Reanalisar",
-    "scanning": "Escaneando…",
-    "roasting": "Zoando…",
-    "error": "Falha na análise, tente de novo mais tarde",
+    "button": "Reavaliar",
+    "scanning": "Analisando…",
+    "roasting": "Gerando comentário…",
+    "error": "A avaliação falhou, tente novamente mais tarde",
     "cooldown": "Nova análise disponível em {hours}h"
   },
   "detailMeta": {
@@ -430,7 +438,7 @@
     "judging": "Julgando…",
     "byoLink": "Usar seu próprio modelo / API key",
     "scanning": "Desenterrando o histórico de {username}… lendo commits, checando PRs, contando stars, farejando atividade fabricada",
-    "roastLabel": "🔥 Zoada",
+    "roastLabel": "Roast",
     "roastThinking": "A IA está preparando uma zoada impiedosa — sai já já…",
     "roastPending": "Preparando a zoada",
     "firstJudged": "🥇 Você é a primeira pessoa julgada — pioneirismo de verdade",
@@ -2059,6 +2067,10 @@
       "undoDislike": "Desfazer não gostei",
       "undoRepost": "Desfazer republicação",
       "unfollow": "Deixar de seguir",
+      "viewQuotedPost": "Ver publicação citada",
+      "quotedPostPreviewUnavailable": "Prévia indisponível",
+      "viewAttachedLink": "Ver link anexado",
+      "attachedLinkPreviewUnavailable": "Abra o link para ver o conteúdo",
       "viewOnX": "Ver publicação original no X",
       "showOriginal": "Original",
       "showTranslated": "Traduzido",

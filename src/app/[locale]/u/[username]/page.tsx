@@ -13,6 +13,7 @@ import { getProfileComments, getRetiredAccountIdentity } from "@/lib/db";
 import { oauthConfigured } from "@/lib/oauth-config";
 import { getGoLiveProfileScan, getGoProfilePresentation } from "@/lib/go-profile.server";
 import { loadProfileRoastState, profileMetadata } from "@/lib/pages/profile";
+import { maybeScheduleVisitRefresh } from "@/lib/scan-background-refresh";
 import { decodeRouteParam } from "@/lib/route-params";
 import { asTranslator } from "@/lib/translator";
 
@@ -133,6 +134,15 @@ export default async function AccountPage({
     oauthConfigured() ? auth() : Promise.resolve(null),
     headers(),
   ]);
+  // Profile reads the durable DB snapshot directly (not /api/scan). Mirror the
+  // on-visit score refresh trigger here so stale profiles still refresh in the
+  // background for real browser document navigations.
+  maybeScheduleVisitRefresh({
+    username: d.username,
+    scannedAt: d.scanned_at,
+    headers: new Headers(requestHeaders),
+    documentNavigate: true,
+  });
   return (
     <ProfileView
       locale={locale}
