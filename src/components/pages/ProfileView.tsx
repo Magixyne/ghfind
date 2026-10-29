@@ -2,7 +2,6 @@ import ReactMarkdown from "react-markdown";
 import { RoastReport } from "../RoastReport";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
-import { aggregateLanguages, collectTopics } from "@/lib/profile-insights";
 import { LiveRoast } from "@/components/LiveRoast";
 // Profile popup disabled 2026-10-28 (owner request); keep import for possible re-enable
 // import { RoastReveal } from "@/components/RoastReveal";
@@ -169,7 +168,6 @@ export function ProfileView({
   const similar = presentation?.similar ?? [];
   const snap = presentation?.snapshot ?? null;
   const rank = presentation?.rank ?? null;
-  const battles = presentation?.battles ?? [];
   const facetRank = presentation?.facetRank ?? null;
   const commonProjects = presentation?.common_projects ?? [];
   // Inline re-detect is self-service: only the signed-in owner sees it on their
@@ -268,22 +266,6 @@ export function ProfileView({
         signatureWork: snap.signature_work,
       })
     : [];
-  // Prefer the public contribution-weighted estimate. It covers personal,
-  // organization, and third-party work without changing TopRepos, scores, or
-  // directory language facets. Older/incomplete snapshots retain the legacy
-  // repository-footprint fallback.
-  const contributionLanguages = snap?.signature_work?.estimated_contribution_languages?.languages ?? [];
-  const languages = contributionLanguages.length > 0
-    ? contributionLanguages.slice(0, 6)
-    : snap
-      ? aggregateLanguages([
-          ...snap.top_repos,
-          ...(snap.signature_work?.organization_maintained_repos ?? []).map(
-            (work) => work.repository,
-          ),
-        ])
-      : [];
-  const topics = snap ? collectTopics(snap.top_repos) : [];
   const organizations = snap?.organizations ?? [];
   // Repo cards route into their internal project page (reclaiming the click that
   // otherwise leaks to github.com) — but only where a project page has content,
@@ -901,99 +883,6 @@ export function ProfileView({
       <CommonProjects projects={commonProjects} flat={isAdvxCampaign} />
 
       {similarSection}
-
-      {/* Stack & domains — aggregated language mix + topic tags. */}
-      {(languages.length > 0 || topics.length > 0) && (
-        <section className={contentSectionClass}>
-          <h2 className="mb-4 text-base font-bold text-zinc-200">{t("stackHeading")}</h2>
-          {languages.length > 0 && (
-            <div className="mb-4">
-              <div className="mb-2 text-xs text-zinc-400">{t("stackLangLabel")}</div>
-              <div className="flex flex-col gap-2">
-                {languages.map((l) => (
-                  <div key={l.name}>
-                    <div className="mb-1 flex items-baseline justify-between text-sm">
-                      <span className="text-zinc-300">{l.name}</span>
-                      <span className="tabular-nums text-zinc-400">{l.pct}%</span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-sky-400/70"
-                        style={{ width: `${l.pct}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {topics.length > 0 && (
-            <div>
-              <div className="mb-2 text-xs text-zinc-400">{t("stackTopicsLabel")}</div>
-              <div className="flex flex-wrap gap-1.5">
-                {topics.map((topic) => (
-                  <span
-                    key={topic}
-                    className="rounded-full border border-emerald-400/30 bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-200/90"
-                  >
-                    {topic}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Battles — this dev's PK matchups (internal links + entertainment) */}
-      {battles.length > 0 && (
-        <section className={contentSectionClass}>
-          <h2 className="mb-1 text-base font-bold text-zinc-200">{t("battlesHeading")}</h2>
-          <p className="mb-4 text-xs text-zinc-400">{t("battlesSub")}</p>
-          <div className="flex flex-col gap-2">
-            {battles.map((m) => {
-              const meIsA = m.handleA.toLowerCase() === d.username.toLowerCase();
-              const opponent = meIsA ? m.handleB : m.handleA;
-              const myScore = meIsA ? m.scoreA : m.scoreB;
-              const oppScore = meIsA ? m.scoreB : m.scoreA;
-              const outcome =
-                m.winner === null
-                  ? "tie"
-                  : m.winner.toLowerCase() === d.username.toLowerCase()
-                    ? "win"
-                    : "loss";
-              const badge =
-                outcome === "win"
-                  ? { text: t("battleWin"), cls: "bg-emerald-500/15 text-emerald-300" }
-                  : outcome === "loss"
-                    ? { text: t("battleLoss"), cls: "bg-rose-500/15 text-rose-300" }
-                    : { text: t("battleTie"), cls: "bg-zinc-500/15 text-zinc-300" };
-              return (
-                <Link
-                  key={`${m.handleA}-${m.handleB}`}
-                  href={`/vs/${m.handleA}/${m.handleB}`}
-                  prefetch={false}
-                  className={
-                    isAdvxCampaign
-                      ? "flex items-center gap-3 border-b border-white/10 py-3 last:border-b-0 hover:bg-white/[0.03]"
-                      : "flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 hover:bg-white/[0.06]"
-                  }
-                >
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${badge.cls}`}>
-                    {badge.text}
-                  </span>
-                  <div className="min-w-0 flex-1 truncate text-sm text-zinc-300">
-                    vs <span className="font-medium text-zinc-200">@{opponent}</span>
-                  </div>
-                  <span className="shrink-0 text-xs tabular-nums text-zinc-400">
-                    {myScore.toFixed(1)} : {oppScore.toFixed(1)}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {/* Full roast report */}
       <section
