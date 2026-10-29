@@ -38,17 +38,65 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
-function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest: ReactNode } {
-  const arr = Array.isArray(children) ? [...children] : [children];
+/**
+ * Resolve the HTML tag for a react-markdown child.
+ * Prefer the host string type, then hast `props.node.tagName`, then an explicit
+ * `displayName` we set on custom components. Never use `function.name` — production
+ * minifiers rewrite it and would silently drop finding chips.
+ */
+function elementTag(node: ReactNode): string | null {
+  if (!node || typeof node !== "object" || !("type" in node)) return null;
+  const el = node as {
+    type?: unknown;
+    props?: { node?: { tagName?: string }; children?: ReactNode };
+  };
+  if (typeof el.type === "string") return el.type;
+  const hast = el.props?.node?.tagName;
+  if (typeof hast === "string" && hast) return hast;
+  if (typeof el.type === "function") {
+    const dn = (el.type as { displayName?: string }).displayName;
+    if (typeof dn === "string" && dn) return dn;
+  }
+  return null;
+}
+
+/** Exported for unit tests that simulate minified component function names. */
+export { elementTag };
+
+function skipBlank(nodes: ReactNode[]): ReactNode[] {
+  const arr = [...nodes];
   while (arr.length && (arr[0] == null || arr[0] === "" || arr[0] === "\n" || arr[0] === " ")) {
     arr.shift();
   }
+  return arr;
+}
+
+/**
+ * Finding lines are `1. **title**\n\n   body` (loose list) → <li><p><strong>title</strong></p><p>body</p></li>,
+ * or tight `1. **title** body` → <li><strong>title</strong> body</li>.
+ * Custom `strong`/`p` components make `type` a function, so match via hast tagName / displayName.
+ */
+function splitLeadingStrong(children: ReactNode): { chip: ReactNode | null; rest: ReactNode } {
+  const arr = skipBlank(Array.isArray(children) ? children : [children]);
   const first = arr[0];
-  if (first && typeof first === "object" && "type" in first && (first as { type?: unknown }).type === "strong") {
+  // Tight list: leading **title**
+  if (elementTag(first) === "strong") {
     return {
       chip: (first as { props?: { children?: ReactNode } }).props?.children ?? null,
       rest: arr.slice(1),
     };
+  }
+  // Loose list: title-only <p><strong>…</strong></p> then body paragraphs
+  if (elementTag(first) === "p") {
+    const pChildren = (first as { props?: { children?: ReactNode } }).props?.children;
+    const inner = skipBlank(Array.isArray(pChildren) ? pChildren : [pChildren]);
+    const lead = inner[0];
+    if (elementTag(lead) === "strong" && inner.length === 1) {
+      return {
+        chip: (lead as { props?: { children?: ReactNode } }).props?.children ?? null,
+        rest: arr.slice(1),
+      };
+    }
   }
   return { chip: null, rest: children };
 }
@@ -154,6 +202,22 @@ function DimCardView({ name, score, max, note }: DimCard) {
   );
 }
 
+type MdProps = { children?: ReactNode; href?: string; className?: string };
+
+function RoastP({ children }: MdProps) {
+  const raw = textOf(children).trim();
+  if (/^(风险标记|Red flags)\s*[:：]/.test(raw) && /(?:无|None)\s*$/.test(raw)) {
+    return <p className="roast-risk-inline">{children}</p>;
+  }
+  return <p className="roast-p">{children}</p>;
+}
+RoastP.displayName = "p";
+
+function RoastStrong({ children }: MdProps) {
+  return <strong className="roast-strong">{children}</strong>;
+}
+RoastStrong.displayName = "strong";
+
 function makeComponents(): Components {
   return {
     h1: ({ children }) => <h1 className="roast-h1">{children}</h1>,
@@ -168,13 +232,7 @@ function makeComponents(): Components {
       // Dimension h4s are extracted; leftover h4s render plain.
       return <h4 className="roast-h4">{children}</h4>;
     },
-    p: ({ children }) => {
-      const raw = textOf(children).trim();
-      if (/^(风险标记|Red flags)\s*[:：]/.test(raw) && /(?:无|None)\s*$/.test(raw)) {
-        return <p className="roast-risk-inline">{children}</p>;
-      }
-      return <p className="roast-p">{children}</p>;
-    },
+    p: RoastP,
     blockquote: ({ children }) => (
       <blockquote className="roast-verdict not-italic">{children}</blockquote>
     ),
@@ -195,7 +253,7 @@ function makeComponents(): Components {
       }
       return <li>{children}</li>;
     },
-    strong: ({ children }) => <strong className="roast-strong">{children}</strong>,
+    strong: RoastStrong,
     a: ({ children, href }) => (
       <a href={href} className="roast-a">
         {children}

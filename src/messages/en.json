@@ -25,15 +25,15 @@
     "signOutFailed": "Could not sign out. Check your connection and try again."
   },
   "meta": {
-    "title": "ghfind | Savage GitHub Score, Self-Test & Discover Top Devs",
-    "description": "ghfind: a 0-100 GitHub value & trust score plus a savage roast in 30s. See your gaps, self-test and grow, then discover top developers and get found.",
-    "ogTitle": "ghfind | Savage GitHub Score, Self-Test & Discover Top Devs",
-    "ogDescription": "ghfind: score any GitHub account and discover top developers. 0-100 value & trust score + a savage roast in 30 seconds, plus a ranked developer board.",
-    "twDescription": "Score any GitHub dev + discover the best on ghfind. 0-100 score & savage roast in 30s.",
+    "title": "ghfind | Witty GitHub Score, Self-Test & Discover Top Devs",
+    "description": "ghfind: enter a GitHub handle, get a 0–100 trust/value score and a witty, fair roast in ~30s. Spot gaps, grow, and discover strong developers.",
+    "ogTitle": "ghfind | Witty GitHub Score, Self-Test & Discover Top Devs",
+    "ogDescription": "ghfind: enter a GitHub handle, get a 0–100 trust/value score and a witty, fair roast in ~30s. Spot gaps, grow, and discover strong developers.",
+    "twDescription": "Score a GitHub account in ~30s with a witty roast. Discover top developers on ghfind.",
     "siteName": "ghfind"
   },
   "nav": {
-    "brand": "ghfind",
+    "brand": "Roast",
     "roast": "GitHub Roast",
     "leaderboard": "Developer Board",
     "discover": "Discover",
@@ -55,7 +55,7 @@
     "groupTools": "Integrations",
     "beta": "Beta",
     "hint": {
-      "roast": "Score any GitHub account in 30 seconds, with a savage one-liner",
+      "roast": "Score any GitHub account in 30 seconds, with a witty one-liner",
       "versus": "Put two developers head to head",
       "leaderboard": "Browse top developers by score",
       "projectBoards": "Find notable open-source projects by field",
@@ -126,7 +126,7 @@
     "title": "Source code & scoring algorithm are open source · View on GitHub"
   },
   "home": {
-    "brand": "Savage",
+    "brand": "Witty",
     "headline": "Discover the best developers — and become one.",
     "subtitle": "Start with a brutally honest 0–100 score. See where you stand, learn where to go.",
     "boardHeading": "🏆 Best developers",
@@ -431,7 +431,7 @@
     "byoLink": "Use your own model / API key",
     "scanning": "Digging up {username}'s history… reading commits, checking PRs, counting stars, sniffing out farmed activity",
     "roastLabel": "🔥 Roast",
-    "roastThinking": "The AI is cooking up a savage roast — coming right up…",
+    "roastThinking": "AI is crafting a witty, fair roast…",
     "roastPending": "Preparing the roast",
     "firstJudged": "🥇 You're the first to be judged — a true pioneer",
     "rankLine": "<hl>📊 Ranked #{rank}</hl><muted> of {total} developers</muted>",
@@ -655,7 +655,7 @@
       },
       {
         "title": "3. Get a score, tier, and roast",
-        "body": "You get a reproducible 0-100 score with a tier from Trash to God, a per-dimension breakdown showing exactly what holds the score down, and — only if you ask for it — a savage AI-written roast."
+        "body": "You get a reproducible 0-100 score with a tier from Trash to God, a per-dimension breakdown showing exactly what holds the score down, and — only if you ask for it — a witty, fair AI-written roast."
       }
     ],
     "numbersHeading": "ghfind by the numbers",
@@ -896,7 +896,7 @@
     "summonRoasting": "Roasting…",
     "summonError": "Summon failed, try again later",
     "bothMissing": "Neither has been judged yet — summon them first, then duel.",
-    "verdictGenerating": "🤖 The AI is cooking up a savage verdict…",
+    "verdictGenerating": "🤖 The AI is cooking up a witty verdict…",
     "adviceHeading": "💡 How to level up",
     "saveImage": "📸 Save battle image",
     "saving": "Rendering…",
@@ -904,7 +904,7 @@
     "embedCopied": "✅ Copied — paste it into your README",
     "shareText": "{a} vs {b} — who's more hardcore? Watch this GitHub duel on ghfind.com ⚔️",
     "trendingHeading": "🔥 Trending battles",
-    "trendingSub": "The most-watched GitHub developer PKs — tap in for the savage verdict",
+    "trendingSub": "The most-watched GitHub developer PKs — tap in for the witty verdict",
     "trendingEmpty": "No battles on the board yet. Type \"a vs b\" on the home page to fire the first shot.",
     "notRated": "Unjudged",
     "verdictMissing": "Hold your verdict — summon them to the ring first.",

@@ -83,6 +83,11 @@ function rewriteLegacyLabels(md: string): string {
   );
   // **风险标记** / **建议** as their own line → ### heading
   text = text.replace(/^\*\*(风险标记|Red flags|建议|Next)\*\*\s*$/gm, "### $1");
+  // Stored v12/v13 reports used 扎心N连; map to the warmer 笑点N连 heading.
+  text = text.replace(/^###\s*扎心([一两三])连\s*$/gm, "### 笑点$1连");
+  text = text.replace(/^###\s*One things? we noticed\s*$/gim, "### One witty take");
+  text = text.replace(/^###\s*Two things we noticed\s*$/gim, "### Two witty takes");
+  text = text.replace(/^###\s*Three things we noticed\s*$/gim, "### Three witty takes");
   // Under ### 建议 / ### Next, turn bare paragraphs into bullets when the
   // section has no list markers yet (legacy shipped plain paragraphs).
   text = bulletizeAdviceSection(text);

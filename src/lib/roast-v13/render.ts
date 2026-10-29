@@ -89,7 +89,7 @@ export function renderV13Report(scan: ScanResult, lang: Lang, copy: V13Copy): st
   lines.push("");
   if (copy.findings.length) {
     const n = Math.min(copy.findings.length, 3);
-    lines.push(zh ? `### 扎心${["一", "两", "三"][n - 1]}连` : `### ${["One thing", "Two things", "Three things"][n - 1]} we noticed`);
+    lines.push(zh ? `### 笑点${["一", "两", "三"][n - 1]}连` : `### ${["One witty take", "Two witty takes", "Three witty takes"][n - 1]}`);
     lines.push("");
     copy.findings.slice(0, 3).forEach((f, i) => {
       const head = f.headline ? `**${cell(f.headline)}**` : "";

@@ -1034,7 +1034,7 @@ export async function handleRoastPost(req: NextRequest, options: RoastHandlerOpt
         const stageLabel: Record<string, string> =
           lang === "en"
             ? { angles: "Picking the sharpest facts…", writer: "Writing roast…", editor: "Fact-checking every line…" }
-            : { angles: "正在挑选扎心事实…", writer: "正在撰写锐评…", editor: "正在逐句核对事实…" };
+            : { angles: "正在挑选有趣事实…", writer: "正在撰写锐评…", editor: "正在逐句核对事实…" };
         let stage = stageLabel.angles;
         beat(stage, true);
         const ticker = setInterval(() => beat(stage, true), 3000);

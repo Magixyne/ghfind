@@ -2,14 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { roastGenerator } from "../cache-version";
 import { buildRoastPayload } from "../prompt";
 import { coerceCopy, generateRoastV13, parseJsonObject, type V13Complete } from "../roast-v13/chain";
-import { buildWriterFactCard, slimV13Payload } from "../roast-v13/facts";
+import { buildWriterFactCard, redactV13PayloadForCoverage, slimV13Payload } from "../roast-v13/facts";
 import { renderV13Report } from "../roast-v13/render";
-import { buildFactCards } from "../roast-v13/cards";
+import { buildFactCards, cardsForPrompt } from "../roast-v13/cards";
 import {
   BAD_QUOTE,
   buildFactIndex,
   checkSlots,
   checkText,
+  checkSnark,
   checkTrivia,
   dropUnverifiedSentences,
   fillQuoteTokens,
@@ -18,6 +19,7 @@ import {
   type V13Copy,
 } from "../roast-v13/validate";
 import { rewriteLegacyRoastMarkdown } from "../roast-report-legacy";
+import { roastWriterSkill } from "../roast-v13/skill";
 import type { ScanResult } from "../types";
 
 const scan = {
@@ -102,8 +104,8 @@ const goodCopy = {
   tags: { zh: ["词条外交", "自营荒地"], en: ["Word Diplomat", "Own-Repo Famine"] },
   verdict: "代码是真写,名气全靠别人家的仓库撑场。",
   findings: [
-    { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的,5 个 open Issue 等着。" },
-    { headline: "桌面代理在加班", text: "sample-user/desk-agent 是 Rust 写的桌面代理,还堆着一串 open Issue。" },
+    { headline: "轻量组件库", text: "sample-user/widget-kit 自称 lightweight component library,TypeScript 写的组件库还在迭代。" },
+    { headline: "桌面代理在加班", text: "sample-user/desk-agent 是 Rust 写的桌面代理,最近推送还很勤。" },
     { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,最大的工具 57 星。" },
   ],
   dimensions: {
@@ -115,7 +117,7 @@ const goodCopy = {
     activity_authenticity: "过去一年贡献日历 3611 次。",
   },
   risk: "",
-  advice: ["给 sample-user/widget-kit 关掉那 5 个 open Issue。"],
+  advice: ["给 sample-user/widget-kit 补一条可演示的安装路径再推一版。"],
 };
 
 const payload = slimV13Payload(buildRoastPayload(scan, "zh"));
@@ -158,7 +160,7 @@ describe("roast v13 rendering", () => {
     const md = renderV13Report(scan, "zh", copy);
     expect(md.startsWith("## sample-user — 73.60/100  ·  人上人 (优质贡献者 · 值得信任)")).toBe(true);
     expect(md).toContain("#### 原创与主导项目质量 · 12.2/18");
-    expect(md).toContain("### 扎心三连");
+    expect(md).toContain("### 笑点三连");
     expect(md).toContain("> **一句话结论**");
     expect(md).toMatch(/#### .+ · \d/);
     expect(md).toContain("**风险标记**：无");
@@ -335,7 +337,7 @@ describe("roast v13 salience, quotes and repetition", () => {
         community_influence: "粉丝 44。总星不高。",
         ecosystem_impact: "word-trainer 上只有 1 个 PR。sample-user/side-app 有 719 个提交。",
       },
-      advice: ["近 180 天提交很多,把 sample-user/widget-kit 的 5 个 open Issue 关掉。", "把 sample-user/desk-agent 打包发布,写清安装步骤。"],
+      advice: ["近 180 天提交很多,把 sample-user/widget-kit 收成一条可演示安装路径。", "把 sample-user/desk-agent 打包发布,写清安装步骤。"],
     } as V13Copy).copy;
     expect(dims.dimensions.community_influence).toBe("总星不高。");
     expect(dims.dimensions.ecosystem_impact).toBe("sample-user/side-app 有 719 个提交。");
@@ -488,7 +490,7 @@ describe("roast v13 salience, quotes and repetition", () => {
       ).some((i) => i.kind === "trivia" && /credited|折算/.test(i.detail)),
     ).toBe(false);
 
-    // Closed-PR counts only — no invented close reasons.
+    // Closed-PR counts banned entirely (and invented close reasons still banned).
     expect(
       validateCopy(
         index,
@@ -497,15 +499,15 @@ describe("roast v13 salience, quotes and repetition", () => {
           risk: "有 79 个 PR 被维护者关闭且未合并,说明文档型改动会被门槛直接弹回。",
         } as V13Copy,
         "zh",
-      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
+      ).some((i) => i.kind === "trivia" && /closed|关闭|invent|close reason/i.test(i.detail)),
     ).toBe(true);
     expect(
       validateCopy(
         index,
         { ...goodCopy, risk: "有 79 个 PR 被维护者关闭且未合并。" } as V13Copy,
         "zh",
-      ).some((i) => i.kind === "trivia" && /invent|close reason|关闭原因/.test(i.detail)),
-    ).toBe(false);
+      ).some((i) => i.kind === "trivia" && /maintainer-closed|关闭|self-closed/i.test(i.detail)),
+    ).toBe(true);
 
     const { copy } = dropUnverifiedSentences(index, {
       ...goodCopy,
@@ -532,7 +534,7 @@ describe("roast v13 salience, quotes and repetition", () => {
       findings: goodCopy.findings.slice(0, 2),
       advice: ["一", "二", "三", "四", "五"],
     } as V13Copy);
-    expect(report).toContain("### 扎心两连");
+    expect(report).toContain("### 笑点两连");
     expect(report.match(/^- /gm)?.length).toBe(4);
   });
 });
@@ -632,6 +634,11 @@ describe("roast v13 fact cards and slots", () => {
 });
 
 describe("roast report legacy markdown rewrite", () => {
+  it("maps 扎心 headings to 笑点 for stored reports", () => {
+    const md = "### 扎心三连\n\n1. **x**\n";
+    expect(rewriteLegacyRoastMarkdown(md)).toContain("### 笑点三连");
+  });
+
   it("turns v12 dimension tables into h4 score cards", () => {
     const legacy = `## sample-user — 82.90/100
 
@@ -678,7 +685,30 @@ describe("roast v13 commit-contrast and metaphor bans", () => {
     const a = checkTrivia(index, "findings[1].text", "隔壁讲原理课,你是协作者,合进去的已合并 PR 就 1 个。作业交了一份。");
     expect(a.some((i) => /low merged-PR|合入数量|only one/i.test(i.detail))).toBe(true);
     const b = checkTrivia(index, "findings[2].text", "另有 8 个 PR 被维护者关闭且未合并,扫描没有关闭原因。");
-    expect(b.some((i) => /scan-meta|扫描没有/i.test(i.detail))).toBe(true);
+    expect(b.some((i) => /scan-meta|扫描没有|maintainer-closed|关闭/i.test(i.detail))).toBe(true);
+  });
+
+  it("bans diminishing contrast, closed-PR counts, and credit-belittling", () => {
+    const dim = checkTrivia(
+      index,
+      "roast_line.zh",
+      "在能连着研究几小时的 bytedance/deer-flow 上做协作者,合进去的那一笔却是新对话导航的过期状态。",
+    );
+    expect(dim.some((i) => /diminishing contrast|却\/那一笔/i.test(i.detail))).toBe(true);
+    const closed = checkTrivia(
+      index,
+      "findings[0].text",
+      "你自己关闭的外部 PR 有 22 个,路径比较散。",
+    );
+    expect(closed.some((i) => /self-closed|关闭/i.test(i.detail))).toBe(true);
+    const credit = checkTrivia(
+      index,
+      "findings[2].text",
+      "序列化运行时仍是别人的,你的署名留在门厅布局上。",
+    );
+    expect(credit.some((i) => /credit-belittling|抢功|份额/i.test(i.detail))).toBe(true);
+    const share = checkTrivia(index, "dimensions.ecosystem", "按份额折完之后生态分一般。");
+    expect(share.some((i) => /credit-belittling|份额/i.test(i.detail))).toBe(true);
   });
 
     it("bans long English verbatim quotes", () => {
@@ -718,5 +748,236 @@ describe("roast v13 commit-contrast and metaphor bans", () => {
     expect([...copy.findings[0].text].length).toBeGreaterThan(150);
     const fitted = fitSlotLengths(copy, "zh");
     expect([...fitted.findings[0].text].length).toBeLessThanOrEqual(150);
+  });
+});
+
+describe("buildFactCards partial_public guard", () => {
+  it("omits inventory and merged-PR cards when coverage is partial_public", () => {
+    const scan = {
+      collection: {
+        mode: "quick",
+        coverage: "partial_public",
+        truncation_reasons: ["public_repos_quick_limit", "merged_pr_window"],
+      },
+      metrics: { username: "sample-user" },
+    };
+    const payload = {
+      metrics: {
+        username: "sample-user",
+        created_at: "2020-01-01T00:00:00Z",
+        public_repos: 40,
+        original_repo_count: 12,
+        merged_pr_count: 9,
+        last_year_contributions: 100,
+        days_since_last_activity: 1,
+        total_stars: 10,
+        issues_created: 2,
+        bio: "hello",
+        maintainer_closed_unmerged_pr_count: 6,
+        recent_external_doc_like_pr_ratio: 0.5,
+      },
+      top_repos: [
+        {
+          name_with_owner: "sample-user/demo",
+          owner_login: "sample-user",
+          stars: 20,
+          description: "demo app",
+          language: "Go",
+          pushed_at: "2024-01-01T00:00:00Z",
+          attributed_original: true,
+        },
+      ],
+      impact_repos: [{ repo: "other/lib", stars: 1000, commits: 80, prs: 12 }],
+      verified_impact_prs: [
+        { repo: "other/lib", title: "fix crash", changed_files: 3, repo_stars: 1000, trivial: false },
+      ],
+      signature_work: {
+        work_clusters: [
+          { repo: "other/lib", stars: 1000, recent_merged_prs_in_sample: 5, examples: ["a", "b", "c"] },
+        ],
+      },
+    };
+    const cards = buildFactCards(payload, { username: "sample-user", scan });
+    const kinds = cards.map((c) => c.kind);
+    expect(kinds).not.toContain("project");
+    expect(kinds).not.toContain("maintenance");
+    expect(kinds).not.toContain("core_change");
+    expect(kinds).not.toContain("work_cluster");
+    expect(kinds).not.toContain("gap");
+    expect(kinds).not.toContain("doc_share");
+    expect(kinds).toContain("bio");
+    expect(kinds).toContain("activity");
+    const activity = cards.find((c) => c.kind === "activity")!;
+    expect(activity.claim).not.toMatch(/公开仓库/);
+    expect(activity.claim).not.toMatch(/已合并 PR/);
+    expect(activity.facts.public_repos).toBeUndefined();
+    expect(activity.facts.merged_prs).toBeUndefined();
+  });
+
+  it("keeps inventory cards when coverage is complete_public", () => {
+    const scan = {
+      collection: { mode: "full", coverage: "complete_public", truncation_reasons: [] },
+      metrics: { username: "sample-user" },
+    };
+    const payload = {
+      metrics: {
+        username: "sample-user",
+        created_at: "2020-01-01T00:00:00Z",
+        public_repos: 4,
+        original_repo_count: 2,
+        merged_pr_count: 3,
+        last_year_contributions: 10,
+        days_since_last_activity: 1,
+        total_stars: 5,
+        issues_created: 1,
+      },
+      top_repos: [
+        {
+          name_with_owner: "sample-user/demo",
+          owner_login: "sample-user",
+          stars: 20,
+          description: "demo app",
+          language: "Go",
+          pushed_at: "2024-01-01T00:00:00Z",
+          attributed_original: true,
+        },
+      ],
+      impact_repos: [],
+      verified_impact_prs: [],
+    };
+    const cards = buildFactCards(payload, { username: "sample-user", scan });
+    expect(cards.some((c) => c.kind === "project")).toBe(true);
+  });
+});
+
+describe("generateRoastV13 partial_public scan", () => {
+  const opts = { deadlineMs: Date.now() + 600_000 };
+
+  // Distinctive truncated totals so derived index diffs cannot collide with them.
+  const partialScan = {
+    ...scan,
+    metrics: {
+      ...scan.metrics,
+      public_repos: 7777,
+      merged_pr_count: 8888,
+    },
+    collection: {
+      mode: "quick",
+      coverage: "partial_public",
+      truncation_reasons: ["public_repos_quick_limit", "merged_pr_window"],
+    },
+  } as unknown as ScanResult;
+
+  it("omits inventory cards and redacts incomplete numbers from the validator index", () => {
+    const payload = slimV13Payload(buildRoastPayload(partialScan, "zh"));
+    const cards = buildFactCards(payload, { username: "sample-user", scan: partialScan });
+    expect(cards.some((c) => c.kind === "project")).toBe(false);
+    expect(cards.some((c) => c.kind === "maintenance")).toBe(false);
+    expect(cards.some((c) => c.kind === "core_change")).toBe(false);
+    const redacted = redactV13PayloadForCoverage(payload, partialScan);
+    const index = buildFactIndex({ ...redacted, fact_cards: cardsForPrompt(cards) }, partialScan);
+    // Truncated inventory totals must not be allowlisted (metrics or context_notes).
+    expect(index.numbers).not.toContain(7777);
+    expect(index.numbers).not.toContain(8888);
+    expect(index.repos.has("sample-user/widget-kit")).toBe(false);
+  });
+
+  it("drops copy that states truncated inventory totals as complete", async () => {
+    // Partial scans omit owned-repo cards, so keep the rest of the copy on
+    // bio / activity facts that remain allowlisted; only the inventory claims
+    // should be stripped.
+    const partialSafe = {
+      title: "日历很忙仓库很空",
+      roast_line: {
+        zh: "贡献日历 3611 次刷得很勤,简介还写着 Building small tools。",
+        en: "Busy contribution calendar, quiet inventory story.",
+      },
+      roast_line_candidates: ["候选一", "候选二"],
+      tags: { zh: ["日历战士", "简介画饼"], en: ["Calendar Warrior", "Bio Painter"] },
+      verdict: "过去一年贡献日历 3611 次,真仓库账却还没扫完。",
+      findings: [
+        { headline: "仓库账", text: "你名下只有 7777 个公开仓库,已合并 PR 共 8888 个。" },
+        { headline: "简介很谦虚", text: "简介写着「Building small tools for big teams.」,听起来像工具人。" },
+        { headline: "日历很勤", text: "过去一年贡献日历共 3611 次,忙是真忙。" },
+      ],
+      dimensions: {
+        account_maturity: "注册不短,公开仓库 7777 个是全量库存。",
+        original_project_quality: "原创仓库名单还在补扫,先别夸成完整作品集。",
+        contribution_quality: "贡献日历 3611 次说明手没停,只是库存窗口未闭合。",
+        ecosystem_impact: "生态侧还缺完整合并窗口,先不写死总量。",
+        community_influence: "简介在撑场,社区声量先看资料原文。",
+        activity_authenticity: "日历 3611 次是真的,别把它说成已合并 PR 总数。",
+      },
+      risk: "",
+      advice: ["等完整扫描后再数仓库和合并 PR。", "先把简介里的 small tools 落到一个真在推的仓库。"],
+    };
+    const r = await generateRoastV13(
+      partialScan,
+      "zh",
+      stub({ writer: JSON.stringify(partialSafe), editor: "not json" }),
+      opts,
+    );
+    expect(r.cards.some((c) => c.kind === "project")).toBe(false);
+    const joined = [
+      ...r.copy.findings.map((f) => f.text),
+      ...Object.values(r.copy.dimensions),
+      r.copy.verdict,
+      r.copy.roast_line.zh,
+    ].join("\n");
+    expect(joined).not.toMatch(/7777/);
+    expect(joined).not.toMatch(/8888/);
+    expect(r.copy.findings.some((f) => /3611/.test(f.text))).toBe(true);
+    expect(r.dropped.some((d) => /7777|8888/.test(d))).toBe(true);
+    expect(roastWriterSkill("zh", { partialCoverage: true, reasons: ["merged_pr_window"] })).toMatch(/partial_public/);
+    expect(roastWriterSkill("zh", { partialCoverage: true, reasons: ["merged_pr_window"] })).toMatch(/名下只有/);
+  });
+});
+
+describe("roast v13 tone and open-issue bans", () => {
+  it("flags snark lexicon", () => {
+    const issues = checkSnark("findings[0].text", "这波嘴臭扎心毒舌真菜", "zh");
+    expect(issues.some((i) => i.kind === "snark")).toBe(true);
+  });
+
+  it("allows neutral issues_created counts without backlog framing", () => {
+    const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
+    const ok = {
+      ...goodCopy,
+      dimensions: {
+        ...goodCopy.dimensions,
+        community_influence: "你开过 55 个 issue,上游合入比个人仓更撑得起这块影响,社区影响落在中位。",
+      },
+    };
+    const issues = validateCopy(index, ok, "zh");
+    expect(issues.some((i) => /open-issue count as backlog/i.test(i.detail))).toBe(false);
+  });
+
+  it("bans open-issue backlog framing in copy", () => {
+    const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
+    const bad = {
+      ...goodCopy,
+      tags: { zh: ["Issue堆肥", "评分主笔"], en: ["Issue Composter", "Score Lead"] },
+      findings: [
+        { headline: "待清", text: "那边还挂着 48 个待清 Issue,再加功能清一批再谈下一个 release。" },
+        goodCopy.findings[1],
+        goodCopy.findings[2],
+      ],
+      advice: ["再加功能，48 个开放 issue 清一批再谈下一个 release。"],
+    };
+    const issues = validateCopy(index, bad, "zh");
+    expect(issues.some((i) => /open-issue count as backlog/i.test(i.detail))).toBe(true);
+  });
+
+  it("bans attributing score deductions to a metric", () => {
+    const index = buildFactIndex(slimV13Payload(buildRoastPayload(scan, "zh")), scan);
+    const bad = {
+      ...goodCopy,
+      dimensions: {
+        ...goodCopy.dimensions,
+        community_influence: "因为粉丝少因此被扣分,社区分上不去。",
+      },
+    };
+    const issues = validateCopy(index, bad, "zh");
+    expect(issues.some((i) => /attribute a score deduction/i.test(i.detail))).toBe(true);
   });
 });

@@ -41,3 +41,10 @@ describe("roast-tags", () => {
     expect(tagsForLocale({ zh: ["关注倒挂"], en: ["Core Fixer"] }, "zh")).toEqual(["Core Fixer"]);
   });
 });
+
+describe("issue backlog tags", () => {
+  it("rejects Issue堆肥 / Issue Composter", () => {
+    expect(isTriviaTag("Issue堆肥")).toBe(true);
+    expect(isTriviaTag("Issue Composter")).toBe(true);
+  });
+});

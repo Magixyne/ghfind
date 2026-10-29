@@ -7,7 +7,12 @@
 import type { FactCard } from "./cards";
 import { isTriviaTag } from "../roast-tags";
 import { slotRange, SLOTS, type SlotName } from "./skill";
-import { V13_CLICHE_PHRASES, V13_CLICHE_PHRASES_EN } from "./voice";
+import {
+  V13_CLICHE_PHRASES,
+  V13_CLICHE_PHRASES_EN,
+  V13_SNARK_BANNED_EN,
+  V13_SNARK_BANNED_ZH,
+} from "./voice";
 
 export interface V13Copy {
   title: string;
@@ -24,7 +29,7 @@ export interface V13Copy {
 
 export interface V13Issue {
   kind:
-    | "number" | "repo" | "repo_stars" | "cliche" | "schema" | "language"
+    | "number" | "repo" | "repo_stars" | "cliche" | "snark" | "schema" | "language"
     | "quote" | "repeat" | "trivia" | "length" | "cite";
   field: string;
   detail: string;
@@ -406,6 +411,22 @@ const SCAN_META_FILLER_RE =
 /** Third-person gendered pronouns — always address as 你. Skip 其他/他人. */
 const GENDERED_PRONOUN_RE =
   /(?<![其])她|(?<![其])他(?![人们])/;
+/** Open-issue backlog framed as a flaw — users read this as "issues hurt the score".
+ *  Do NOT match neutral "开过 N 个 issue" (issues_created); require backlog/open/pending framing. */
+const ISSUE_BACKLOG_RE =
+  /(?:\d+\s*个?(?:开放|待清|挂着的?)\s*(?:Issue|issue|议题)|(?:开放|待清|挂着)\s*\d+\s*个?(?:Issue|issue|议题)|(?:Issue|issue|议题)\s*(?:堆肥|积压|欠账|清道夫)|待清\s*(?:Issue|issue)|清一批\s*(?:Issue|issue|开放)|(?:Issue|issue)\s*Composter|issue\s*backlog|(?:挂着|堆着)\s*(?:一串|[\d]+\s*个?)?\s*(?:open\s*)?(?:Issue|issue)|再加功能[，,].{0,24}(?:Issue|issue)|清(?:掉|完|理)?(?:一批)?\s*(?:开放\s*)?(?:Issue|issue).{0,16}(?:再谈|再发|再做|release)|(?:\d+\s*个\s*)?open\s*(?:Issue|issue)s?(?:\s*等着)?|关掉那\s*\d+\s*个\s*open\s*(?:Issue|issue)|\d+\s*(?:open\s+)?(?:issues?)\s*(?:still\s+)?(?:open|pending|hanging)|(?:open|pending)\s+\d+\s*(?:open\s+)?(?:issues?))/i;
+/** Implying a metric caused a score deduction — scores are opaque to copy. */
+const SCORE_ATTRIBUTION_RE =
+  /(?:因此|所以|于是).{0,12}(?:被)?(?:扣分|减分|拉低|压分|扣了|降分)|(?:扣分|减分|拉低分数|评分引擎|被评分).{0,8}(?:因为|由于|源自)|(?:因为|由于).{0,20}(?:被)?(?:扣分|减分|拉低|压到)/;
+/** Famous-repo vs tiny-contribution diminishing contrast ("却" / "那一笔"). */
+const DIMINISHING_CONTRAST_RE =
+  /(?:在|于).{0,40}(?:上做协作者|上做贡献|上客座|合进).{0,24}(?:那一笔却|合进去的那一笔却|却是|却只是)|(?:那一笔却是|合进去的那一笔却)|(?:大仓|名仓|明星仓|高星).{0,24}(?:却|那一笔)/;
+/** Counts of maintainer-closed-unmerged or self-closed PRs — trivial negative stats. */
+const CLOSED_PR_COUNT_RE =
+  /(?:被维护者关闭且?未合并|维护者关闭且?未合并|维护者关闭未合并).{0,8}\d+|\d+\s*个?(?:PR|pr)?.{0,12}(?:被维护者关闭且?未合并|维护者关闭且?未合并)|(?:你自己关闭|作者(?:自己|主动)?关闭|自[己行]关闭).{0,12}(?:外部\s*)?(?:PR|pr).{0,8}\d+|\d+\s*个?(?:外部\s*)?(?:PR|pr).{0,12}(?:你自己关闭|作者(?:自己|主动)?关闭|自[己行]关闭)|self[- ]?closed\s*(?:external\s*)?PRs?|maintainer[- ]?closed\s*(?:unmerged\s*)?PRs?/i;
+/** Credit-belittling / share-discount put-downs. */
+const CREDIT_BELITTLING_RE =
+  /(?:仍?是别人的|别人的运行时|别人的仓|原作者名下|挂在.{0,12}原作者|署名留在|留在门厅|被依赖的仓不是你发起|不是你发起的|按份额折完|折完份额|影响仍挂在)/;
 
 function countNumbers(text: string): number {
   // Collapse ISO dates so "2022-07-21" counts as one evidence token, not three.
@@ -510,6 +531,41 @@ export function checkTrivia(index: FactIndex, field: string, text: string): V13I
   if (field.startsWith("advice") && GAMEY_ADVICE_RE.test(text)) {
     issues.push({ kind: "trivia", field, detail: "gamey advice (chase commits/stars/followers) — suggest what to build/ship/write/OSS next" });
   }
+  if (ISSUE_BACKLOG_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "open-issue count as backlog/flaw is banned — many open issues usually mean an active project; omit or frame neutrally/positively without counts in tags/title/findings/advice",
+    });
+  }
+  if (SCORE_ATTRIBUTION_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "do not attribute a score deduction to a metric — describe the work, never imply the scorer deducted points for it",
+    });
+  }
+  if (DIMINISHING_CONTRAST_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "diminishing contrast (famous repo + 却/那一笔 tiny contribution) is banned — frame what you built positively",
+    });
+  }
+  if (CLOSED_PR_COUNT_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "maintainer-closed-unmerged / self-closed PR counts are banned everywhere — omit these trivial negative stats",
+    });
+  }
+  if (CREDIT_BELITTLING_RE.test(text)) {
+    issues.push({
+      kind: "trivia",
+      field,
+      detail: "credit-belittling / share-discount lines are banned — do not say credit belongs to someone else or '按份额折完'; ecosystem gap as opportunity is fine",
+    });
+  }
   issues.push(...numberDensityIssues(field, text));
   if (/^(roast_line|title)/.test(field)) {
     if (PR_COUNT_RE.test(text)) issues.push({ kind: "trivia", field, detail: "a PR count is not a one-liner hook" });
@@ -543,6 +599,21 @@ export function checkCliches(field: string, text: string, lang: "zh" | "en"): V1
     .map((p) => ({ kind: "cliche" as const, field, detail: `cliché "${p}"` }));
 }
 
+/** Insulting / 嘴臭 lexicon — objective teasing witty tone only. */
+export function checkSnark(field: string, text: string, lang: "zh" | "en"): V13Issue[] {
+  const list: readonly string[] = field.endsWith(".en") || lang === "en"
+    ? [...V13_SNARK_BANNED_EN, ...(field.endsWith(".en") ? [] : V13_SNARK_BANNED_ZH)]
+    : V13_SNARK_BANNED_ZH;
+  const lower = text.toLowerCase();
+  return list
+    .filter((p) => lower.includes(p.toLowerCase()))
+    .map((p) => ({
+      kind: "snark" as const,
+      field,
+      detail: `snark/insult "${p}" — rewrite as objective teasing witty observation`,
+    }));
+}
+
 export function validateCopy(index: FactIndex, copy: V13Copy, lang: "zh" | "en"): V13Issue[] {
   const issues: V13Issue[] = [];
   if (!copy.roast_line.zh) issues.push({ kind: "schema", field: "roast_line.zh", detail: "missing" });
@@ -552,7 +623,7 @@ export function validateCopy(index: FactIndex, copy: V13Copy, lang: "zh" | "en")
   }
   if (copy.findings.length < 2) issues.push({ kind: "schema", field: "findings", detail: "need 3 findings" });
   for (const { field, text } of copyFields(copy)) {
-    issues.push(...checkText(index, field, text), ...checkCliches(field, text, lang), ...checkTrivia(index, field, text));
+    issues.push(...checkText(index, field, text), ...checkCliches(field, text, lang), ...checkSnark(field, text, lang), ...checkTrivia(index, field, text));
     if (field !== "roast_line.zh" && field !== "roast_line.en" && !field.startsWith("tags") && field !== "title" &&
         repeatsRoastLine(copy.roast_line.zh, text)) {
       issues.push({ kind: "repeat", field, detail: "restates the one-liner; say something new here" });
