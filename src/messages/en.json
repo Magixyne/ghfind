@@ -400,8 +400,8 @@
     "evaluateStageFetch": "Fetching data",
     "evaluateStageAnalyze": "Analyzing repos",
     "evaluateStageRoast": "Writing the roast",
-    "evaluateError": "That run did not finish. Try again.",
-    "evaluateTimeout": "This is taking too long. Stopped for now — retry when you are ready.",
+    "evaluateError": "That run did not finish. Tap retry to try again.",
+    "evaluateTimeout": "That took a bit long. Tap retry to try again.",
     "evaluateRetry": "Retry"
   },
   "reactions": {

@@ -23,13 +23,18 @@ import type { ScanResult } from "@/lib/types";
  * Homepage navigates here before the scan finishes. Runs /api/scan on the
  * profile route, surfaces a skeleton + stage spinner, then hands the scan up
  * so PendingProfile can render the live roast.
+ *
+ * `evaluateDemo` is computed on the server from `?evaluateDemo=timeout` and
+ * only set outside production, so production never grows a debug switch.
  */
 export function ProfileEvaluateRunner({
   username,
   onReady,
+  evaluateDemo = null,
 }: {
   username: string;
   onReady: (scan: ScanResult) => void;
+  evaluateDemo?: "timeout" | "wait" | null;
 }) {
   const t = useTranslations("detail");
   const [phase, setPhase] = useState<EvaluatePhase>("fetch");
@@ -40,6 +45,8 @@ export function ProfileEvaluateRunner({
   const inFlight = useRef(false);
   const alive = useRef(true);
   const runId = useRef(0);
+
+  const demoMode = evaluateDemo;
 
   useEffect(() => {
     alive.current = true;
@@ -64,6 +71,23 @@ export function ProfileEvaluateRunner({
   const run = useCallback(
     async (turnstileOverride?: string) => {
       if (inFlight.current) return;
+      if (demoMode === "timeout" || demoMode === "wait") {
+        setPhase("fetch");
+        setPercent(12);
+        window.setTimeout(() => {
+          if (!alive.current) return;
+          setPhase("analyze");
+          setPercent(54);
+        }, 700);
+        if (demoMode === "timeout") {
+          window.setTimeout(() => {
+            if (!alive.current) return;
+            setPhase("timeout");
+            setPercent(0);
+          }, 1800);
+        }
+        return;
+      }
       const intent = intentRef.current;
       const turnstileToken =
         turnstileOverride || token || intent?.turnstileToken || "";
@@ -103,7 +127,6 @@ export function ProfileEvaluateRunner({
           "username" in data &&
           typeof (data as { username?: unknown }).username === "string"
         ) {
-          // Rare legacy redirect path: send the browser to the canonical handle.
           window.location.replace(
             `/u/${encodeURIComponent((data as { username: string }).username)}?roasting=1`,
           );
@@ -137,12 +160,10 @@ export function ProfileEvaluateRunner({
         if (myRun === runId.current) inFlight.current = false;
       }
     },
-    [username, token, onReady],
+    [username, token, onReady, demoMode],
   );
 
   useEffect(() => {
-    // Defer past the effect body so setState inside `run` is not synchronous
-    // with the effect (react-hooks/set-state-in-effect).
     const id = window.setTimeout(() => {
       void run();
     }, 0);
@@ -150,7 +171,6 @@ export function ProfileEvaluateRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot mount kickoff
   }, []);
 
-  // After the user solves Turnstile on the profile, continue automatically.
   useEffect(() => {
     if (!needVerify || !token) return;
     const id = window.setTimeout(() => {
@@ -160,6 +180,11 @@ export function ProfileEvaluateRunner({
   }, [needVerify, token, run]);
 
   const retry = () => {
+    if (demoMode === "timeout" || demoMode === "wait") {
+      setPhase(demoMode === "wait" ? "analyze" : "timeout");
+      setPercent(demoMode === "wait" ? 54 : 0);
+      return;
+    }
     setToken("");
     intentRef.current = {
       ...(intentRef.current ?? { startedAt: Date.now() }),
@@ -197,6 +222,7 @@ export function ProfileEvaluateRunner({
         stageLabel={stageLabel}
         stageLabels={stageLabels}
         percent={percent}
+        backLabel={t("back")}
         errorLabel={
           phase === "timeout" ? t("evaluateTimeout") : t("evaluateError")
         }

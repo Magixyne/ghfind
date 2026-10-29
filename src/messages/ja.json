@@ -400,8 +400,8 @@
     "evaluateStageFetch": "データ取得中",
     "evaluateStageAnalyze": "リポジトリ分析中",
     "evaluateStageRoast": "鋭評を生成中",
-    "evaluateError": "今回は完了できませんでした。もう一度お試しください。",
-    "evaluateTimeout": "時間がかかりすぎたので一旦止めました。再試行できます。",
+    "evaluateError": "今回は完了できませんでした。再試行してもう一度どうぞ。",
+    "evaluateTimeout": "生成に少し時間がかかりすぎました。再試行してもう一度どうぞ。",
     "evaluateRetry": "再試行"
   },
   "reactions": {

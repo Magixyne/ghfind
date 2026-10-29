@@ -35,6 +35,7 @@ export function PendingProfile({
   initialScan,
   fromHome = false,
   advx = false,
+  evaluateDemo = null,
 }: {
   username: string;
   initialScan: ScanResult | null;
@@ -43,6 +44,8 @@ export function PendingProfile({
    * and report stream in place; the score remains deterministic. */
   fromHome?: boolean;
   advx?: boolean;
+  /** Non-production only: set from `?evaluateDemo=timeout` for evidence captures. */
+  evaluateDemo?: "timeout" | "wait" | null;
 }) {
   const t = useTranslations("detail");
   const tDim = useTranslations("dimensions");
@@ -86,6 +89,7 @@ export function PendingProfile({
       return (
         <ProfileEvaluateRunner
           username={username}
+          evaluateDemo={evaluateDemo}
           onReady={(next) => {
             setScan(next);
             setResolved(true);
@@ -147,7 +151,10 @@ export function PendingProfile({
   });
 
   return (
-    <main className="relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20">
+    <main
+      data-profile-evaluate="ready"
+      className="profile-reveal relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20"
+    >
       <div className="relative z-10 flex w-full max-w-4xl flex-col">
         <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-zinc-200">
           {t("back")}

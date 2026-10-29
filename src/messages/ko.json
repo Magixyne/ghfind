@@ -401,7 +401,7 @@
     "evaluateStageAnalyze": "저장소 분석 중",
     "evaluateStageRoast": "로스트 생성 중",
     "evaluateError": "이번엔 완료하지 못했습니다. 다시 시도해 주세요.",
-    "evaluateTimeout": "너무 오래 걸려 중단했습니다. 다시 시도할 수 있어요.",
+    "evaluateTimeout": "이번 생성에 시간이 좀 걸렸어요. 다시 시도해 주세요.",
     "evaluateRetry": "다시 시도"
   },
   "reactions": {

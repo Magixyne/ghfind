@@ -400,8 +400,8 @@
     "evaluateStageFetch": "Obteniendo datos",
     "evaluateStageAnalyze": "Analizando repos",
     "evaluateStageRoast": "Generando el roast",
-    "evaluateError": "Esta vez no terminó. Inténtalo de nuevo.",
-    "evaluateTimeout": "Tardó demasiado; lo detuvimos. Puedes reintentar.",
+    "evaluateError": "Esta vez no terminó. Pulsa reintentar para probar de nuevo.",
+    "evaluateTimeout": "Esta generación tardó un poco. Pulsa reintentar para probar de nuevo.",
     "evaluateRetry": "Reintentar"
   },
   "reactions": {

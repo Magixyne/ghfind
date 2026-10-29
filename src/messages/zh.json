@@ -400,8 +400,8 @@
     "evaluateStageFetch": "抓取数据",
     "evaluateStageAnalyze": "分析仓库",
     "evaluateStageRoast": "生成锐评",
-    "evaluateError": "这次没跑通，可以再试一次。",
-    "evaluateTimeout": "等太久了，先停一下。点重试继续。",
+    "evaluateError": "这次没跑通，点重试再试一次",
+    "evaluateTimeout": "这次生成花的时间有点长，点重试再试一次",
     "evaluateRetry": "重试"
   },
   "reactions": {
