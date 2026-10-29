@@ -3586,9 +3586,11 @@ async function fetchYearContribsBatch(
  *
  * Hyperactive accounts can trip GitHub's per-query resource budget on the
  * batched query (same failure mode as {@link fetchContribOverview}); the
- * fallback re-runs one year per query and skips any single year that is still
- * unqueryable, so one pathological year degrades impact data instead of
- * failing the whole scan. Gateway timeouts and INTERNAL errors also split the
+ * fallback re-runs one year per query. Quick mode notes and skips any single
+ * year that is still unqueryable (escalating to fullscan). Full mode subdivides
+ * that year through fetchCompleteCommitWindow so a pathological year degrades
+ * only when the finest window still saturates, instead of silently dropping
+ * every commit in the year. Gateway timeouts and INTERNAL errors also split the
  * batch: retrying the same oversized query can hit the same resource ceiling.
  * A timeout or INTERNAL error on a single year still fails the scan rather than
  * publishing an incomplete contribution total as a successful fresh result.
@@ -3602,17 +3604,47 @@ export async function fetchCommitContribReposByYear(
   const capped = [...years].sort((a, b) => b - a).slice(0, scope?.full ? undefined : IMPACT_YEAR_CAP);
   if (capped.length === 0) return null;
 
+  const completeYear = (year: number) =>
+    fetchCompleteCommitWindow(username, Date.UTC(year, 0, 1), Date.UTC(year + 1, 0, 1) - 1000);
+
+  /** Years already recovered via fetchCompleteCommitWindow; skip re-split. */
+  const completedYears = new Set<number>();
+
+  async function recoverResourceLimitedYear(year: number): Promise<YearContribs | null> {
+    // Quick mode notes and escalates. Full mode subdivides silently on success;
+    // note commit_resource_limit only when the year still cannot be recovered.
+    if (!scope?.full) {
+      scope?.note("commit_resource_limit");
+      return null;
+    }
+    try {
+      const nodes = await completeYear(year);
+      completedYears.add(year);
+      return { commitContributionsByRepository: nodes };
+    } catch (error) {
+      if (error instanceof GitHubResourceLimitError) {
+        scope.note("commit_resource_limit");
+        return null;
+      }
+      throw error;
+    }
+  }
+
   let perYear: (YearContribs | null)[];
   try {
     perYear = await fetchYearContribsBatch(username, capped);
   } catch (e) {
-    if (!canSplitContribQuery(e) || capped.length <= 1) throw e;
+    if (!canSplitContribQuery(e)) throw e;
+    if (!(e instanceof GitHubResourceLimitError) && capped.length <= 1) throw e;
     perYear = await Promise.all(
       capped.map(async (year) => {
+        if (capped.length === 1 && e instanceof GitHubResourceLimitError) {
+          return recoverResourceLimitedYear(year);
+        }
         try {
           return (await fetchYearContribsBatch(username, [year]))[0];
         } catch (e2) {
-          if (e2 instanceof GitHubResourceLimitError) { scope?.note("commit_resource_limit"); return null; }
+          if (e2 instanceof GitHubResourceLimitError) return recoverResourceLimitedYear(year);
           throw e2;
         }
       }),
@@ -3652,9 +3684,14 @@ export async function fetchCommitContribReposByYear(
   for (let i = 0; i < capped.length; i++) {
     let yc = perYear[i];
     if (!yc) { scope?.note("commit_resource_limit"); continue; }
-    if ((yc.commitContributionsByRepository?.length ?? 0) >= GITHUB_PAGE_SIZE) {
-      if (scope?.full) yc = { commitContributionsByRepository: await fetchCompleteCommitWindow(username, Date.UTC(capped[i], 0, 1), Date.UTC(capped[i]+1, 0, 1)-1000) };
-      else scope?.note("commit_repository_cap");
+    if (
+      !completedYears.has(capped[i]) &&
+      (yc.commitContributionsByRepository?.length ?? 0) >= GITHUB_PAGE_SIZE
+    ) {
+      if (scope?.full) {
+        yc = { commitContributionsByRepository: await completeYear(capped[i]) };
+        completedYears.add(capped[i]);
+      } else scope?.note("commit_repository_cap");
     }
     for (const n of yc.commitContributionsByRepository ?? []) ingest(n, capped[i]);
   }
