@@ -103,8 +103,10 @@ describe("buildRoastMessages", () => {
     // user preamble is English, payload is still the scan JSON
     expect(user.content).toMatch(/scoring data/i);
     expect(user.content).toContain("sample-user");
-    expect(user.content).toContain('"tier":"GOD"');
-    expect(user.content).toContain('"tier_label":"Legendary · Hall of Fame"');
+    expect(user.content).toContain('"tier":"Mahayana"');
+    expect(user.content).toContain('"realm_en":"Mahayana"');
+    expect(user.content).toContain('"adventurer_level":');
+    expect(user.content).toContain('"tier_label":"Near the summit · Hall of fame"');
     expect(user.content).not.toContain("封神");
   });
 
@@ -123,20 +125,20 @@ describe("buildRoastMessages", () => {
     const [zhSys, zhUser] = buildRoastMessages(scan, "zh");
     expect(zhSys.content).toContain("分数来自评分引擎，不是你的判断");
     expect(zhSys.content).toContain("学校、公司、雇主、组织 membership 只是背景");
-    expect(zhSys.content).toContain("不得重算、四舍五入到别的分、升降档");
+    expect(zhSys.content).toContain("不得重算、升降境界或写“额外修正”");
     expect(zhUser.content).not.toContain('"judge_result"');
 
     const [enSys] = buildRoastMessages(scan, "en");
     expect(enSys.content).toContain("The score comes from the scoring engine");
     expect(enSys.content).toContain("background context, not score evidence");
-    expect(enSys.content).toContain("Do not recompute, round into another score, move tiers");
+    expect(enSys.content).toContain("Do not recompute, move realms");
   });
 
   it("keeps the LLM out of scoring while preserving one-response report generation", () => {
     const [sys, user] = buildRoastMessages(scan, "zh");
     expect(sys.content).toContain("第一行必须严格写 `@@ADJUST 0@@`");
     expect(sys.content).toContain("不能改分、不能暗示模型另有裁决");
-    expect(sys.content).toContain("标题最终分直接使用 scoring.final_score");
+    expect(sys.content).toContain("标题使用 scoring.adventurer_level 写成 Lv.N");
     const payload = JSON.parse(user.content.match(/```json\n([\s\S]*)\n```/)![1]);
     expect(payload.judge_result).toBeUndefined();
     expect(payload.calibration_contract).toBeUndefined();
@@ -263,14 +265,14 @@ describe("buildRoastMessages", () => {
 
   it("requires clearer name-vs-substance callouts for NPC and trash tiers without insults", () => {
     const [zhSys] = buildRoastMessages(scan, "zh");
-    expect(zhSys.content).toContain("NPC / 新手村：说清楚落差，仍留台阶");
+    expect(zhSys.content).toContain("用两个以上证据点串成一句准确观察");
     expect(zhSys.content).toContain("GitHub 更像作品展板");
     expect(zhSys.content).toContain("名气跑在仓库前面");
     expect(zhSys.content).toContain("两个以上证据点");
     expect(zhSys.content).toContain("用调笑不是羞辱");
 
     const [enSys] = buildRoastMessages(scan, "en");
-    expect(enSys.content).toContain("Scale tone by tier");
+    expect(enSys.content).toContain("Scale tone by realm");
     expect(enSys.content).toContain("name-vs-substance");
     expect(enSys.content).toContain("constructive off-ramp");
   });
