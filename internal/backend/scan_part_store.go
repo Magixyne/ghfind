@@ -2,7 +2,9 @@ package backend
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,6 +89,12 @@ func (s *TursoStore) EnsureScanPartSchema(ctx context.Context) error {
 	}
 	if _, err = s.db.ExecContext(ctx, `ALTER TABLE scan_part_ready ADD COLUMN claimed_at INTEGER NOT NULL DEFAULT 0`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
 		return fmt.Errorf("ensure scan ready claimed_at: %w", err)
+	}
+	// claim_token distinguishes two claims that share a millisecond. A row
+	// created before this column has an empty token and is not owned by any
+	// caller, so only a fresh claim (or a lease reclaim) may publish it.
+	if _, err = s.db.ExecContext(ctx, `ALTER TABLE scan_part_ready ADD COLUMN claim_token TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		return fmt.Errorf("ensure scan ready claim_token: %w", err)
 	}
 	return nil
 }
@@ -215,104 +223,179 @@ const (
 )
 
 // scanReadyLease is how long a claimed publish may stay unpublished before
-// another delivery may take it. It is one scan processing timeout, the
-// existing bound on a part attempt, not a new production knob.
+// another delivery may take it. The part handler cancels its context at
+// scanWorkerProcessTimeout, and the owner still writes the mark or release
+// after that cancel. The lease is two of those timeouts, so a peer cannot
+// reclaim while that write is still the owner's. Both factors are the
+// existing process timeout.
 func scanReadyLease() time.Duration {
-	return scanWorkerProcessTimeout
+	return 2 * scanWorkerProcessTimeout
 }
 
 // claimReadyPublish marks this parent and kind claimed. A published row is
-// left alone. A claim older than the lease may be taken again. The caller
-// publishes only when claimed is true, then calls markReadyPublished.
-func (s *TursoStore) claimReadyPublish(ctx context.Context, parentID, kind string, now time.Time) (bool, error) {
+// left alone. A claim older than the lease may be taken again. The returned
+// token is empty when this caller did not win. The caller publishes only
+// when claimed is true, then passes the same token to mark or release.
+func (s *TursoStore) claimReadyPublish(ctx context.Context, parentID, kind string, now time.Time) (bool, string, error) {
 	if err := s.EnsureScanPartSchema(ctx); err != nil {
-		return false, err
+		return false, "", err
+	}
+	token, err := newScanClaimToken()
+	if err != nil {
+		return false, "", err
 	}
 	claimedAt := now.UTC().UnixMilli()
-	result, err := s.db.ExecContext(ctx, `INSERT INTO scan_part_ready (parent_id, kind, state, claimed_at)
-      VALUES (?, ?, ?, ?)
+	result, err := s.db.ExecContext(ctx, `INSERT INTO scan_part_ready (parent_id, kind, state, claimed_at, claim_token)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(parent_id, kind) DO NOTHING`,
-		parentID, kind, scanReadyClaimed, claimedAt)
+		parentID, kind, scanReadyClaimed, claimedAt, token)
 	if err != nil {
-		return false, fmt.Errorf("claim scan publish: %w", err)
+		return false, "", fmt.Errorf("claim scan publish: %w", err)
 	}
 	inserted, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("read scan publish claim: %w", err)
+		return false, "", fmt.Errorf("read scan publish claim: %w", err)
 	}
 	if inserted > 0 {
-		return true, nil
+		return true, token, nil
 	}
 	staleBefore := now.UTC().Add(-scanReadyLease()).UnixMilli()
 	result, err = s.db.ExecContext(ctx, `UPDATE scan_part_ready
-      SET state = ?, claimed_at = ?
+      SET state = ?, claimed_at = ?, claim_token = ?
       WHERE parent_id = ? AND kind = ? AND state = ? AND claimed_at <= ?`,
-		scanReadyClaimed, claimedAt, parentID, kind, scanReadyClaimed, staleBefore)
+		scanReadyClaimed, claimedAt, token, parentID, kind, scanReadyClaimed, staleBefore)
 	if err != nil {
-		return false, fmt.Errorf("reclaim scan publish: %w", err)
+		return false, "", fmt.Errorf("reclaim scan publish: %w", err)
 	}
 	reclaimed, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("read scan publish reclaim: %w", err)
+		return false, "", fmt.Errorf("read scan publish reclaim: %w", err)
 	}
-	return reclaimed > 0, nil
+	if reclaimed == 0 {
+		return false, "", nil
+	}
+	return true, token, nil
 }
 
-// markReadyPublished records that Publish succeeded. A crash before this
-// leaves the row claimed so a later delivery can reclaim it after the lease.
-func (s *TursoStore) markReadyPublished(ctx context.Context, parentID, kind string) error {
+// markReadyPublished records that this token's Publish succeeded. Zero rows
+// means the lease was lost and someone else owns the claim; that is not a
+// store error. A crash before this leaves the row claimed so a later
+// delivery can reclaim it after the lease.
+func (s *TursoStore) markReadyPublished(ctx context.Context, parentID, kind, token string) (bool, error) {
 	if err := s.EnsureScanPartSchema(ctx); err != nil {
-		return err
+		return false, err
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE scan_part_ready SET state = ? WHERE parent_id = ? AND kind = ?`,
-		scanReadyPublished, parentID, kind)
+	if token == "" {
+		return false, nil
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE scan_part_ready SET state = ?
+      WHERE parent_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
+		scanReadyPublished, parentID, kind, scanReadyClaimed, token)
 	if err != nil {
-		return fmt.Errorf("mark scan publish: %w", err)
+		return false, fmt.Errorf("mark scan publish: %w", err)
 	}
-	return nil
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read scan publish mark: %w", err)
+	}
+	return affected > 0, nil
 }
 
-// releaseReadyPublish drops a claim that did not publish, so the next
-// delivery can claim it immediately.
-func (s *TursoStore) releaseReadyPublish(ctx context.Context, parentID, kind string) error {
+// releaseReadyPublish drops this token's claim when Publish did not succeed,
+// so the next delivery can claim it immediately. Zero rows means the lease
+// was lost; the other owner's row stays.
+func (s *TursoStore) releaseReadyPublish(ctx context.Context, parentID, kind, token string) (bool, error) {
 	if err := s.EnsureScanPartSchema(ctx); err != nil {
-		return err
+		return false, err
 	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM scan_part_ready WHERE parent_id = ? AND kind = ? AND state = ?`,
-		parentID, kind, scanReadyClaimed)
+	if token == "" {
+		return false, nil
+	}
+	result, err := s.db.ExecContext(ctx, `DELETE FROM scan_part_ready
+      WHERE parent_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
+		parentID, kind, scanReadyClaimed, token)
 	if err != nil {
-		return fmt.Errorf("release scan publish: %w", err)
+		return false, fmt.Errorf("release scan publish: %w", err)
 	}
-	return nil
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read scan publish release: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func newScanClaimToken() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("generate scan claim token: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 type scanReadyStore interface {
-	claimReadyPublish(context.Context, string, string, time.Time) (bool, error)
-	markReadyPublished(context.Context, string, string) error
-	releaseReadyPublish(context.Context, string, string) error
+	claimReadyPublish(context.Context, string, string, time.Time) (bool, string, error)
+	markReadyPublished(context.Context, string, string, string) (bool, error)
+	releaseReadyPublish(context.Context, string, string, string) (bool, error)
 }
 
-func (w *ScanWorker) claimReadyPublish(ctx context.Context, parentID, kind string) (bool, error) {
+func (w *ScanWorker) claimReadyPublish(ctx context.Context, parentID, kind string) (bool, string, error) {
 	store, ok := w.results.(scanReadyStore)
 	if !ok {
-		return true, nil
+		return true, "", nil
 	}
-	now := time.Now().UTC()
-	if collector, ok := w.collector.(*GitHubCollector); ok && collector.clock != nil {
-		now = collector.clock().UTC()
-	}
-	return store.claimReadyPublish(ctx, parentID, kind, now)
+	return store.claimReadyPublish(ctx, parentID, kind, claimClockNow(w.collector))
 }
 
-func (w *ScanWorker) finishReadyPublish(ctx context.Context, parentID, kind string, published bool) error {
+// claimClockNow is the time a publish claim is stamped with. Tests pin it
+// through *GitHubCollector. A collector that embeds one still exposes that
+// clock, so a redelivery fixture can collect parts and expire a lease.
+func claimClockNow(collector ScanCollector) time.Time {
+	type clocked interface{ claimClock() time.Time }
+	if timed, ok := collector.(clocked); ok && timed != nil {
+		return timed.claimClock().UTC()
+	}
+	if github, ok := collector.(*GitHubCollector); ok && github != nil && github.clock != nil {
+		return github.clock().UTC()
+	}
+	return time.Now().UTC()
+}
+
+func (c *GitHubCollector) claimClock() time.Time {
+	if c != nil && c.clock != nil {
+		return c.clock()
+	}
+	return time.Now()
+}
+
+// finishReadyPublish marks or releases this caller's token. The handler
+// context is cancelled at scanWorkerProcessTimeout, which is shorter than
+// the lease, so the write detaches from that cancel and keeps the same
+// four-second bound feed cleanup uses for a lease release. A lost lease
+// (zero rows) is logged and ignored: returning an error would redeliver
+// and publish again even though the winner already owns the row.
+func (w *ScanWorker) finishReadyPublish(ctx context.Context, parentID, kind, token string, published bool) error {
 	store, ok := w.results.(scanReadyStore)
 	if !ok {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 4*time.Second)
+	defer cancel()
+	var (
+		affected bool
+		err      error
+	)
 	if published {
-		return store.markReadyPublished(ctx, parentID, kind)
+		affected, err = store.markReadyPublished(ctx, parentID, kind, token)
+	} else {
+		affected, err = store.releaseReadyPublish(ctx, parentID, kind, token)
 	}
-	return store.releaseReadyPublish(ctx, parentID, kind)
+	if err != nil {
+		return err
+	}
+	if !affected && token != "" {
+		w.log.Warn("scan publish claim lost", "parent_id", parentID, "kind", kind, "published", published)
+	}
+	return nil
 }
 
 func timeNowMillis() int64 {

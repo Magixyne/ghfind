@@ -161,10 +161,11 @@ func (w *ScanWorker) processPart(ctx context.Context, job ScanPartJob) (workerDi
 		return workerRetry, err.Error()
 	}
 	if _, already := parent.Payloads[job.Part]; already {
-		if parent.Done {
-			return w.publishAssemble(ctx, parent, job)
-		}
-		return workerCompleted, ""
+		// A redelivery after a failed publish, or after a crash that claimed
+		// and never marked, still has this payload. Done only means assemble
+		// is next. While the parent is open, publishReady claims dependents
+		// again; the claim is a no-op when another delivery still holds it.
+		return w.publishReady(ctx, parent, job)
 	}
 	payload, err := w.collectPart(ctx, collector, job, parent)
 	if err != nil {
@@ -231,7 +232,7 @@ func (w *ScanWorker) publishAssemble(ctx context.Context, parent scanParentRecor
 // publish releases the claim and asks for redelivery. A claim that is not
 // won means another delivery already published or still holds a fresh lease.
 func (w *ScanWorker) publishClaimed(ctx context.Context, parentID, kind string, publish func() error) (workerDisposition, string) {
-	claimed, err := w.claimReadyPublish(ctx, parentID, kind)
+	claimed, token, err := w.claimReadyPublish(ctx, parentID, kind)
 	if err != nil {
 		return workerRetry, err.Error()
 	}
@@ -239,12 +240,12 @@ func (w *ScanWorker) publishClaimed(ctx context.Context, parentID, kind string, 
 		return workerCompleted, ""
 	}
 	if err := publish(); err != nil {
-		if releaseErr := w.finishReadyPublish(ctx, parentID, kind, false); releaseErr != nil {
+		if releaseErr := w.finishReadyPublish(ctx, parentID, kind, token, false); releaseErr != nil {
 			return workerRetry, releaseErr.Error()
 		}
 		return workerRetry, err.Error()
 	}
-	if err := w.finishReadyPublish(ctx, parentID, kind, true); err != nil {
+	if err := w.finishReadyPublish(ctx, parentID, kind, token, true); err != nil {
 		return workerRetry, err.Error()
 	}
 	return workerCompleted, ""
