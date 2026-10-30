@@ -79,7 +79,7 @@ export function PendingProfile({
     // Still checking sessionStorage → neutral spinner (avoids a not-found flash).
     if (!resolved) {
       return (
-        <main className="flex w-full flex-1 items-center justify-center px-5 py-20">
+        <main className="flex w-full flex-1 items-center justify-center px-4 pt-12 pb-[max(2rem,env(safe-area-inset-bottom,0px))] sm:px-5 sm:pt-20 sm:pb-20">
           <span className="inline-block h-6 w-6 motion-safe:animate-spin motion-reduce:animate-none rounded-full border-2 border-orange-300/40 border-t-orange-200" />
         </main>
       );
@@ -99,7 +99,7 @@ export function PendingProfile({
     }
     // No scan anywhere (direct visit to an unscanned handle) → point home.
     return (
-      <main className="flex w-full flex-1 items-center justify-center px-5 py-20">
+      <main className="flex w-full flex-1 items-center justify-center px-4 pt-12 pb-[max(2rem,env(safe-area-inset-bottom,0px))] sm:px-5 sm:pt-20 sm:pb-20">
         <p className="text-center text-sm text-zinc-400">
           {t("liveExpired")}{" "}
           <Link href="/" className="text-orange-400 hover:underline">
@@ -153,7 +153,7 @@ export function PendingProfile({
   return (
     <main
       data-profile-evaluate="ready"
-      className="profile-reveal relative isolate flex w-full flex-1 justify-center px-5 py-14 sm:py-20"
+      className="profile-reveal relative isolate flex w-full flex-1 justify-center px-4 pt-8 pb-[max(2rem,env(safe-area-inset-bottom,0px))] sm:px-5 sm:pt-14 sm:pb-14 md:pt-20 md:pb-20"
     >
       <div className="relative z-10 flex w-full max-w-4xl flex-col">
         <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-zinc-200">
@@ -164,7 +164,7 @@ export function PendingProfile({
           {/* Left: identity sidebar */}
           <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:w-80 lg:shrink-0">
             <div
-              className={`animate-pop flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.05] p-6 text-center ring-1 ${style.ring}`}
+              className={`animate-pop flex flex-col items-center rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-center ring-1 sm:p-6 ${style.ring}`}
               style={{ boxShadow: `0 0 80px -20px ${style.glow}` }}
             >
               <h1 className="max-w-full">

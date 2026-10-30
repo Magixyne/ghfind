@@ -85,10 +85,10 @@ describe("lowest-tier display copy (newbie village)", () => {
 
   it("bans old derogatory tier labels from roast output lexicons", () => {
     expect(V13_SNARK_BANNED_ZH).toEqual(
-      expect.arrayContaining(["拉完了", "低价值", "普通账号", "平庸"]),
+      expect.arrayContaining(["拉完了", "NPC", "存疑", "低价值", "普通账号", "平庸"]),
     );
     expect(V13_SNARK_BANNED_EN.map((s) => s.toLowerCase())).toEqual(
-      expect.arrayContaining(["low-value", "likely farmed", "unremarkable", "mediocre"]),
+      expect.arrayContaining(["low-value", "likely farmed", "unremarkable", "mediocre", "npc"]),
     );
   });
 });
