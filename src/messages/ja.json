@@ -25,11 +25,11 @@
     "signOutFailed": "ログアウトできませんでした。接続を確認して再試行してください。"
   },
   "meta": {
-    "title": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
-    "description": "ghfind（毒舌GitHub採点）：GitHubアカウントを入力すると、30秒で0-100点の価値・信頼スコアと辛口ローストが出ます。自分の弱点を直視して成長の方向を掴み、発見ボードで注目すべき優良開発者を見つけ、自分も見つけてもらう。水増しアカウント・AI botの検出にも対応。",
-    "ogTitle": "ghfind | 毒舌GitHub採点・自己診断で成長・トップ開発者を発見",
-    "ogDescription": "ghfind：GitHubアカウントを採点してトップ開発者を発見。30秒で0-100点の実力スコア + 容赦ない毒舌ロースト、開発者ランキングも。",
-    "twDescription": "30秒でGitHubアカウントを採点 + 毒舌ロースト。ghfindで最強の開発者を発見しよう。",
+    "title": "ghfind | GitHub風趣採点・自己診断で成長・トップ開発者を発見",
+    "description": "ghfind（GitHub風趣採点）：GitHubアカウントを入力すると、30秒で0-100点の価値・信頼スコアとウィットなローストが出ます。自分の弱点を直視して成長の方向を掴み、発見ボードで注目すべき優良開発者を見つけ、自分も見つけてもらう。水増しアカウント・AI botの検出にも対応。",
+    "ogTitle": "ghfind | GitHub風趣採点・自己診断で成長・トップ開発者を発見",
+    "ogDescription": "ghfind：GitHubアカウントを採点してトップ開発者を発見。30秒で0-100点の実力スコア + 客観的でウィットに富むロースト、開発者ランキングも。",
+    "twDescription": "30秒でGitHubアカウントを採点 + ウィットロースト。ghfindで最強の開発者を発見しよう。",
     "siteName": "ghfind"
   },
   "nav": {
@@ -44,6 +44,7 @@
     "languages": "言語",
     "organizations": "組織",
     "versus": "開発者対戦",
+    "mfcp": "MFCP オープンソース育成",
     "blog": "リサーチ",
     "openMenu": "メニューを開く",
     "closeMenu": "メニューを閉じる",
@@ -54,9 +55,11 @@
     "groupCareer": "キャリア",
     "groupTools": "Integrations",
     "beta": "Beta",
+    "event": "開催中",
     "hint": {
       "roast": "30 秒で GitHub アカウントを採点、辛口コメント付き",
       "versus": "2 人の開発者を真っ向勝負で比較",
+      "mfcp": "MFCP オープンソース人材育成プログラム、参加者募集中",
       "leaderboard": "スコア順に優れた開発者を見る",
       "projectBoards": "分野別に注目のオープンソースを探す",
       "collections": "開発者のストーリー、厳選したオープンソースプロジェクト、GitHub エコシステムの調査。",
@@ -126,7 +129,7 @@
     "title": "ソースコードと採点アルゴリズムはオープンソース · GitHubで見る"
   },
   "home": {
-    "brand": "毒舌",
+    "brand": "風趣",
     "headline": "最強の開発者を見つけろ。そして、その一人になれ。",
     "subtitle": "まずは忖度ゼロの0–100点診断から。今の立ち位置と、進むべき方向が見える。",
     "boardHeading": "🏆 最強の開発者たち",
@@ -348,13 +351,10 @@
     "impactDisclosure": "主なコントリビューション ({count})",
     "worksHeading": "🛠 代表作",
     "worksSub": "本人の人気リポジトリとピン留めプロジェクト",
-    "stackHeading": "🧬 技術スタックと領域",
-    "stackLangLabel": "主要言語",
-    "stackTopicsLabel": "領域",
     "orgsLabel": "組織",
     "commits": "コミット",
     "prs": "PR",
-    "roastHeading": "🔥 ロースト全文",
+    "verdictLabel": "ひとこと総評",
     "roastEmpty": "このローストはまだ保存されていません。<a>ホームからもう一度審判する</a>と生成されます。",
     "scoreStateStaleTitle": "過去のスコア",
     "scoreStateStaleBody": "このスコアは旧ルールのものです。検証済みの再スキャンで置き換わるまで履歴として表示します。",
@@ -385,14 +385,27 @@
     "modalViewProfile": "プロフィール全体を見る",
     "modalBadgeCta": "GitHubバッジを作る",
     "modalClose": "閉じる",
-    "battlesHeading": "⚔️ 対戦記録",
-    "battlesSub": "この開発者が戦ってきたPK対決",
-    "battleWin": "勝",
-    "battleLoss": "負",
-    "battleTie": "分",
     "selfCta": "自分のGitHubも採点する →",
     "reportLangNotice": "AIローストレポートは現在英語と中国語のみ対応です。表示中は英語版です。",
-    "coCreatorShare": "主導・共同開発（割合 {share}%）"
+    "coCreatorShare": "主導・共同開発（割合 {share}%）",
+    "roastProgressTitle": "講評を書いています…",
+    "roastStage1": "スキャン結果を読み込み中",
+    "roastStage2": "書く価値のある点を選別中",
+    "roastStage3": "オチを下書き中",
+    "roastStage4": "数字とリポジトリ名を照合中",
+    "roastStage5": "仕上げの体裁を整えています",
+    "liveRetry": "もう一度試す",
+    "scoreReadyHint": "スコアは出ました。鋭評はもうすぐです",
+    "adventurerLevel": "冒険者レベル",
+    "preciseScoreTitle": "総合点 {score}",
+    "liveTimeout": "講評の待機がタイムアウトしました。後でもう一度お試しください。既存のスコアと旧版講評は残ります。",
+    "scoreStateRescanTimeout": "再評価がタイムアウトしました。後でもう一度お試しください",
+    "evaluateStageFetch": "データ取得中",
+    "evaluateStageAnalyze": "リポジトリ分析中",
+    "evaluateStageRoast": "鋭評を生成中",
+    "evaluateError": "今回は完了できませんでした。再試行してもう一度どうぞ。",
+    "evaluateTimeout": "生成に少し時間がかかりすぎました。再試行してもう一度どうぞ。",
+    "evaluateRetry": "再試行"
   },
   "reactions": {
     "heading": "コミュニティの反応",
@@ -409,15 +422,16 @@
     "clown": "草"
   },
   "rescan": {
-    "button": "🔄 再スキャン",
+    "button": "再評価する",
     "scanning": "スキャン中…",
-    "roasting": "ロースト中…",
-    "error": "スキャンに失敗しました。あとで再試行を",
-    "cooldown": "再スキャンまであと {hours} 時間"
+    "roasting": "コメント生成中…",
+    "error": "評価に失敗しました。後でもう一度お試しください",
+    "cooldown": "再スキャンまであと {hours} 時間",
+    "timeout": "講評がタイムアウトしました。後でもう一度お試しください"
   },
   "detailMeta": {
     "unratedTitle": "{username} · 開発者プロフィール",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — {username} の完全スコアレポートは ghfind.com で。",
     "descPlain": "{username} のGitHub価値・信頼レポート — ghfind.com。",
     "notFoundTitle": "アカウントが見つかりません · ghfind",
@@ -431,7 +445,7 @@
     "byoLink": "自分のモデル / APIキーを使う",
     "scanning": "{username} の身辺調査中…コミットを読み、PRを漁り、スターを数え、水増しの痕跡を嗅ぎ回っています",
     "roastLabel": "🔥 ロースト",
-    "roastThinking": "AIが渾身の毒舌を練っています。もうすぐお出しします…",
+    "roastThinking": "AIがウィットな観察を練っています。もうすぐお出しします…",
     "roastPending": "ローストを準備中",
     "firstJudged": "🥇 最初に審判された一人目、まさに開拓者",
     "rankLine": "<hl>📊 全体 {rank} 位</hl><muted> / 開発者 {total} 人中</muted>",
@@ -446,7 +460,7 @@
     "errEmpty": "まずGitHubユーザー名かプロフィールURLを入力してください。",
     "errNeedTurnstile": "先に下の認証を完了してください。",
     "errRoastFailed": "ローストの生成に失敗。あとで再試行するか、自分のキーをどうぞ。",
-    "errNetworkRoast": "接続が切れて、毒舌が途中で止まりました。",
+    "errNetworkRoast": "接続が切れて、ローストが途中で止まりました。",
     "errScanFailed": "スキャンに失敗しました。あとで再試行を。",
     "largeAccountCollecting": "大規模アカウントのデータを収集中…",
     "errScanPending": "公開 PR と commit の全履歴を収集中です。準備でき次第、自動的に続行します。",
@@ -537,25 +551,25 @@
     "brand": "🔥 ghfind · 自分の実力を測ってみよう"
   },
   "tiers": {
-    "god": {
-      "name": "神",
-      "blurb": "レジェンド級 · 殿堂入り"
-    },
-    "elite": {
-      "name": "強者",
-      "blurb": "一線級 · トップ開発者"
-    },
-    "solid": {
-      "name": "人権あり",
-      "blurb": "堅実な貢献者 · 信頼できる"
+    "trash": {
+      "name": "練気",
+      "blurb": "仙途の入り口 · 基礎を固める"
     },
     "npc": {
-      "name": "NPC",
-      "blurb": "量産型 · 特筆事項なし"
+      "name": "結丹",
+      "blurb": "丹を結び · 鋭さが見える"
     },
-    "trash": {
-      "name": "終わってる",
-      "blurb": "低価値 · 水増し疑惑あり"
+    "solid": {
+      "name": "錬虚",
+      "blurb": "虚を錬り · 重きを軽く"
+    },
+    "elite": {
+      "name": "合体",
+      "blurb": "天人合一 · 一線の宗師"
+    },
+    "god": {
+      "name": "大乗",
+      "blurb": "大道が成る · 殿堂の標"
     }
   },
   "dimensions": {
@@ -654,8 +668,8 @@
         "body": "スナップショットをアカウント成熟度、オリジナルプロジェクトの質、コントリビューションの質、エコシステム影響力、コミュニティ影響力、アクティビティの真正性で採点し、PR量産・スター水増し・テンプレスパムのパターンに減点を加えます。"
       },
       {
-        "title": "3. スコア・ティア・ローストを受け取る",
-        "body": "再現可能な0-100点のスコア、「終わってる」から「神」までのティア、スコアを押し下げている要因がはっきり分かるディメンション別の内訳、そして——望んだ場合のみ——容赦ないAIローストが手に入ります。"
+        "title": "3. 冒険者レベル・境界・ローストを受け取る",
+        "body": "再現可能な冒険者レベル（Lv.1–100）、「練気」から「大乗」までの八境界、弱みを示す次元別レポート、そして（依頼したときだけ）AIによる鋭いローストが手に入ります。"
       }
     ],
     "numbersHeading": "数字で見る ghfind",
@@ -896,7 +910,7 @@
     "summonRoasting": "ロースト中…",
     "summonError": "召喚に失敗しました。あとで再試行を",
     "bothMissing": "どちらもまだ審判されていません。先に召喚してから対決を。",
-    "verdictGenerating": "🤖 AIが渾身の毒舌ジャッジを練っています…",
+    "verdictGenerating": "🤖 AIがウィットなジャッジを練っています…",
     "adviceHeading": "💡 レベルアップのヒント",
     "saveImage": "📸 対戦画像を保存",
     "saving": "レンダリング中…",
@@ -904,7 +918,7 @@
     "embedCopied": "✅ コピー済み。READMEに貼ってください",
     "shareText": "{a} vs {b} —— どっちがガチ？このGitHub対決を ghfind.com で観戦 ⚔️",
     "trendingHeading": "🔥 話題の対戦",
-    "trendingSub": "いちばん観戦されているGitHub開発者PK。毒舌ジャッジを見に行こう",
+    "trendingSub": "いちばん観戦されているGitHub開発者PK。ウィットなジャッジを見に行こう",
     "trendingEmpty": "まだ対戦がありません。ホームで「a vs b」と入力して、最初の一発を撃ちましょう。",
     "notRated": "未審判",
     "verdictMissing": "判定はまだお預け。まずはリングに召喚してから。",
@@ -2084,6 +2098,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "練気",
+      "blurb": "仙途の入り口 · 基礎を固める"
+    },
+    "foundation": {
+      "name": "築基",
+      "blurb": "土台ができた · 着実に精進"
+    },
+    "goldenCore": {
+      "name": "結丹",
+      "blurb": "丹を結び · 鋭さが見える"
+    },
+    "nascentSoul": {
+      "name": "元嬰",
+      "blurb": "元嬰が芽吹く · 自らの流儀"
+    },
+    "deity": {
+      "name": "化神",
+      "blurb": "神識が通う · 一帯に影響"
+    },
+    "voidRefining": {
+      "name": "錬虚",
+      "blurb": "虚を錬り · 重きを軽く"
+    },
+    "integration": {
+      "name": "合体",
+      "blurb": "天人合一 · 一線の宗師"
+    },
+    "mahayana": {
+      "name": "大乗",
+      "blurb": "大道が成る · 殿堂の標"
     }
   }
 }

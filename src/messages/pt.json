@@ -44,6 +44,7 @@
     "languages": "Linguagens",
     "organizations": "Organizações",
     "versus": "Duelo de devs",
+    "mfcp": "MFCP Open Source",
     "blog": "Pesquisa",
     "openMenu": "Abrir menu",
     "closeMenu": "Fechar menu",
@@ -54,9 +55,11 @@
     "groupCareer": "Carreira",
     "groupTools": "Integrations",
     "beta": "Beta",
+    "event": "Evento",
     "hint": {
       "roast": "Nota para qualquer conta do GitHub em 30 segundos, com uma zoeira certeira",
       "versus": "Coloque dois desenvolvedores frente a frente",
+      "mfcp": "Programa de mentoria open source MFCP, inscrições abertas",
       "leaderboard": "Veja os melhores desenvolvedores por nota",
       "projectBoards": "Descubra projetos open source em destaque por área",
       "collections": "Histórias de desenvolvedores, projetos de código aberto selecionados e pesquisas sobre o GitHub.",
@@ -126,7 +129,7 @@
     "title": "Código-fonte e algoritmo de pontuação são open source · Ver no GitHub"
   },
   "home": {
-    "brand": "Brutal",
+    "brand": "Roast",
     "headline": "Descubra os melhores desenvolvedores — e vire um deles.",
     "subtitle": "Comece com uma nota de 0 a 100 brutalmente honesta. Veja onde você está e pra onde ir.",
     "boardHeading": "🏆 Melhores desenvolvedores",
@@ -348,13 +351,10 @@
     "impactDisclosure": "Contribuições notáveis ({count})",
     "worksHeading": "🛠 Trabalhos em destaque",
     "worksSub": "Repositórios próprios populares e fixados",
-    "stackHeading": "🧬 Stack e áreas",
-    "stackLangLabel": "Principais linguagens",
-    "stackTopicsLabel": "Áreas",
     "orgsLabel": "Organizações",
     "commits": "commits",
     "prs": "PRs",
-    "roastHeading": "🔥 Zoada completa",
+    "verdictLabel": "Veredito curto",
     "roastEmpty": "Esta zoada ainda não foi arquivada — <a>julgue de novo pela página inicial</a> pra gerar.",
     "scoreStateStaleTitle": "Pontuação histórica",
     "scoreStateStaleBody": "Esta pontuação usa regras antigas. Ela continua visível até ser substituída por uma nova varredura verificada.",
@@ -378,6 +378,13 @@
     "liveRateLimited": "Zoadas demais agora — tente de novo em um minuto.",
     "liveExpired": "O scan expirou antes de a zoada terminar.",
     "liveGoHome": "Zoar de novo pela página inicial →",
+    "liveRetry": "Tentar de novo",
+    "roastProgressTitle": "Escrevendo sua zoada…",
+    "roastStage1": "Lendo o resultado do scan",
+    "roastStage2": "Escolhendo o que vale escrever",
+    "roastStage3": "Rascunhando as piadas",
+    "roastStage4": "Conferindo números e nomes de repositórios",
+    "roastStage5": "Fechando a diagramação",
     "modalTitle": "🔥 Sua zoada chegou",
     "modalRoastHeading": "Zoada completa",
     "modalFirstJudged": "🥇 Você é a primeira pessoa julgada — pioneirismo de verdade",
@@ -385,14 +392,20 @@
     "modalViewProfile": "Ver perfil completo",
     "modalBadgeCta": "Pegar seu badge do GitHub",
     "modalClose": "Fechar",
-    "battlesHeading": "⚔️ Batalhas",
-    "battlesSub": "Duelos que este dev já travou",
-    "battleWin": "Vitória",
-    "battleLoss": "Derrota",
-    "battleTie": "Empate",
     "selfCta": "Avaliar meu próprio GitHub →",
     "reportLangNotice": "O relatório de zoada da IA por enquanto só sai em inglês e chinês — você está lendo a versão em inglês.",
-    "coCreatorShare": "Liderado / cocriado ({share}%)"
+    "coCreatorShare": "Liderado / cocriado ({share}%)",
+    "scoreReadyHint": "A pontuação já saiu. O roast chega já",
+    "adventurerLevel": "Nível de aventureiro",
+    "preciseScoreTitle": "Pontuação {score}",
+    "liveTimeout": "A avaliação esgotou o tempo de espera. Tente mais tarde; a pontuação e o roast anteriores permanecem.",
+    "scoreStateRescanTimeout": "A reavaliação esgotou o tempo de espera. Tente mais tarde",
+    "evaluateStageFetch": "Buscando dados",
+    "evaluateStageAnalyze": "Analisando repos",
+    "evaluateStageRoast": "Gerando o roast",
+    "evaluateError": "Desta vez não concluiu. Toque em tentar de novo.",
+    "evaluateTimeout": "Essa geração demorou um pouco. Toque em tentar de novo.",
+    "evaluateRetry": "Tentar de novo"
   },
   "reactions": {
     "heading": "Reações da comunidade",
@@ -409,15 +422,16 @@
     "clown": "Nem tenta"
   },
   "rescan": {
-    "button": "🔄 Reanalisar",
-    "scanning": "Escaneando…",
-    "roasting": "Zoando…",
-    "error": "Falha na análise, tente de novo mais tarde",
-    "cooldown": "Nova análise disponível em {hours}h"
+    "button": "Reavaliar",
+    "scanning": "Analisando…",
+    "roasting": "Gerando comentário…",
+    "error": "A avaliação falhou, tente novamente mais tarde",
+    "cooldown": "Nova análise disponível em {hours}h",
+    "timeout": "A avaliação esgotou o tempo de espera. Tente mais tarde"
   },
   "detailMeta": {
     "unratedTitle": "{username} · Perfil de desenvolvedor",
-    "title": "{username} — {score}/100 · {tier} | ghfind",
+    "title": "{username} — Lv.{level} · {realm} | ghfind",
     "descWithTags": "{tags} — veja o relatório completo de {username} no ghfind.com.",
     "descPlain": "Relatório de valor e confiança do GitHub de {username} — ghfind.com.",
     "notFoundTitle": "Conta não encontrada · ghfind",
@@ -430,7 +444,7 @@
     "judging": "Julgando…",
     "byoLink": "Usar seu próprio modelo / API key",
     "scanning": "Desenterrando o histórico de {username}… lendo commits, checando PRs, contando stars, farejando atividade fabricada",
-    "roastLabel": "🔥 Zoada",
+    "roastLabel": "Roast",
     "roastThinking": "A IA está preparando uma zoada impiedosa — sai já já…",
     "roastPending": "Preparando a zoada",
     "firstJudged": "🥇 Você é a primeira pessoa julgada — pioneirismo de verdade",
@@ -537,25 +551,25 @@
     "brand": "🔥 ghfind · veja como você se sai"
   },
   "tiers": {
-    "god": {
-      "name": "GOD",
-      "blurb": "Lendário · Hall da Fama"
-    },
-    "elite": {
-      "name": "ELITE",
-      "blurb": "Elite · Dev de primeira"
-    },
-    "solid": {
-      "name": "SOLID",
-      "blurb": "Sólido · Confiável"
+    "trash": {
+      "name": "Condensação Qi",
+      "blurb": "Primeiros passos · Construindo a base"
     },
     "npc": {
-      "name": "NPC",
-      "blurb": "Mediano · Sem destaque"
+      "name": "Formação Núcleo",
+      "blurb": "Núcleo formado · Mostrando fio"
     },
-    "trash": {
-      "name": "TRASH",
-      "blurb": "Baixo valor · Provável fábrica de atividade"
+    "solid": {
+      "name": "Têmpera Espacial",
+      "blurb": "Maestria sem esforço"
+    },
+    "elite": {
+      "name": "Integ. Corporal",
+      "blurb": "Em harmonia · Mestre de elite"
+    },
+    "god": {
+      "name": "Grande Ascensão",
+      "blurb": "Perto do topo · Hall da fama"
     }
   },
   "dimensions": {
@@ -654,8 +668,8 @@
         "body": "O snapshot é pontuado em maturidade da conta, qualidade de projetos originais, qualidade das contribuições, impacto no ecossistema, influência na comunidade e autenticidade da atividade, com penalidades por farming de PRs, inflação de stars e padrões de spam de template."
       },
       {
-        "title": "3. Receber nota, nível e zoada",
-        "body": "Você recebe uma nota reproduzível de 0 a 100 com um nível de Trash a God, um detalhamento por dimensão mostrando exatamente o que segura sua nota pra baixo e — só se você pedir — uma zoada impiedosa escrita por IA."
+        "title": "3. Receba nível de aventureiro, reino e roast",
+        "body": "Você recebe um nível de aventureiro reproduzível (Lv.1–100), um reino de cultivo de Condensação Qi a Grande Ascensão, um detalhamento por dimensão mostrando o que segura a nota e — só se pedir — um roast espirituoso escrito por IA."
       }
     ],
     "numbersHeading": "O ghfind em números",
@@ -2084,6 +2098,40 @@
         "followers": "Followers",
         "source": "Follow counts from ghfind"
       }
+    }
+  },
+  "realms": {
+    "qi": {
+      "name": "Condensação Qi",
+      "blurb": "Primeiros passos · Construindo a base"
+    },
+    "foundation": {
+      "name": "Fundação",
+      "blurb": "Base pronta · Progresso constante"
+    },
+    "goldenCore": {
+      "name": "Formação Núcleo",
+      "blurb": "Núcleo formado · Mostrando fio"
+    },
+    "nascentSoul": {
+      "name": "Alma Nascente",
+      "blurb": "Alma despertada · Estilo próprio"
+    },
+    "deity": {
+      "name": "Transf. Divina",
+      "blurb": "Mente clara · Influência real"
+    },
+    "voidRefining": {
+      "name": "Têmpera Espacial",
+      "blurb": "Maestria sem esforço"
+    },
+    "integration": {
+      "name": "Integ. Corporal",
+      "blurb": "Em harmonia · Mestre de elite"
+    },
+    "mahayana": {
+      "name": "Grande Ascensão",
+      "blurb": "Perto do topo · Hall da fama"
     }
   }
 }

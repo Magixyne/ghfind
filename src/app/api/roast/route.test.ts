@@ -66,6 +66,9 @@ vi.mock("@/lib/llm", () => ({
   LlmTimeoutError: class LlmTimeoutError extends Error {},
 }));
 vi.mock("@/lib/roast-v13/chain", () => ({ generateRoastV13: mocks.generateRoastV13 }));
+// These tests exercise the in-request chain. A deployment with a ROAST_JOB
+// binding attaches instead; that path is covered in roast-durable.test.ts.
+vi.mock("@/lib/roast-job", () => ({ roastJob: () => null }));
 
 import { POST } from "./route";
 
@@ -189,9 +192,11 @@ describe("POST /api/roast quick score contract", () => {
     expect(mocks.checkRoastNetworkRateLimit).not.toHaveBeenCalled();
   });
 
-  it("serves a compatible roast cache even when the browser asks to refresh", async () => {
+  it("serves a compatible roast cache even when the browser asks to refresh a fresh scan", async () => {
     const snapshotHash = "a".repeat(64);
     mocks.defaultLlmConfig.mockReturnValue(null);
+    // Within the 24h manual rescan cooldown: refresh is not honored, cache replays.
+    mocks.getCanonicalScoreWriteIdentity.mockResolvedValue({ scannedAt: Date.now() - 60_000, token: "token" });
     mocks.getCurrentCanonicalQuickScan.mockResolvedValue({ scan, snapshotHash });
     mocks.getCachedRoast.mockResolvedValue({
       report: "## 锐评\n工作扎实。",
@@ -213,6 +218,37 @@ describe("POST /api/roast quick score contract", () => {
     await new Response(response.body).text();
     expect(mocks.checkRoastRateLimit).not.toHaveBeenCalled();
     expect(mocks.acquireRoastLock).not.toHaveBeenCalled();
+  });
+
+  it("honors refresh past the 24h cooldown by skipping a compatible roast cache", async () => {
+    const snapshotHash = "a".repeat(64);
+    mocks.defaultLlmConfig.mockReturnValue({ baseURL: "https://llm.example.test", apiKey: "key", model: "model" });
+    mocks.getCanonicalScoreWriteIdentity.mockResolvedValue({
+      scannedAt: Date.now() - 25 * 60 * 60 * 1000,
+      token: "token",
+    });
+    mocks.getCurrentCanonicalQuickScan.mockResolvedValue({ scan, snapshotHash });
+    mocks.getCachedRoast.mockResolvedValue({
+      report: "## 锐评\n旧稿。",
+      snapshot_hash: snapshotHash,
+      delta: 0,
+      tags: { zh: [], en: [] },
+      final_score: 71,
+      tier: "人上人",
+      roast_line: { zh: "旧稿。", en: "Old draft." },
+    });
+
+    const response = await POST(new NextRequest("https://example.test/api/roast", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scan, refresh: true, lang: "zh" }),
+    }));
+
+    expect(response.status).toBe(200);
+    await new Response(response.body).text();
+    // Stale refresh skips cache/archive and takes the generation path.
+    expect(mocks.getCachedRoast).not.toHaveBeenCalled();
+    expect(mocks.acquireRoastLock).toHaveBeenCalled();
   });
 
   it("keeps machine-authenticated callers on their IP budget", async () => {

@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   after: vi.fn(),
   getAccountDetail: vi.fn(),
   admitVersionUpgradeRescan: vi.fn(),
+  maybeScheduleVisitRefresh: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -50,6 +51,13 @@ vi.mock("@/lib/redis", () => ({
   tryAcquireScanRefresh: mocks.tryAcquireScanRefresh,
   rateLimitHeaders: mocks.rateLimitHeaders,
 }));
+vi.mock("@/lib/scan-background-refresh", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/scan-background-refresh")>();
+  return {
+    ...actual,
+    maybeScheduleVisitRefresh: mocks.maybeScheduleVisitRefresh,
+  };
+});
 vi.mock("next/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/server")>();
   return { ...actual, after: mocks.after };
@@ -245,7 +253,7 @@ describe("POST /api/scan immediate quick contract", () => {
       served_score_version: SCORE_CACHE_VERSION,
     });
     expect(mocks.after).toHaveBeenCalledOnce();
-    expect(mocks.coalesceScan).toHaveBeenCalledWith("DemoDev", expect.any(Function), { background: true });
+    expect(mocks.coalesceScan).toHaveBeenCalledWith("DemoDev", expect.any(Function), { background: true, force: true, continueOnDeadline: true });
   });
 
   it("skips background GitHub refresh when the cooldown is held", async () => {
@@ -261,7 +269,7 @@ describe("POST /api/scan immediate quick contract", () => {
     expect(mocks.coalesceScan).not.toHaveBeenCalledWith(
       "DemoDev",
       expect.any(Function),
-      { background: true },
+      { background: true, force: true },
     );
   });
 
@@ -421,7 +429,7 @@ describe("POST /api/scan on-view score version upgrade", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ cached: false, scoring: { final_score: 71 } });
-    expect(mocks.admitVersionUpgradeRescan).toHaveBeenCalledWith("DemoDev", 20);
+    expect(mocks.admitVersionUpgradeRescan).toHaveBeenCalledWith("DemoDev", 100);
     expect(mocks.coalesceScan).toHaveBeenCalledWith("DemoDev", expect.any(Function), expect.objectContaining({ force: false }));
     // The automatic path always pays the per-IP limit, even with a session.
     expect(mocks.checkRateLimit).toHaveBeenCalledWith("0.0.0.0");

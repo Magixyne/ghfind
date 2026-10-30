@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"encoding/json"
 	"math"
 	"regexp"
 	"sort"
@@ -93,16 +94,21 @@ type ImpactRepo struct {
 }
 
 type ScanResult struct {
-	Metrics           RawMetrics    `json:"metrics"`
-	TopRepos          []TopRepo     `json:"top_repos"`
-	RecentPRs         []RecentPR    `json:"recent_prs"`
-	FloodPRTitles     []string      `json:"flood_pr_titles"`
-	ImpactRepos       []ImpactRepo  `json:"impact_repos,omitempty"`
-	VerifiedImpactPRs []RecentPR    `json:"verified_impact_prs,omitempty"`
-	SignatureWork     SignatureWork `json:"signature_work"`
-	PinnedRepos       []string      `json:"pinned_repos,omitempty"`
-	Organizations     []string      `json:"organizations,omitempty"`
-	Scoring           Scoring       `json:"scoring"`
+	Collection        *CollectionCoverage `json:"collection,omitempty"`
+	Metrics           RawMetrics          `json:"metrics"`
+	TopRepos          []TopRepo           `json:"top_repos"`
+	RecentPRs         []RecentPR          `json:"recent_prs"`
+	FloodPRTitles     []string            `json:"flood_pr_titles"`
+	ImpactRepos       []ImpactRepo        `json:"impact_repos,omitempty"`
+	VerifiedImpactPRs []RecentPR          `json:"verified_impact_prs,omitempty"`
+	SignatureWork     SignatureWork       `json:"signature_work"`
+	PinnedRepos       []string            `json:"pinned_repos,omitempty"`
+	Organizations     []string            `json:"organizations,omitempty"`
+	Scoring           Scoring             `json:"scoring"`
+	// SourceStatus is the per-source ledger written to public_scan_runs.
+	// It stays off the snapshot JSON so a split and an in-process collect
+	// of the same facts keep the same snapshot hash.
+	SourceStatus json.RawMessage `json:"-"`
 }
 
 func repoDisplayName(repo TopRepo) string {

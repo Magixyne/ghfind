@@ -1,3 +1,5 @@
+import { scanCoverage } from "@/lib/scan-coverage";
+import { scheduleFullScanIfNeeded } from "@/lib/scan-background-refresh";
 import { NextRequest, NextResponse, after } from "next/server";
 import { notifyCampaignCardGenerated } from "@/lib/campaign-notify";
 import { campaignSlug, type CampaignSlug } from "@/lib/campaigns";
@@ -20,8 +22,11 @@ import {
   getStaleCachedScan,
   isScanPending,
   rateLimitHeaders,
-  tryAcquireScanRefresh,
 } from "@/lib/redis";
+import {
+  maybeScheduleVisitRefresh,
+  scheduleBackgroundRefresh,
+} from "@/lib/scan-background-refresh";
 import { GitHubDataUnavailableError } from "@/lib/github";
 import { SCAN_PENDING_RETRY_AFTER_SECONDS, ScanBusyError, ScanPendingError } from "@/lib/scan-protection";
 import { SCORE_CACHE_VERSION } from "@/lib/cache-version";
@@ -124,30 +129,14 @@ async function produceFreshScan(username: string): Promise<ScanResult> {
   const scannedAt = Date.now();
   const quickScan = await buildScanResult(username);
   if (!(await persistQuickScan(quickScan, scannedAt))) throw new ScorePersistenceError();
+  scheduleFullScanIfNeeded(quickScan);
   return Object.assign(quickScan, { scanned_at: scannedAt });
-}
-
-async function refreshScanInBackground(username: string): Promise<void> {
-  if (!(await tryAcquireScanRefresh(username))) return;
-  try {
-    await coalesceScan(username, () => produceFreshScan(username), { background: true });
-  } catch (error) {
-    logFreshScanFailure(error, {
-      route: "scan",
-      username,
-      persistenceFailure: error instanceof ScorePersistenceError,
-    });
-  }
-}
-
-function scheduleBackgroundRefresh(username: string): void {
-  after(() => refreshScanInBackground(username));
 }
 
 async function staleReadResponse(input: {
   scan: ScanResult;
   headers: Record<string, string>;
-  coverage: "quick" | "legacy";
+  coverage: ReturnType<typeof scanCoverage> | "legacy";
   servedScoreVersion: string;
   scannedAt?: number;
   legacy?: boolean;
@@ -249,9 +238,7 @@ function immediateResponse(input: {
     {
       ...input.scan,
       cached: input.cached,
-      // The bounded collector is the product contract. It never waits for a
-      // second full-history pass before scoring or roasting the account.
-      coverage: "quick",
+      coverage: scanCoverage(input.scan),
       ...(scannedAt ? { scanned_at: scannedAt } : {}),
     },
     { headers: input.headers },
@@ -397,6 +384,13 @@ export async function POST(req: NextRequest) {
     const indexed = await getCurrentCanonicalQuickScan(username);
     if (indexed) {
       await recordSuccessfulLookup(indexed.scan.metrics.username, ip, campaign);
+      // Cache miss but durable snapshot still present: serve it immediately and,
+      // when older than ~24h, kick a score-only background refresh (no LLM).
+      maybeScheduleVisitRefresh({
+        username,
+        scannedAt: indexed.scannedAt,
+        headers: req.headers,
+      });
       return attachAnonymousSession(
         immediateResponse({
           scan: indexed.scan,
@@ -473,7 +467,7 @@ export async function POST(req: NextRequest) {
           await staleReadResponse({
             scan: staleCached,
             headers: fallbackHeaders,
-            coverage: "quick",
+            coverage: scanCoverage(staleCached),
             servedScoreVersion: SCORE_CACHE_VERSION,
           }),
           anonymousSession,
@@ -487,7 +481,7 @@ export async function POST(req: NextRequest) {
           await staleReadResponse({
             scan: verified.scan,
             headers: fallbackHeaders,
-            coverage: "quick",
+            coverage: scanCoverage(verified.scan),
             servedScoreVersion: SCORE_CACHE_VERSION,
             scannedAt: verified.scannedAt,
           }),
